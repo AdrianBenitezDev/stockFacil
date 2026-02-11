@@ -43,7 +43,9 @@ let scannerMode = null;
 let currentUser = null;
 let allStockProducts = [];
 let selectedStockProductId = null;
-const isMobile = window.matchMedia("(pointer: coarse)").matches;
+const UI_MODE_STORAGE_KEY = "kioscoStockUiMode";
+const autoDetectedMobile = detectMobileDevice();
+let forcedUiMode = loadUiModePreference();
 const keyboardScanner = createKeyboardScanner(handleKeyboardBarcode);
 
 init().catch((error) => {
@@ -66,6 +68,7 @@ async function init() {
   renderCategoryOptions(PRODUCT_CATEGORIES);
   renderStockCategoryOptions(PRODUCT_CATEGORIES);
   setupDeviceSpecificUI();
+  focusBarcodeInputIfDesktop();
   renderCurrentSale(currentSaleItems);
   await refreshStock();
   await refreshCashPanel();
@@ -85,6 +88,10 @@ function wireEvents() {
     await refreshCashPanel();
   });
   dom.addProductForm.addEventListener("submit", handleAddProductSubmit);
+  dom.uiModeToggle.addEventListener("click", () => {
+    handleToggleUiMode().catch((error) => console.error(error));
+  });
+  dom.barcodeInput.addEventListener("keydown", handleBarcodeEnterOnAddProduct);
   dom.stockSearchInput.addEventListener("input", applyStockFilters);
   dom.stockCategoryFilter.addEventListener("change", applyStockFilters);
   dom.startAddScanBtn.addEventListener("click", handleStartAddBarcodeScanner);
@@ -122,7 +129,27 @@ async function handleAddProductSubmit(event) {
   dom.addProductForm.reset();
   renderCategoryOptions(PRODUCT_CATEGORIES);
   setProductFeedbackSuccess(result.message);
+  focusBarcodeInputIfDesktop();
   await refreshStock();
+}
+
+async function handleBarcodeEnterOnAddProduct(event) {
+  if (event.key !== "Enter") return;
+  event.preventDefault();
+
+  const barcode = String(dom.barcodeInput.value || "").trim();
+  if (!barcode) return;
+
+  const existing = await findProductByBarcodeForCurrentKiosco(barcode);
+  if (existing) {
+    setProductFeedbackError("Ese codigo ya existe. Usa otro para alta o edita en stock.");
+    dom.barcodeInput.focus({ preventScroll: true });
+    dom.barcodeInput.select();
+    return;
+  }
+
+  setProductFeedbackSuccess("Codigo disponible. Completa nombre y datos del producto.");
+  dom.productNameInput.focus({ preventScroll: true });
 }
 
 async function refreshStock() {
@@ -176,7 +203,10 @@ async function switchMode(mode) {
     await stopAnyScanner();
   }
   setMode(mode);
-  keyboardScanner.setEnabled(mode === "sell" || mode === "stock");
+  keyboardScanner.setEnabled(shouldEnableKeyboardScanner(mode));
+  if (mode === "add") {
+    focusBarcodeInputIfDesktop();
+  }
 }
 
 async function handleStartScanner() {
@@ -444,13 +474,19 @@ function wireStockRowEvents() {
 }
 
 function setupDeviceSpecificUI() {
-  const showCameraControls = isMobile;
+  const showCameraControls = isMobileMode();
+  document.body.classList.toggle("ui-mode-mobile", showCameraControls);
+  document.body.classList.toggle("ui-mode-pc", !showCameraControls);
   dom.addCameraControls.classList.toggle("hidden", !showCameraControls);
+  dom.addScanFeedback.classList.toggle("hidden", !showCameraControls);
+  dom.addScannerReader.classList.toggle("hidden", !showCameraControls);
   dom.startScanBtn.classList.toggle("hidden", !showCameraControls);
   dom.stopScanBtn.classList.toggle("hidden", !showCameraControls);
   dom.stockCameraControls.classList.toggle("hidden", !showCameraControls);
   dom.saleScannerReader.classList.toggle("hidden", !showCameraControls);
   dom.saleDeviceHint.classList.toggle("hidden", showCameraControls);
+  forceCameraControlsDisplay(showCameraControls);
+  renderUiModeToggleLabel();
 }
 
 async function handleKeyboardBarcode(barcode) {
@@ -467,4 +503,77 @@ async function handleKeyboardBarcode(barcode) {
 
 function redirectToLogin() {
   window.location.href = "index.html";
+}
+
+function focusBarcodeInputIfDesktop() {
+  if (isMobileMode()) return;
+  if (!dom.barcodeInput) return;
+  requestAnimationFrame(() => {
+    dom.barcodeInput.focus({ preventScroll: true });
+  });
+}
+
+function detectMobileDevice() {
+  const ua = navigator.userAgent || "";
+  const byUserAgent = /Android|iPhone|iPad|iPod|Mobile/i.test(ua);
+  const byViewport = window.innerWidth <= 820;
+  return byUserAgent || byViewport;
+}
+
+function isMobileMode() {
+  if (forcedUiMode === "mobile") return true;
+  if (forcedUiMode === "pc") return false;
+  return autoDetectedMobile;
+}
+
+async function handleToggleUiMode() {
+  await stopAnyScanner();
+  const nextMode = isMobileMode() ? "pc" : "mobile";
+  forcedUiMode = nextMode;
+  persistUiModePreference(nextMode);
+  setupDeviceSpecificUI();
+  const currentMode = getCurrentMode();
+  keyboardScanner.setEnabled(shouldEnableKeyboardScanner(currentMode));
+  if (currentMode === "add") {
+    focusBarcodeInputIfDesktop();
+  }
+}
+
+function renderUiModeToggleLabel() {
+  dom.uiModeToggle.textContent = isMobileMode() ? "Modo: Celular" : "Modo: PC";
+}
+
+function getCurrentMode() {
+  if (!dom.sellPanel.classList.contains("hidden")) return "sell";
+  if (!dom.stockPanel.classList.contains("hidden")) return "stock";
+  if (!dom.cashPanel.classList.contains("hidden")) return "cash";
+  return "add";
+}
+
+function shouldEnableKeyboardScanner(mode) {
+  if (isMobileMode()) return false;
+  return mode === "sell" || mode === "stock";
+}
+
+function loadUiModePreference() {
+  const value = localStorage.getItem(UI_MODE_STORAGE_KEY);
+  if (value === "mobile" || value === "pc") return value;
+  return "auto";
+}
+
+function persistUiModePreference(mode) {
+  localStorage.setItem(UI_MODE_STORAGE_KEY, mode);
+}
+
+function forceCameraControlsDisplay(showCameraControls) {
+  const displayValue = showCameraControls ? "" : "none";
+  dom.addCameraControls.style.display = displayValue;
+  dom.addScanFeedback.style.display = displayValue;
+  dom.addScannerReader.style.display = displayValue;
+  dom.stockCameraControls.style.display = displayValue;
+  dom.stockFeedback.style.display = displayValue;
+  dom.stockScannerReader.style.display = displayValue;
+  dom.startScanBtn.style.display = displayValue;
+  dom.stopScanBtn.style.display = displayValue;
+  dom.saleScannerReader.style.display = displayValue;
 }

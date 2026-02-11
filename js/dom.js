@@ -1,6 +1,7 @@
 export const dom = {
   sessionInfo: document.getElementById("session-info"),
   logoutBtn: document.getElementById("logout-btn"),
+  uiModeToggle: document.getElementById("ui-mode-toggle"),
   addModeBtn: document.getElementById("mode-add-product"),
   sellModeBtn: document.getElementById("mode-sell"),
   stockModeBtn: document.getElementById("mode-stock"),
@@ -11,6 +12,7 @@ export const dom = {
   cashPanel: document.getElementById("cash-panel"),
   addProductForm: document.getElementById("add-product-form"),
   barcodeInput: document.getElementById("barcode"),
+  productNameInput: document.getElementById("product-name"),
   addCameraControls: document.getElementById("add-camera-controls"),
   providerCostGroup: document.getElementById("provider-cost-group"),
   providerCostInput: document.getElementById("provider-cost"),
