@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Kiosco Stock</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <main class="container">
+    <section>
+      <h1>Kiosco Stock</h1>
+      <p class="subtitle">Ingresar al sistema</p>
+
+      <form id="login-form" autocomplete="off">
+        <label for="username">Usuario</label>
+        <input id="username" name="username" type="text" required>
+
+        <label for="password">Contrasena</label>
+        <input id="password" name="password" type="password" required>
+
+        <button type="submit">Iniciar sesion</button>
+      </form>
+
+      <p id="login-feedback" class="feedback" aria-live="polite"></p>
+    </section>
+  </main>
+
+  <script type="module" src="js/login.js"></script>
+</body>
+</html>

@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Kiosco Stock - Panel</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <main class="container">
+    <section id="app-view">
+      <header class="app-header">
+        <div>
+          <h2>Panel principal</h2>
+          <p id="session-info" class="subtitle"></p>
+        </div>
+        <button id="logout-btn" type="button">Cerrar sesion</button>
+      </header>
+
+      <nav class="top-actions top-actions-4">
+        <button id="mode-add-product" class="mode-btn is-active" type="button">AGREGAR NUEVO PRODUCTO</button>
+        <button id="mode-sell" class="mode-btn mode-btn-secondary" type="button">ESCANEAR Y VENDER</button>
+        <button id="mode-stock" class="mode-btn mode-btn-secondary" type="button">STOCK</button>
+        <button id="mode-cash" class="mode-btn mode-btn-secondary" type="button">CAJA</button>
+      </nav>
+
+      <section id="add-product-panel" class="panel">
+        <h3>Alta de producto</h3>
+        <form id="add-product-form" autocomplete="off">
+          <label for="barcode">Codigo de barras</label>
+          <input id="barcode" name="barcode" type="text" required>
+
+          <label for="product-name">Nombre</label>
+          <input id="product-name" name="name" type="text" required>
+
+          <label for="product-category">Categoria</label>
+          <select id="product-category" name="category" required>
+            <option value="">Selecciona una categoria</option>
+          </select>
+
+          <label for="product-price">Precio</label>
+          <input id="product-price" name="price" type="number" min="0" step="0.01" required>
+
+          <label for="product-stock">Stock inicial</label>
+          <input id="product-stock" name="stock" type="number" min="0" step="1" required>
+
+          <button type="submit">Guardar producto</button>
+        </form>
+        <p id="product-feedback" class="feedback" aria-live="polite"></p>
+      </section>
+
+      <section id="sell-panel" class="panel hidden">
+        <h3>Escanear y vender</h3>
+        <div class="scan-actions">
+          <button id="start-scan-btn" type="button">Iniciar camara</button>
+          <button id="stop-scan-btn" type="button" class="mode-btn-secondary">Detener camara</button>
+          <button id="clear-sale-btn" type="button" class="mode-btn-secondary">Limpiar venta</button>
+        </div>
+        <p id="scan-feedback" class="feedback" aria-live="polite"></p>
+        <div id="scanner-reader" class="scanner-box"></div>
+
+        <h4>Venta actual</h4>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Codigo</th>
+                <th>Producto</th>
+                <th>Cantidad</th>
+                <th>Precio</th>
+                <th>Subtotal</th>
+              </tr>
+            </thead>
+            <tbody id="sale-table-body">
+              <tr>
+                <td colspan="5">No hay productos escaneados.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <p class="sale-total-line">Total: <strong id="sale-total">$0.00</strong></p>
+      </section>
+
+      <section id="stock-panel" class="panel hidden">
+        <h3>Stock</h3>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Codigo</th>
+                <th>Nombre</th>
+                <th>Categoria</th>
+                <th>Precio</th>
+                <th>Stock</th>
+              </tr>
+            </thead>
+            <tbody id="stock-table-body">
+              <tr>
+                <td colspan="5">Sin productos cargados.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section id="cash-panel" class="panel hidden">
+        <h3>Caja</h3>
+        <p>En este bloque vamos a mostrar total del turno, cierres y monto a entregar.</p>
+      </section>
+    </section>
+  </main>
+
+  <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
+  <script type="module" src="js/panel.js"></script>
+</body>
+</html>

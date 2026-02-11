@@ -1,0 +1,22 @@
+export const dom = {
+  sessionInfo: document.getElementById("session-info"),
+  logoutBtn: document.getElementById("logout-btn"),
+  addModeBtn: document.getElementById("mode-add-product"),
+  sellModeBtn: document.getElementById("mode-sell"),
+  stockModeBtn: document.getElementById("mode-stock"),
+  cashModeBtn: document.getElementById("mode-cash"),
+  addProductPanel: document.getElementById("add-product-panel"),
+  sellPanel: document.getElementById("sell-panel"),
+  stockPanel: document.getElementById("stock-panel"),
+  cashPanel: document.getElementById("cash-panel"),
+  addProductForm: document.getElementById("add-product-form"),
+  productFeedback: document.getElementById("product-feedback"),
+  productCategory: document.getElementById("product-category"),
+  stockTableBody: document.getElementById("stock-table-body"),
+  startScanBtn: document.getElementById("start-scan-btn"),
+  stopScanBtn: document.getElementById("stop-scan-btn"),
+  clearSaleBtn: document.getElementById("clear-sale-btn"),
+  scanFeedback: document.getElementById("scan-feedback"),
+  saleTableBody: document.getElementById("sale-table-body"),
+  saleTotal: document.getElementById("sale-total")
+};
