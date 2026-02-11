@@ -21,8 +21,8 @@ export const SEED_USERS = [
   {
     id: "u-dueno-001",
     kioscoId: DEFAULT_KIOSCO_ID,
-    username: "dueno",
-    password: "dueno123",
+    username: "kike",
+    password: "nike123",
     role: "dueno",
     displayName: "Dueno"
   },
