@@ -34,6 +34,30 @@ export async function openDatabase() {
           products.createIndex("byKiosco", "kioscoId", { unique: false });
         }
       }
+
+      if (!database.objectStoreNames.contains(STORES.sales)) {
+        const sales = database.createObjectStore(STORES.sales, { keyPath: "id" });
+        sales.createIndex("byKioscoCreatedAt", ["kioscoId", "createdAt"], { unique: false });
+        sales.createIndex("byKioscoUserCreatedAt", ["kioscoId", "userId", "createdAt"], { unique: false });
+      } else {
+        const sales = request.transaction.objectStore(STORES.sales);
+        if (!sales.indexNames.contains("byKioscoCreatedAt")) {
+          sales.createIndex("byKioscoCreatedAt", ["kioscoId", "createdAt"], { unique: false });
+        }
+        if (!sales.indexNames.contains("byKioscoUserCreatedAt")) {
+          sales.createIndex("byKioscoUserCreatedAt", ["kioscoId", "userId", "createdAt"], { unique: false });
+        }
+      }
+
+      if (!database.objectStoreNames.contains(STORES.saleItems)) {
+        const saleItems = database.createObjectStore(STORES.saleItems, { keyPath: "id" });
+        saleItems.createIndex("bySaleId", "saleId", { unique: false });
+      } else {
+        const saleItems = request.transaction.objectStore(STORES.saleItems);
+        if (!saleItems.indexNames.contains("bySaleId")) {
+          saleItems.createIndex("bySaleId", "saleId", { unique: false });
+        }
+      }
     };
 
     request.onsuccess = () => resolve(request.result);

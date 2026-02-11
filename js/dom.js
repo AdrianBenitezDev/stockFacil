@@ -21,6 +21,7 @@ export const dom = {
   startScanBtn: document.getElementById("start-scan-btn"),
   stopScanBtn: document.getElementById("stop-scan-btn"),
   clearSaleBtn: document.getElementById("clear-sale-btn"),
+  checkoutSaleBtn: document.getElementById("checkout-sale-btn"),
   scanFeedback: document.getElementById("scan-feedback"),
   saleTableBody: document.getElementById("sale-table-body"),
   saleTotal: document.getElementById("sale-total")

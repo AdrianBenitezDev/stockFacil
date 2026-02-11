@@ -8,6 +8,7 @@ import {
   listProductsForCurrentKiosco
 } from "./products.js";
 import { isScannerReady, isScannerRunning, startScanner, stopScanner } from "./scanner.js";
+import { chargeSale } from "./sales.js";
 import {
   clearAddScanFeedback,
   clearScanFeedback,
@@ -63,6 +64,7 @@ function wireEvents() {
   dom.startScanBtn.addEventListener("click", handleStartScanner);
   dom.stopScanBtn.addEventListener("click", handleStopScanner);
   dom.clearSaleBtn.addEventListener("click", handleClearSale);
+  dom.checkoutSaleBtn.addEventListener("click", handleCheckoutSale);
 }
 
 async function handleLogout() {
@@ -173,8 +175,14 @@ async function handleDetectedCode(barcode) {
   }
 
   const existing = currentSaleItems.find((item) => item.productId === product.id);
+  const nextQuantity = existing ? existing.quantity + 1 : 1;
+  if (nextQuantity > Number(product.stock || 0)) {
+    setScanFeedback(`Stock insuficiente para ${product.name}. Disponible: ${product.stock}.`);
+    return;
+  }
+
   if (existing) {
-    existing.quantity += 1;
+    existing.quantity = nextQuantity;
     existing.subtotal = existing.quantity * existing.price;
   } else {
     currentSaleItems.push({
@@ -189,6 +197,25 @@ async function handleDetectedCode(barcode) {
 
   renderCurrentSale(currentSaleItems);
   setScanFeedback(`Escaneado: ${product.name}`, "success");
+}
+
+async function handleCheckoutSale() {
+  const result = await chargeSale(currentSaleItems);
+  if (!result.ok) {
+    setScanFeedback(result.error);
+    if (result.requiresLogin) {
+      redirectToLogin();
+    }
+    return;
+  }
+
+  currentSaleItems.length = 0;
+  renderCurrentSale(currentSaleItems);
+  setScanFeedback(
+    `Venta cobrada. Items: ${result.itemsCount}. Total: $${result.total.toFixed(2)}.`,
+    "success"
+  );
+  await refreshStock();
 }
 
 async function handleDetectedAddBarcode(barcode) {
