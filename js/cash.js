@@ -59,6 +59,8 @@ export async function closeTodayShift() {
     username: session.username,
     dateKey,
     totalAmount: summary.totalAmount,
+    totalCost: summary.totalCost,
+    profitAmount: summary.profitAmount,
     salesCount: summary.salesCount,
     itemsCount: summary.itemsCount,
     createdAt: new Date().toISOString()
@@ -76,8 +78,12 @@ function summarizeSales(sales) {
   const totalAmount = Number(
     sales.reduce((acc, sale) => acc + Number(sale.total || 0), 0).toFixed(2)
   );
+  const totalCost = Number(
+    sales.reduce((acc, sale) => acc + Number(sale.totalCost || 0), 0).toFixed(2)
+  );
+  const profitAmount = Number((totalAmount - totalCost).toFixed(2));
 
-  return { salesCount, itemsCount, totalAmount };
+  return { salesCount, itemsCount, totalAmount, totalCost, profitAmount };
 }
 
 async function loadScopedSales(session, startIso, endIso) {

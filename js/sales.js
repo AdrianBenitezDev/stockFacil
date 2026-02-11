@@ -17,6 +17,7 @@ export async function chargeSale(cartItems) {
   const saleId = crypto.randomUUID();
   const itemsCount = cartItems.reduce((acc, item) => acc + Number(item.quantity || 0), 0);
   const total = cartItems.reduce((acc, item) => acc + Number(item.subtotal || 0), 0);
+  let totalCost = 0;
 
   try {
     await runWriteTransaction(db, [STORES.products, STORES.sales, STORES.saleItems], async (tx) => {
@@ -42,6 +43,10 @@ export async function chargeSale(cartItems) {
         product.stock = Number(product.stock || 0) - requestedQty;
         productsStore.put(product);
 
+        const unitProviderCost = Number(product.providerCost || 0);
+        const subtotalCost = Number((unitProviderCost * requestedQty).toFixed(2));
+        totalCost += subtotalCost;
+
         saleItemsStore.put({
           id: crypto.randomUUID(),
           saleId,
@@ -53,9 +58,15 @@ export async function chargeSale(cartItems) {
           quantity: requestedQty,
           unitPrice: Number(cartItem.price || 0),
           subtotal: Number(cartItem.subtotal || 0),
+          unitProviderCost,
+          subtotalCost,
           createdAt: now
         });
       }
+
+      const saleTotal = Number(total.toFixed(2));
+      const saleCost = Number(totalCost.toFixed(2));
+      const saleProfit = Number((saleTotal - saleCost).toFixed(2));
 
       salesStore.put({
         id: saleId,
@@ -63,7 +74,9 @@ export async function chargeSale(cartItems) {
         userId: session.userId,
         username: session.username,
         role: session.role,
-        total: Number(total.toFixed(2)),
+        total: saleTotal,
+        totalCost: saleCost,
+        profit: saleProfit,
         itemsCount,
         createdAt: now
       });
@@ -76,6 +89,8 @@ export async function chargeSale(cartItems) {
     ok: true,
     saleId,
     total: Number(total.toFixed(2)),
+    totalCost: Number(totalCost.toFixed(2)),
+    profit: Number((total - totalCost).toFixed(2)),
     itemsCount
   };
 }

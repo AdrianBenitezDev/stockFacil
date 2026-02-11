@@ -2,6 +2,9 @@ import { dom } from "./dom.js";
 
 export function showAppShell(user) {
   dom.sessionInfo.textContent = `${user.displayName} (${user.role}) - ${user.kioscoId}`;
+  const isOwner = user.role === "dueno";
+  dom.providerCostGroup.classList.toggle("hidden", !isOwner);
+  dom.providerCostInput.required = isOwner;
   setMode("add");
 }
 
@@ -122,11 +125,12 @@ export function renderCashSummary(summary) {
   dom.cashSalesCount.textContent = String(summary.salesCount || 0);
   dom.cashItemsCount.textContent = String(summary.itemsCount || 0);
   dom.cashTotalAmount.textContent = `$${Number(summary.totalAmount || 0).toFixed(2)}`;
+  dom.cashProfitAmount.textContent = `$${Number(summary.profitAmount || 0).toFixed(2)}`;
 }
 
 export function renderCashSalesTable(sales) {
   if (!sales || sales.length === 0) {
-    dom.cashSalesTableBody.innerHTML = '<tr><td colspan="4">No hay ventas registradas hoy.</td></tr>';
+    dom.cashSalesTableBody.innerHTML = '<tr><td colspan="5">No hay ventas registradas hoy.</td></tr>';
     return;
   }
 
@@ -140,6 +144,7 @@ export function renderCashSalesTable(sales) {
         `<td>${username}</td>`,
         `<td>${Number(sale.itemsCount || 0)}</td>`,
         `<td>$${Number(sale.total || 0).toFixed(2)}</td>`,
+        `<td>$${Number(sale.profit || 0).toFixed(2)}</td>`,
         "</tr>"
       ].join("");
     })

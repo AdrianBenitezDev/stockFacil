@@ -224,7 +224,7 @@ async function handleCheckoutSale() {
   currentSaleItems.length = 0;
   renderCurrentSale(currentSaleItems);
   setScanFeedback(
-    `Venta cobrada. Items: ${result.itemsCount}. Total: $${result.total.toFixed(2)}.`,
+    `Venta cobrada. Items: ${result.itemsCount}. Total: $${result.total.toFixed(2)}. Ganancia: $${result.profit.toFixed(2)}.`,
     "success"
   );
   await refreshStock();
@@ -293,7 +293,7 @@ async function handleCloseShift() {
   }
 
   setCashFeedback(
-    `Turno cerrado. Debes entregar $${result.summary.totalAmount.toFixed(2)}.`,
+    `Turno cerrado. Debes entregar $${result.summary.totalAmount.toFixed(2)}. Ganancia del dia: $${result.summary.profitAmount.toFixed(2)}.`,
     "success"
   );
   await refreshCashPanel();
