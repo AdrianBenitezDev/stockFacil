@@ -1,5 +1,5 @@
 export const DB_NAME = "kioscoStockDB";
-export const DB_VERSION = 5;
+export const DB_VERSION = 6;
 
 export const STORES = {
   users: "users",
@@ -10,7 +10,7 @@ export const STORES = {
 };
 
 export const FIRESTORE_COLLECTIONS = {
-  kioscos: "kioscos",
+  tenants: "tenants",
   usuarios: "usuarios",
   productos: "productos",
   ventas: "ventas",
@@ -19,8 +19,6 @@ export const FIRESTORE_COLLECTIONS = {
   sesiones: "sesiones"
 };
 
-export const SESSION_KEY = "kioscoStockSession";
-export const DEFAULT_KIOSCO_ID = "kiosco-demo-001";
 export const PRODUCT_CATEGORIES = [
   "Bebidas",
   "Golosinas",
@@ -28,31 +26,4 @@ export const PRODUCT_CATEGORIES = [
   "Cigarrillos",
   "Limpieza",
   "Otros"
-];
-
-export const SEED_USERS = [
-  {
-    id: "u-dueno-001",
-    kioscoId: DEFAULT_KIOSCO_ID,
-    username: "kike",
-    password: "nike123",
-    role: "dueno",
-    displayName: "Dueno"
-  },
-  {
-    id: "u-emp-001",
-    kioscoId: DEFAULT_KIOSCO_ID,
-    username: "empleado1",
-    password: "empleado123",
-    role: "empleado",
-    displayName: "Empleado 1"
-  },
-  {
-    id: "u-emp-002",
-    kioscoId: DEFAULT_KIOSCO_ID,
-    username: "empleado2",
-    password: "empleado123",
-    role: "empleado",
-    displayName: "Empleado 2"
-  }
 ];

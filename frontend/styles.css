@@ -209,6 +209,12 @@ body.ui-mode-pc #scanner-reader {
   padding: 1rem;
 }
 
+.owner-admin {
+  margin-top: 1rem;
+  border-top: 1px dashed var(--line);
+  padding-top: 1rem;
+}
+
 h3 {
   margin-top: 0;
 }

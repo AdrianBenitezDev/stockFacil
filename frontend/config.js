@@ -1,5 +1,9 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.2/firebase-app.js";
-import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/10.13.2/firebase-auth.js";
+import {
+  browserLocalPersistence,
+  getAuth,
+  setPersistence
+} from "https://www.gstatic.com/firebasejs/10.13.2/firebase-auth.js";
 import { getFirestore } from "https://www.gstatic.com/firebasejs/10.13.2/firebase-firestore.js";
 
 export const firebaseConfig = {
@@ -18,14 +22,11 @@ export const firestoreDb = getFirestore(firebaseApp);
 let authReadyPromise = null;
 
 export async function ensureFirebaseAuth() {
-  if (firebaseAuth.currentUser) return firebaseAuth.currentUser;
   if (!authReadyPromise) {
-    authReadyPromise = signInAnonymously(firebaseAuth)
-      .then((result) => result.user)
-      .catch((error) => {
-        console.warn("Firebase auth anonimo no disponible:", error?.message || error);
-        return null;
-      });
+    authReadyPromise = setPersistence(firebaseAuth, browserLocalPersistence).catch((error) => {
+      console.warn("No se pudo configurar persistencia de Firebase Auth:", error?.message || error);
+    });
   }
-  return authReadyPromise;
+  await authReadyPromise;
+  return firebaseAuth.currentUser;
 }
