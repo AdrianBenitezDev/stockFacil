@@ -75,3 +75,23 @@ export async function stopScanner() {
 export function isScannerRunning() {
   return scanning;
 }
+
+//pitido para confirmar lectura de codigo
+export function playBeep() {
+  const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  const oscillator = audioCtx.createOscillator();
+  const gainNode = audioCtx.createGain();
+
+  oscillator.type = "sine";
+  oscillator.frequency.value = 1000; // frecuencia del beep
+  gainNode.gain.value = 0.1; // volumen
+
+  oscillator.connect(gainNode);
+  gainNode.connect(audioCtx.destination);
+
+  oscillator.start();
+  setTimeout(() => {
+    oscillator.stop();
+    audioCtx.close();
+  }, 100); // duración en ms
+}

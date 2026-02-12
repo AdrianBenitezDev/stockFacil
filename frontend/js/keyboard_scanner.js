@@ -1,3 +1,5 @@
+import { playBeep } from "./scanner";
+
 export function createKeyboardScanner(onScan) {
   let enabled = false;
   let buffer = "";
@@ -32,6 +34,7 @@ export function createKeyboardScanner(onScan) {
       if (buffer.length >= 6) {
         onScan(buffer);
         event.preventDefault();
+        playBeep();
       }
       reset();
       return;
