@@ -1,5 +1,5 @@
 import { PRODUCT_CATEGORIES } from "./config.js";
-import { clearSession, getUserFromSession, seedInitialUsers } from "./auth.js";
+import { ensureCurrentUserProfile, signOutUser } from "./auth.js";
 import { openDatabase } from "./db.js";
 import { ensureFirebaseAuth } from "../config.js";
 import { dom } from "./dom.js";
@@ -16,6 +16,7 @@ import { closeTodayShift, getCashSnapshotForToday } from "./cash.js";
 import {
   clearAddScanFeedback,
   clearCashFeedback,
+  clearEmployeeFeedback,
   clearScanFeedback,
   clearProductFeedback,
   clearStockFeedback,
@@ -31,6 +32,7 @@ import {
   renderStockTable,
   setAddScanFeedback,
   setCashFeedback,
+  setEmployeeFeedback,
   setScanFeedback,
   setStockFeedback,
   setMode,
@@ -38,6 +40,7 @@ import {
   setProductFeedbackSuccess,
   showAppShell
 } from "./ui.js";
+import { createEmployeeViaCallable } from "./employees.js";
 
 const currentSaleItems = [];
 let scannerMode = null;
@@ -57,16 +60,14 @@ init().catch((error) => {
 async function init() {
   await ensureFirebaseAuth();
   await openDatabase();
-  await seedInitialUsers();
-
-  const user = await getUserFromSession();
-  if (!user) {
+  const profileResult = await ensureCurrentUserProfile();
+  if (!profileResult.ok || !profileResult.user) {
     redirectToLogin();
     return;
   }
-  currentUser = user;
+  currentUser = profileResult.user;
 
-  showAppShell(user);
+  showAppShell(currentUser);
   renderCategoryOptions(PRODUCT_CATEGORIES);
   renderStockCategoryOptions(PRODUCT_CATEGORIES);
   setupDeviceSpecificUI();
@@ -90,6 +91,7 @@ function wireEvents() {
     await refreshCashPanel();
   });
   dom.addProductForm.addEventListener("submit", handleAddProductSubmit);
+  dom.createEmployeeForm?.addEventListener("submit", handleCreateEmployeeSubmit);
   dom.uiModeToggle.addEventListener("click", () => {
     handleToggleUiMode().catch((error) => console.error(error));
   });
@@ -111,7 +113,7 @@ function wireEvents() {
 async function handleLogout() {
   await stopAnyScanner();
   keyboardScanner.setEnabled(false);
-  clearSession();
+  await signOutUser();
   redirectToLogin();
 }
 
@@ -133,6 +135,32 @@ async function handleAddProductSubmit(event) {
   setProductFeedbackSuccess(result.message);
   focusBarcodeInputIfDesktop();
   await refreshStock();
+}
+
+async function handleCreateEmployeeSubmit(event) {
+  event.preventDefault();
+  clearEmployeeFeedback();
+
+  if (!currentUser || currentUser.role !== "empleador") {
+    setEmployeeFeedback("Solo el empleador puede crear empleados.");
+    return;
+  }
+
+  const formData = new FormData(dom.createEmployeeForm);
+  const result = await createEmployeeViaCallable({
+    displayName: formData.get("displayName"),
+    username: formData.get("username"),
+    email: formData.get("email"),
+    password: formData.get("password")
+  });
+
+  if (!result.ok) {
+    setEmployeeFeedback(result.error);
+    return;
+  }
+
+  dom.createEmployeeForm.reset();
+  setEmployeeFeedback("Empleado creado en Firebase correctamente.", "success");
 }
 
 async function handleBarcodeEnterOnAddProduct(event) {
@@ -170,7 +198,7 @@ function applyStockFilters() {
     return matchCategory && matchSearch;
   });
 
-  renderStockTable(filtered, { canEditStock: currentUser?.role === "dueno" });
+  renderStockTable(filtered, { canEditStock: currentUser?.role === "empleador" });
   wireStockRowEvents();
 
   const selectedInFiltered = filtered.find((p) => p.id === selectedStockProductId);

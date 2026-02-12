@@ -30,7 +30,7 @@ export async function chargeSale(cartItems) {
 
       for (const cartItem of cartItems) {
         const product = await reqToPromise(productsStore.get(cartItem.productId));
-        if (!product || product.kioscoId !== session.kioscoId) {
+        if (!product || product.kioscoId !== session.tenantId) {
           throw new Error(`Producto no disponible: ${cartItem.name}.`);
         }
 
@@ -53,7 +53,7 @@ export async function chargeSale(cartItems) {
         const saleItem = {
           id: crypto.randomUUID(),
           saleId,
-          kioscoId: session.kioscoId,
+          kioscoId: session.tenantId,
           userId: session.userId,
           productId: product.id,
           barcode: product.barcode,
@@ -75,7 +75,7 @@ export async function chargeSale(cartItems) {
 
       salePayload = {
         id: saleId,
-        kioscoId: session.kioscoId,
+        kioscoId: session.tenantId,
         userId: session.userId,
         username: session.username,
         role: session.role,

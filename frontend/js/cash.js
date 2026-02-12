@@ -19,10 +19,10 @@ export async function getCashSnapshotForToday() {
   const orderedSales = sales.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
   const summary = summarizeSales(orderedSales);
   const scopeKey = getScopeKey(session);
-  const closureKey = buildClosureKey(session.kioscoId, dateKey, scopeKey);
+  const closureKey = buildClosureKey(session.tenantId, dateKey, scopeKey);
   const todayClosure = await getCashClosureByKey(closureKey);
   const recentClosures = await listRecentClosures(session, scopeKey);
-  const scopeLabel = session.role === "dueno" ? "Vista: todo el kiosco" : "Vista: solo tus ventas";
+  const scopeLabel = session.role === "empleador" ? "Vista: todo el kiosco" : "Vista: solo tus ventas";
 
   return {
     ok: true,
@@ -49,7 +49,7 @@ export async function closeTodayShift() {
   }
 
   const scopeKey = getScopeKey(session);
-  const closureKey = buildClosureKey(session.kioscoId, dateKey, scopeKey);
+  const closureKey = buildClosureKey(session.tenantId, dateKey, scopeKey);
   const existing = await getCashClosureByKey(closureKey);
   if (existing) {
     return {
@@ -61,7 +61,7 @@ export async function closeTodayShift() {
   const closure = {
     id: crypto.randomUUID(),
     closureKey,
-    kioscoId: session.kioscoId,
+    kioscoId: session.tenantId,
     userId: session.userId,
     role: session.role,
     username: session.username,
@@ -99,18 +99,18 @@ function summarizeSales(sales) {
 
 async function listRecentClosures(session, scopeKey) {
   const { startIso, endIso } = getRecentDaysRangeIso(30);
-  const closures = await getCashClosuresByKioscoAndDateRange(session.kioscoId, startIso, endIso);
+  const closures = await getCashClosuresByKioscoAndDateRange(session.tenantId, startIso, endIso);
   return closures
-    .filter((closure) => closure.closureKey === buildClosureKey(session.kioscoId, closure.dateKey, scopeKey))
+    .filter((closure) => closure.closureKey === buildClosureKey(session.tenantId, closure.dateKey, scopeKey))
     .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
     .slice(0, 10);
 }
 
 async function loadScopedSales(session, startIso, endIso) {
-  if (session.role === "dueno") {
-    return getSalesByKioscoAndDateRange(session.kioscoId, startIso, endIso);
+  if (session.role === "empleador") {
+    return getSalesByKioscoAndDateRange(session.tenantId, startIso, endIso);
   }
-  return getSalesByKioscoUserAndDateRange(session.kioscoId, session.userId, startIso, endIso);
+  return getSalesByKioscoUserAndDateRange(session.tenantId, session.userId, startIso, endIso);
 }
 
 function getTodayRangeIso() {
@@ -136,7 +136,7 @@ function getRecentDaysRangeIso(daysBack) {
 }
 
 function getScopeKey(session) {
-  return session.role === "dueno" ? "all" : session.userId;
+  return session.role === "empleador" ? "all" : session.userId;
 }
 
 function buildClosureKey(kioscoId, dateKey, scopeKey) {

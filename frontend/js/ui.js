@@ -1,10 +1,11 @@
 import { dom } from "./dom.js";
 
 export function showAppShell(user) {
-  dom.sessionInfo.textContent = `${user.displayName} (${user.role}) - ${user.kioscoId}`;
-  const isOwner = user.role === "dueno";
+  dom.sessionInfo.textContent = `${user.displayName} (${user.role}) - ${user.tenantId}`;
+  const isOwner = user.role === "empleador";
   dom.providerCostGroup.classList.toggle("hidden", !isOwner);
   dom.providerCostInput.required = isOwner;
+  dom.employeeAdminPanel.classList.toggle("hidden", !isOwner);
   setMode("add");
 }
 
@@ -32,6 +33,16 @@ export function setProductFeedbackSuccess(message) {
 export function clearProductFeedback() {
   dom.productFeedback.style.color = "var(--danger)";
   dom.productFeedback.textContent = "";
+}
+
+export function setEmployeeFeedback(message, kind = "error") {
+  dom.employeeFeedback.style.color = kind === "success" ? "var(--accent)" : "var(--danger)";
+  dom.employeeFeedback.textContent = message;
+}
+
+export function clearEmployeeFeedback() {
+  dom.employeeFeedback.style.color = "var(--danger)";
+  dom.employeeFeedback.textContent = "";
 }
 
 export function renderCategoryOptions(categories) {
@@ -71,7 +82,7 @@ export function renderStockTable(products, { canEditStock = false } = {}) {
             )}">Guardar</button>`,
             "</div>"
           ].join("")
-        : '<span class="subtitle">Solo dueno</span>';
+        : '<span class="subtitle">Solo empleador</span>';
 
       return [
         `<tr data-stock-row-id="${escapeHtml(product.id)}">`,

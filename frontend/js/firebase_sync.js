@@ -11,13 +11,14 @@ import { FIRESTORE_COLLECTIONS } from "./config.js";
 export async function syncUserToFirestore(user) {
   return safeSync(async () => {
     await ensureFirebaseAuth();
-    const ref = doc(firestoreDb, FIRESTORE_COLLECTIONS.usuarios, user.id);
+    const ref = doc(firestoreDb, FIRESTORE_COLLECTIONS.usuarios, user.uid);
     await setDoc(
       ref,
       {
-        kioscoId: user.kioscoId,
-        rol: mapRoleToFirestore(user.role),
-        email: user.email || `${user.username || user.id}@local.kiosco`,
+        uid: user.uid,
+        tenantId: user.tenantId,
+        role: mapRoleToFirestore(user.role),
+        email: user.email || null,
         username: user.username || null,
         displayName: user.displayName || null,
         activo: true,
@@ -32,10 +33,10 @@ export async function syncLoginEventToFirestore(session) {
   return safeSync(async () => {
     await ensureFirebaseAuth();
     await addDoc(collection(firestoreDb, FIRESTORE_COLLECTIONS.sesiones), {
-      kioscoId: session.kioscoId,
-      userId: session.userId,
+      tenantId: session.tenantId,
+      userId: session.uid,
       username: session.username || null,
-      role: mapRoleToFirestore(session.role),
+      role: session.role,
       loggedAt: session.loggedAt || new Date().toISOString(),
       createdAt: serverTimestamp()
     });
@@ -49,7 +50,7 @@ export async function syncProductToFirestore(product) {
     await setDoc(
       ref,
       {
-        kioscoId: product.kioscoId,
+        tenantId: product.kioscoId,
         nombre: product.name,
         barcode: product.barcode,
         categoria: product.category || null,
@@ -74,10 +75,10 @@ export async function syncSaleToFirestore(sale, items) {
     await setDoc(
       saleRef,
       {
-        kioscoId: sale.kioscoId,
+        tenantId: sale.kioscoId,
         userId: sale.userId,
         username: sale.username || null,
-        role: mapRoleToFirestore(sale.role),
+        role: sale.role,
         total: Number(sale.total || 0),
         totalCost: Number(sale.totalCost || 0),
         profit: Number(sale.profit || 0),
@@ -94,7 +95,7 @@ export async function syncSaleToFirestore(sale, items) {
         itemRef,
         {
           saleId: sale.id,
-          kioscoId: sale.kioscoId,
+          tenantId: sale.kioscoId,
           userId: sale.userId,
           productId: item.productId,
           barcode: item.barcode,
@@ -122,9 +123,9 @@ export async function syncCashClosureToFirestore(closure) {
     await setDoc(
       ref,
       {
-        kioscoId: closure.kioscoId,
+        tenantId: closure.kioscoId,
         userId: closure.userId,
-        role: mapRoleToFirestore(closure.role),
+        role: closure.role,
         username: closure.username || null,
         dateKey: closure.dateKey,
         totalAmount: Number(closure.totalAmount || 0),
@@ -142,7 +143,7 @@ export async function syncCashClosureToFirestore(closure) {
 }
 
 function mapRoleToFirestore(role) {
-  if (role === "dueno") return "empleador";
+  if (role === "dueno" || role === "empleador") return "empleador";
   return "empleado";
 }
 

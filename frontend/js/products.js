@@ -29,20 +29,20 @@ export async function createProduct(formData) {
     return { ok: false, error: "Precio y stock deben ser validos." };
   }
 
-  if (session.role === "dueno") {
+  if (session.role === "empleador") {
     if (providerCost === null || !Number.isFinite(providerCost) || providerCost < 0) {
       return { ok: false, error: "Debes cargar un valor de proveedor valido." };
     }
   }
 
-  const exists = await getProductByKioscoAndBarcode(session.kioscoId, barcode);
+  const exists = await getProductByKioscoAndBarcode(session.tenantId, barcode);
   if (exists) {
     return { ok: false, error: "Ese codigo de barras ya existe." };
   }
 
   const product = {
     id: crypto.randomUUID(),
-    kioscoId: session.kioscoId,
+    kioscoId: session.tenantId,
     barcode,
     name,
     category,
@@ -66,7 +66,7 @@ export async function listProductsForCurrentKiosco() {
   const session = getCurrentSession();
   if (!session) return [];
 
-  const products = await getProductsByKiosco(session.kioscoId);
+  const products = await getProductsByKiosco(session.tenantId);
   return products.sort((a, b) => {
     const categoryCmp = String(a.category || "").localeCompare(String(b.category || ""));
     if (categoryCmp !== 0) return categoryCmp;
@@ -83,7 +83,7 @@ export async function findProductByBarcodeForCurrentKiosco(barcodeInput) {
   const barcode = String(barcodeInput || "").trim();
   if (!barcode) return null;
 
-  return getProductByKioscoAndBarcode(session.kioscoId, barcode);
+  return getProductByKioscoAndBarcode(session.tenantId, barcode);
 }
 
 export async function updateProductStock(productId, newStockInput) {
@@ -91,8 +91,8 @@ export async function updateProductStock(productId, newStockInput) {
   if (!session) {
     return { ok: false, error: "Sesion expirada. Inicia sesion nuevamente.", requiresLogin: true };
   }
-  if (session.role !== "dueno") {
-    return { ok: false, error: "Solo el dueno puede editar stock." };
+  if (session.role !== "empleador") {
+    return { ok: false, error: "Solo el empleador puede editar stock." };
   }
 
   const newStock = Number(newStockInput);
@@ -101,7 +101,7 @@ export async function updateProductStock(productId, newStockInput) {
   }
 
   const product = await getProductById(productId);
-  if (!product || product.kioscoId !== session.kioscoId) {
+  if (!product || product.kioscoId !== session.tenantId) {
     return { ok: false, error: "Producto no encontrado." };
   }
 

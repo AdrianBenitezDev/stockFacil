@@ -1,8 +1,8 @@
 import { openDatabase } from "./db.js";
-import { authenticate, getUserFromSession, seedInitialUsers } from "./auth.js";
+import { ensureCurrentUserProfile, signInWithGoogle } from "./auth.js";
 import { ensureFirebaseAuth } from "../config.js";
 
-const loginForm = document.getElementById("login-form");
+const googleLoginBtn = document.getElementById("google-login-btn");
 const loginFeedback = document.getElementById("login-feedback");
 
 init().catch((error) => {
@@ -13,30 +13,34 @@ init().catch((error) => {
 async function init() {
   await ensureFirebaseAuth();
   await openDatabase();
-  await seedInitialUsers();
 
-  const user = await getUserFromSession();
-  if (user) {
+  const result = await ensureCurrentUserProfile();
+  if (result.ok) {
     redirectToPanel();
     return;
   }
 
-  loginForm.addEventListener("submit", handleLoginSubmit);
+  googleLoginBtn.addEventListener("click", handleGoogleSignIn);
 }
 
-async function handleLoginSubmit(event) {
-  event.preventDefault();
+async function handleGoogleSignIn() {
+  googleLoginBtn.disabled = true;
   loginFeedback.textContent = "";
 
-  const formData = new FormData(loginForm);
-  const result = await authenticate(formData.get("username"), formData.get("password"));
-  if (!result.ok) {
-    loginFeedback.textContent = result.error;
-    return;
+  try {
+    await signInWithGoogle();
+    const profileResult = await ensureCurrentUserProfile();
+    if (!profileResult.ok) {
+      loginFeedback.textContent = profileResult.error || "No se pudo cargar tu perfil.";
+      return;
+    }
+    redirectToPanel();
+  } catch (error) {
+    console.error(error);
+    loginFeedback.textContent = "No se pudo iniciar sesion con Google.";
+  } finally {
+    googleLoginBtn.disabled = false;
   }
-
-  loginForm.reset();
-  redirectToPanel();
 }
 
 function redirectToPanel() {

@@ -1,0 +1,84 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function tenantId() {
+      return isAuthenticated() ? request.auth.token.tenantId : null;
+    }
+
+    function role() {
+      return isAuthenticated() ? request.auth.token.role : null;
+    }
+
+    function isTenantMemberByData(data) {
+      return isAuthenticated() &&
+        tenantId() != null &&
+        data.tenantId is string &&
+        data.tenantId == tenantId();
+    }
+
+    function isTenantMemberByResource() {
+      return isAuthenticated() &&
+        tenantId() != null &&
+        resource.data.tenantId is string &&
+        resource.data.tenantId == tenantId();
+    }
+
+    function isEmpleador() {
+      return role() == "empleador";
+    }
+
+    match /usuarios/{uid} {
+      allow read: if isAuthenticated() && (
+        uid == request.auth.uid ||
+        (resource.data.tenantId is string && resource.data.tenantId == tenantId())
+      );
+      allow create, update, delete: if false;
+    }
+
+    match /tenants/{tenantDocId} {
+      allow read: if isAuthenticated() && (
+        tenantDocId == tenantId() ||
+        resource.data.tenantId == tenantId()
+      );
+      allow create, update, delete: if false;
+    }
+
+    match /productos/{docId} {
+      allow read: if isTenantMemberByResource();
+      allow create: if isTenantMemberByData();
+      allow update, delete: if isTenantMemberByResource() && isTenantMemberByData();
+    }
+
+    match /ventas/{docId} {
+      allow read: if isTenantMemberByResource();
+      allow create: if isTenantMemberByData();
+      allow update, delete: if false;
+    }
+
+    match /venta_items/{docId} {
+      allow read: if isTenantMemberByResource();
+      allow create: if isTenantMemberByData();
+      allow update, delete: if false;
+    }
+
+    match /cierres/{docId} {
+      allow read: if isTenantMemberByResource();
+      allow create: if isTenantMemberByData();
+      allow update, delete: if false;
+    }
+
+    match /sesiones/{docId} {
+      allow read: if isEmpleador() && isTenantMemberByResource();
+      allow create: if isTenantMemberByData() && request.resource.data.userId == request.auth.uid;
+      allow update, delete: if false;
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
