@@ -57,6 +57,9 @@ export async function ensureCurrentUserProfile() {
 
   await authUser.getIdToken(true);
   const tokenResult = await authUser.getIdTokenResult();
+
+console.log("CLAIMS:", tokenResult.claims);
+
   const claimTenantId = String(tokenResult?.claims?.tenantId || "").trim();
   const claimRole = String(tokenResult?.claims?.role || "empleado").trim();
 
