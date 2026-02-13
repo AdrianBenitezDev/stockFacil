@@ -8,6 +8,31 @@ async function requireAuthenticated(request) {
   return uid;
 }
 
+async function requireTenantMemberContext(request) {
+  const uid = await requireAuthenticated(request);
+  const token = request.auth?.token || {};
+  const tenantId = String(token.tenantId || "").trim();
+  if (!tenantId) {
+    throw new HttpsError("permission-denied", "Tu sesion no tiene tenant valido.");
+  }
+
+  const callerDoc = await db.collection("usuarios").doc(uid).get();
+  if (!callerDoc.exists) {
+    throw new HttpsError("permission-denied", "Tu usuario no existe en la base.");
+  }
+  const caller = callerDoc.data() || {};
+  if (String(caller.tenantId || "").trim() !== tenantId) {
+    throw new HttpsError("permission-denied", "Tu tenant no coincide con el perfil.");
+  }
+
+  return {
+    uid,
+    tenantId,
+    role: String(caller.role || "empleado").trim(),
+    caller
+  };
+}
+
 async function requireEmployerContext(request, { requireOwner = false } = {}) {
   const uid = await requireAuthenticated(request);
   const token = request.auth?.token || {};
@@ -41,5 +66,6 @@ async function requireEmployerContext(request, { requireOwner = false } = {}) {
 
 module.exports = {
   requireAuthenticated,
+  requireTenantMemberContext,
   requireEmployerContext
 };

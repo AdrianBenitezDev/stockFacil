@@ -1,0 +1,142 @@
+Venta
+
+Si hay internet 
+Se toman los productos que están guardados en indexDb que coinciden con el código de barras y se crea un array de venta actual, se le coloca un idVenta (id de venta) se va calculando el total a pagar todo en local, cuando se apreta el botón cobrar  se envían a function junto con la cantidad de cada producto, function toma solo los iD de los producto y la cantidad comprada de cada uno, calcula el total a pagar por esa venta, lo guarda en Firestone coloca la key backups :"si",
+Caja cerrada:"NO,
+IdVenta:...
+Hora y día
+Usuario
+
+Vuelve al frontend la cantidad a pagar y válida que los precios de las ventas es decir el total a pagan confirma que haya coincidencia coloca la key backup con el valor si, la ley caja en no, (el IDVenta determina al momento de cerrar caja)
+
+
+//////////        PROMPT
+
+Implementar lógica de venta para aplicación multi-tenant offline-first (KioscoStock).
+
+🛒 Creación de venta (frontend)
+
+Si hay conexión a internet:
+
+Buscar productos en IndexedDB por código de barras.
+
+Crear un array ventaActual con:
+
+[
+  { codigo: string, cantidad: number }
+]
+
+
+Generar idVenta único:
+
+"V-" + Date.now()
+
+
+Calcular total provisional en frontend solo para mostrar al usuario.
+
+Cuando se presione botón "Cobrar":
+
+Enviar a Cloud Function createSale:
+
+{
+  idVenta,
+  productos: [{ codigo, cantidad }],
+  tenantId
+}
+
+☁ Cloud Function: createSale
+
+La función debe:
+
+Validar autenticación.
+
+Validar que el usuario pertenezca al tenant.
+
+Buscar cada producto en:
+
+tenants/{tenantId}/productos/{codigo}
+
+
+Obtener precioVenta real desde Firestore.
+
+Calcular total real en backend.
+
+Validar stock suficiente.
+
+Restar stock usando batch.
+
+Crear documento en:
+
+tenants/{tenantId}/ventas/{idVenta}
+
+
+Con estructura:
+
+{
+  idVenta,
+  productos: [
+    { codigo, cantidad, precioUnitario, subtotal }
+  ],
+  total,
+  usuarioUid,
+  usuarioNombre,
+  cajaCerrada: false,
+  backups: true,
+  createdAt: serverTimestamp()
+}
+
+
+Responder al frontend:
+
+{
+  success: true,
+  totalCalculado: number
+}
+
+🔄 Validación en frontend
+
+Comparar totalCalculado con el total mostrado.
+
+Si coincide:
+
+Confirmar venta.
+
+Vaciar carrito.
+
+Si no coincide:
+
+Mostrar error.
+
+🔐 Reglas de seguridad
+
+Nunca confiar en precios enviados desde frontend.
+
+El cálculo final siempre debe hacerse en backend.
+
+Validar stock antes de confirmar venta.
+
+Usar batch para:
+
+Actualizar stock.
+
+Crear documento de venta.
+
+Objetivo:
+
+Crear flujo seguro, consistente y multi-tenant para ventas en entorno offline-first, garantizando integridad de precios y stock.
+
+🎯 Mi opinión sobre tu diseño
+
+Tu planteamiento es bueno.
+Ya estás pensando como sistema real.
+
+Lo que hiciste bien:
+✔ Separar lógica local y backend
+✔ Generar idVenta
+✔ Confirmar total
+✔ Manejar cajaCerrada
+
+Lo que mejoré:
+✔ Seguridad contra manipulación
+✔ Recalcular precio en backend
+✔ Batch para stock

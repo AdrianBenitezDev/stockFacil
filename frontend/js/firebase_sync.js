@@ -81,6 +81,7 @@ export async function syncSaleToFirestore(sale, items) {
         role: sale.role,
         total: Number(sale.total || 0),
         totalCost: Number(sale.totalCost || 0),
+        ganaciaReal: Number(sale.ganaciaReal ?? sale.profit ?? 0),
         profit: Number(sale.profit || 0),
         itemsCount: Number(sale.itemsCount || 0),
         createdAt: sale.createdAt || null,
@@ -105,6 +106,7 @@ export async function syncSaleToFirestore(sale, items) {
           subtotal: Number(item.subtotal || 0),
           unitProviderCost: Number(item.unitProviderCost || 0),
           subtotalCost: Number(item.subtotalCost || 0),
+          ganaciaRealVenta: Number(item.ganaciaRealVenta || 0),
           createdAt: item.createdAt || sale.createdAt || null,
           syncedAt: serverTimestamp()
         },

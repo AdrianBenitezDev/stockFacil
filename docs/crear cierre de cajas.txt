@@ -1,0 +1,116 @@
+Cerrar caja
+
+//---------------------------------------------------------------
+
+quiero que realicemos el flujo para la implementación del cierre de caja
+🟢 CASO ONLINE
+Paso 1 — Sincronizar ventas pendientes
+
+Buscar en IndexedDB ventas con:
+
+synced == false
+
+
+Enviarlas a syncSales
+
+Function las guarda y responde OK
+
+Marcar synced = true en local
+
+Paso 2 — Cerrar caja (solo backend calcula)
+
+Frontend envía:
+
+{
+  tenantId,
+  usuarioUid,
+  turnoId
+}
+
+
+La Cloud Function:
+
+Busca todas las ventas:
+
+tenants/{tenantId}/ventas
+
+
+con:
+
+cajaId == null
+usuarioUid == ...
+
+
+Suma los totales reales en Firestore
+
+Genera idCaja
+
+Crea documento:
+
+tenants/{tenantId}/cajas/{idCaja}
+
+{
+  idCaja,
+  total,
+  GanaciaRealCaja, //todas las ventas tienen calculado la ganacia Real (GanaciaRealVenta=(precio de venta - precioCompra)*cantidad) 
+  usuarioUid,
+  fechaApertura,
+  fechaCierre,
+  ventasIncluidas: [idVenta1, idVenta2],
+  createdAt: serverTimestamp()
+}
+
+
+Actualiza todas esas ventas:
+
+cajaId: idCaja
+
+
+Devuelve:
+
+{
+  success: true,
+  totalCaja: number,
+  totalGananciaRealCaja:number,
+  idCaja: string
+}
+
+🔴 CASO OFFLINE
+
+Podés permitir:
+
+✔ Cierre de caja provisional
+✔ Crear objeto local:
+
+{
+  idCajaLocal,
+  totalCalculadoLocal,
+  ganaciaRealCalculadoLocal,
+  synced: false
+}
+
+
+Pero NO lo consideres definitivo.
+
+Cuando vuelva internet:
+
+Sincronizás ventas
+
+Llamás a closeCashbox real
+
+Comparás totales
+
+Si hay diferencia → mostrar alerta
+
+💡 Mejora importante
+
+En vez de usar:
+
+backups: "si"
+
+
+Usá booleanos reales:
+
+synced: true
+cajaCerrada: false
+

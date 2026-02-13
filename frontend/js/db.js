@@ -221,6 +221,19 @@ export async function getSalesByKioscoAndDateRange(kioscoId, startIso, endIso) {
   });
 }
 
+export async function getSalesByKiosco(kioscoId) {
+  const db = await openDatabase();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(STORES.sales, "readonly");
+    const request = tx.objectStore(STORES.sales).getAll();
+    request.onsuccess = () => {
+      const rows = Array.isArray(request.result) ? request.result : [];
+      resolve(rows.filter((sale) => String(sale.kioscoId || "") === String(kioscoId || "")));
+    };
+    request.onerror = () => reject(request.error);
+  });
+}
+
 export async function getSalesByKioscoUserAndDateRange(kioscoId, userId, startIso, endIso) {
   const db = await openDatabase();
   return new Promise((resolve, reject) => {
@@ -230,6 +243,99 @@ export async function getSalesByKioscoUserAndDateRange(kioscoId, userId, startIs
     const request = sales.index("byKioscoUserCreatedAt").getAll(range);
     request.onsuccess = () => resolve(request.result || []);
     request.onerror = () => reject(request.error);
+  });
+}
+
+export async function getUnsyncedSalesByKioscoAndUser(kioscoId, userId) {
+  const sales = await getSalesByKiosco(kioscoId);
+  return sales.filter(
+    (sale) => String(sale.userId || "") === String(userId || "") && sale.synced !== true
+  );
+}
+
+export async function getSaleItemsBySaleId(saleId) {
+  const db = await openDatabase();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(STORES.saleItems, "readonly");
+    const request = tx.objectStore(STORES.saleItems).index("bySaleId").getAll(saleId);
+    request.onsuccess = () => resolve(request.result || []);
+    request.onerror = () => reject(request.error);
+  });
+}
+
+export async function markSalesAsSyncedByIds(saleIds) {
+  const ids = Array.from(new Set((saleIds || []).map((value) => String(value || "").trim()).filter(Boolean)));
+  if (ids.length === 0) return 0;
+
+  const db = await openDatabase();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(STORES.sales, "readwrite");
+    const store = tx.objectStore(STORES.sales);
+    const now = new Date().toISOString();
+    let updated = 0;
+
+    tx.oncomplete = () => resolve(updated);
+    tx.onerror = () => reject(tx.error);
+    tx.onabort = () => reject(tx.error || new Error("No se pudo marcar ventas sincronizadas."));
+
+    Promise.resolve()
+      .then(async () => {
+        for (const id of ids) {
+          const sale = await reqToPromise(store.get(id));
+          if (!sale) continue;
+          sale.synced = true;
+          sale.backups = true;
+          sale.syncedAt = now;
+          store.put(sale);
+          updated += 1;
+        }
+      })
+      .catch((error) => {
+        try {
+          tx.abort();
+        } catch (_) {
+          // no-op
+        }
+        reject(error);
+      });
+  });
+}
+
+export async function assignCashboxToSalesByIds(saleIds, cajaId) {
+  const ids = Array.from(new Set((saleIds || []).map((value) => String(value || "").trim()).filter(Boolean)));
+  if (ids.length === 0) return 0;
+
+  const db = await openDatabase();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(STORES.sales, "readwrite");
+    const store = tx.objectStore(STORES.sales);
+    const now = new Date().toISOString();
+    let updated = 0;
+
+    tx.oncomplete = () => resolve(updated);
+    tx.onerror = () => reject(tx.error);
+    tx.onabort = () => reject(tx.error || new Error("No se pudo actualizar caja en ventas locales."));
+
+    Promise.resolve()
+      .then(async () => {
+        for (const id of ids) {
+          const sale = await reqToPromise(store.get(id));
+          if (!sale) continue;
+          sale.cajaId = cajaId || null;
+          sale.cajaCerrada = Boolean(cajaId);
+          sale.cashClosedAt = now;
+          store.put(sale);
+          updated += 1;
+        }
+      })
+      .catch((error) => {
+        try {
+          tx.abort();
+        } catch (_) {
+          // no-op
+        }
+        reject(error);
+      });
   });
 }
 

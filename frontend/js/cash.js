@@ -1,12 +1,18 @@
+import { getFunctions, httpsCallable } from "https://www.gstatic.com/firebasejs/10.13.2/firebase-functions.js";
+import { ensureFirebaseAuth, firebaseApp, firebaseAuth } from "../config.js";
 import { getCurrentSession } from "./auth.js";
 import {
+  assignCashboxToSalesByIds,
   getCashClosuresByKioscoAndDateRange,
   getCashClosureByKey,
   getSalesByKioscoAndDateRange,
   getSalesByKioscoUserAndDateRange,
   putCashClosure
 } from "./db.js";
-import { syncCashClosureToFirestore } from "./firebase_sync.js";
+import { syncPendingSales } from "./sales.js";
+
+const functions = getFunctions(firebaseApp);
+const closeCashboxCallable = httpsCallable(functions, "closeCashbox");
 
 export async function getCashSnapshotForToday() {
   const session = getCurrentSession();
@@ -16,7 +22,7 @@ export async function getCashSnapshotForToday() {
 
   const { startIso, endIso, dateKey } = getTodayRangeIso();
   const sales = await loadScopedSales(session, startIso, endIso);
-  const orderedSales = sales.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  const orderedSales = sales.sort((a, b) => String(b.createdAt || "").localeCompare(String(a.createdAt || "")));
   const summary = summarizeSales(orderedSales);
   const scopeKey = getScopeKey(session);
   const closureKey = buildClosureKey(session.tenantId, dateKey, scopeKey);
@@ -42,9 +48,9 @@ export async function closeTodayShift() {
   }
 
   const { startIso, endIso, dateKey } = getTodayRangeIso();
-  const sales = await loadScopedSales(session, startIso, endIso);
-  const summary = summarizeSales(sales);
-  if (summary.salesCount === 0) {
+  const localSales = await loadScopedSales(session, startIso, endIso);
+  const localSummary = summarizeSales(localSales);
+  if (localSummary.salesCount === 0) {
     return { ok: false, error: "No hay ventas hoy para cerrar turno." };
   }
 
@@ -58,41 +64,94 @@ export async function closeTodayShift() {
     };
   }
 
-  const closure = {
-    id: crypto.randomUUID(),
+  const canUseBackend = navigator.onLine && (await hasFirebaseSession());
+  if (!canUseBackend) {
+    const provisional = buildLocalClosure({
+      session,
+      dateKey,
+      closureKey,
+      summary: localSummary,
+      synced: false
+    });
+    await putCashClosure(provisional);
+    return { ok: true, summary: localSummary, provisional: true };
+  }
+
+  const syncResult = await syncPendingSales();
+  if (!syncResult.ok) {
+    return { ok: false, error: syncResult.error };
+  }
+
+  try {
+    const response = await closeCashboxCallable({
+      tenantId: session.tenantId,
+      usuarioUid: session.userId,
+      turnoId: dateKey
+    });
+    const data = response?.data || {};
+    if (!data.success || !data.idCaja) {
+      return { ok: false, error: "Respuesta invalida al cerrar caja." };
+    }
+
+    const authoritativeSummary = {
+      salesCount: Array.isArray(data.ventasIncluidas) ? data.ventasIncluidas.length : localSummary.salesCount,
+      itemsCount: localSummary.itemsCount,
+      totalAmount: Number(data.totalCaja || 0),
+      totalCost: localSummary.totalCost,
+      profitAmount: Number(data.totalGananciaRealCaja || 0)
+    };
+
+    const closure = buildLocalClosure({
+      session,
+      dateKey,
+      closureKey,
+      summary: authoritativeSummary,
+      synced: true,
+      id: String(data.idCaja),
+      ventasIncluidas: Array.isArray(data.ventasIncluidas) ? data.ventasIncluidas : []
+    });
+    closure.GanaciaRealCaja = Number(data.totalGananciaRealCaja || 0);
+
+    await putCashClosure(closure);
+    if (Array.isArray(data.ventasIncluidas) && data.ventasIncluidas.length > 0) {
+      await assignCashboxToSalesByIds(data.ventasIncluidas, String(data.idCaja));
+    }
+
+    return { ok: true, summary: authoritativeSummary, provisional: false };
+  } catch (error) {
+    return { ok: false, error: mapCloseCashboxError(error) };
+  }
+}
+
+function buildLocalClosure({ session, dateKey, closureKey, summary, synced, id = null, ventasIncluidas = [] }) {
+  return {
+    id: id || `LOCAL-CAJA-${Date.now()}`,
     closureKey,
     kioscoId: session.tenantId,
     userId: session.userId,
     role: session.role,
     username: session.username,
     dateKey,
-    totalAmount: summary.totalAmount,
-    totalCost: summary.totalCost,
-    profitAmount: summary.profitAmount,
-    salesCount: summary.salesCount,
-    itemsCount: summary.itemsCount,
+    totalAmount: Number(summary.totalAmount || 0),
+    totalCost: Number(summary.totalCost || 0),
+    profitAmount: Number(summary.profitAmount || 0),
+    GanaciaRealCaja: Number(summary.profitAmount || 0),
+    salesCount: Number(summary.salesCount || 0),
+    itemsCount: Number(summary.itemsCount || 0),
+    ventasIncluidas,
+    synced,
     createdAt: new Date().toISOString()
-  };
-
-  await putCashClosure(closure);
-  await syncCashClosureToFirestore(closure);
-
-  return {
-    ok: true,
-    summary
   };
 }
 
 function summarizeSales(sales) {
   const salesCount = sales.length;
   const itemsCount = sales.reduce((acc, sale) => acc + Number(sale.itemsCount || 0), 0);
-  const totalAmount = Number(
-    sales.reduce((acc, sale) => acc + Number(sale.total || 0), 0).toFixed(2)
+  const totalAmount = Number(sales.reduce((acc, sale) => acc + Number(sale.total || 0), 0).toFixed(2));
+  const totalCost = Number(sales.reduce((acc, sale) => acc + Number(sale.totalCost || 0), 0).toFixed(2));
+  const profitAmount = Number(
+    sales.reduce((acc, sale) => acc + Number(sale.ganaciaReal ?? sale.profit ?? 0), 0).toFixed(2)
   );
-  const totalCost = Number(
-    sales.reduce((acc, sale) => acc + Number(sale.totalCost || 0), 0).toFixed(2)
-  );
-  const profitAmount = Number((totalAmount - totalCost).toFixed(2));
 
   return { salesCount, itemsCount, totalAmount, totalCost, profitAmount };
 }
@@ -102,7 +161,7 @@ async function listRecentClosures(session, scopeKey) {
   const closures = await getCashClosuresByKioscoAndDateRange(session.tenantId, startIso, endIso);
   return closures
     .filter((closure) => closure.closureKey === buildClosureKey(session.tenantId, closure.dateKey, scopeKey))
-    .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+    .sort((a, b) => String(b.createdAt || "").localeCompare(String(a.createdAt || "")))
     .slice(0, 10);
 }
 
@@ -111,6 +170,22 @@ async function loadScopedSales(session, startIso, endIso) {
     return getSalesByKioscoAndDateRange(session.tenantId, startIso, endIso);
   }
   return getSalesByKioscoUserAndDateRange(session.tenantId, session.userId, startIso, endIso);
+}
+
+async function hasFirebaseSession() {
+  await ensureFirebaseAuth();
+  return Boolean(firebaseAuth.currentUser);
+}
+
+function mapCloseCashboxError(error) {
+  const message = String(error?.message || "");
+  if (message) return message;
+
+  const code = String(error?.code || "");
+  if (code.includes("failed-precondition")) return "No hay ventas pendientes para cerrar caja.";
+  if (code.includes("permission-denied")) return "No tienes permisos para cerrar caja.";
+  if (code.includes("unauthenticated")) return "Sesion invalida para cierre de caja.";
+  return "No se pudo cerrar caja.";
 }
 
 function getTodayRangeIso() {
