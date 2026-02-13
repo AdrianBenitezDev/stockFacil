@@ -535,19 +535,31 @@ function wireStockRowEvents() {
       const confirmed = window.confirm(`¿Eliminar ${label}? Esta accion no se puede deshacer.`);
       if (!confirmed) return;
 
-      const result = await deleteProduct(productId);
-      if (!result.ok) {
-        setStockFeedback(result.error);
-        if (result.requiresLogin) {
-          redirectToLogin();
+      const originalLabel = button.textContent;
+      button.disabled = true;
+      button.classList.add("is-loading");
+      button.textContent = "Eliminando...";
+      setStockFeedback("Eliminando producto...", "success");
+
+      try {
+        const result = await deleteProduct(productId);
+        if (!result.ok) {
+          setStockFeedback(result.error);
+          if (result.requiresLogin) {
+            redirectToLogin();
+            return;
+          }
+          await refreshStock();
           return;
         }
-        await refreshStock();
-        return;
-      }
 
-      setStockFeedback(result.message, "success");
-      await refreshStock();
+        setStockFeedback(result.message, "success");
+        await refreshStock();
+      } finally {
+        button.disabled = false;
+        button.classList.remove("is-loading");
+        button.textContent = originalLabel || "🗑️ Eliminar";
+      }
     });
   });
 
