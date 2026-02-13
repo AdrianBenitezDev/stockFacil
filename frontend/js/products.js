@@ -5,6 +5,7 @@ import {
   getProductsByKiosco,
   getUnsyncedProductsByKiosco,
   markProductsAsSyncedByCodes,
+  deleteProductById,
   putProduct
 } from "./db.js";
 import { PRODUCT_CATEGORIES } from "./config.js";
@@ -14,6 +15,7 @@ import { getFunctions, httpsCallable } from "https://www.gstatic.com/firebasejs/
 const SYNC_THRESHOLD = 30;
 const functions = getFunctions(firebaseApp);
 const syncProductsCallable = httpsCallable(functions, "syncProducts");
+const deleteProductCallable = httpsCallable(functions, "deleteProductByCode");
 
 export async function createProduct(formData) {
   const session = getCurrentSession();
@@ -230,6 +232,44 @@ export async function getPendingProductsCountForCurrentKiosco() {
   if (!session) return 0;
   const pending = await getUnsyncedProductsByKiosco(session.tenantId);
   return pending.length;
+}
+
+export async function deleteProduct(productId) {
+  const session = getCurrentSession();
+  if (!session) {
+    return { ok: false, error: "Sesion expirada. Inicia sesion nuevamente.", requiresLogin: true };
+  }
+  if (!isEmployerRole(session.role)) {
+    return { ok: false, error: "Solo el empleador puede eliminar productos." };
+  }
+
+  const stored = await getProductById(productId);
+  if (!stored || String(stored.kioscoId || stored.tenantId || "") !== session.tenantId) {
+    return { ok: false, error: "Producto no encontrado." };
+  }
+
+  const normalized = normalizeProduct(stored);
+  await deleteProductById(productId);
+
+  await ensureFirebaseAuth();
+  if (!firebaseAuth.currentUser) {
+    return {
+      ok: false,
+      localDeleted: true,
+      error: "Producto eliminado en local. No hay sesion Firebase para borrarlo en la nube."
+    };
+  }
+
+  try {
+    await deleteProductCallable({ codigo: normalized.codigo });
+    return { ok: true, message: `Producto ${normalized.name} eliminado.` };
+  } catch (error) {
+    return {
+      ok: false,
+      localDeleted: true,
+      error: `Producto eliminado en local, pero no se pudo eliminar en Firebase: ${mapCallableError(error)}`
+    };
+  }
 }
 
 function normalizeProduct(product) {

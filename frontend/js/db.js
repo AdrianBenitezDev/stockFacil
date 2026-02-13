@@ -143,6 +143,16 @@ export async function getProductById(productId) {
   });
 }
 
+export async function deleteProductById(productId) {
+  const db = await openDatabase();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(STORES.products, "readwrite");
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+    tx.objectStore(STORES.products).delete(productId);
+  });
+}
+
 export async function getProductsByKiosco(kioscoId) {
   const db = await openDatabase();
   return new Promise((resolve, reject) => {

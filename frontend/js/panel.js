@@ -5,6 +5,7 @@ import { ensureFirebaseAuth } from "../config.js";
 import { dom } from "./dom.js";
 import {
   createProduct,
+  deleteProduct,
   findProductByBarcodeForCurrentKiosco,
   syncPendingProducts,
   listProductsForCurrentKiosco,
@@ -223,7 +224,7 @@ function applyStockFilters() {
     return matchCategory && matchSearch;
   });
 
-  renderStockTable(filtered, { canEditStock: currentUser?.role === "empleador" });
+  renderStockTable(filtered, { canEditStock: isEmployerRole(currentUser?.role) });
   wireStockRowEvents();
 
   const selectedInFiltered = filtered.find((p) => p.id === selectedStockProductId);
@@ -514,6 +515,34 @@ function wireStockRowEvents() {
         if (result.requiresLogin) {
           redirectToLogin();
         }
+        return;
+      }
+
+      setStockFeedback(result.message, "success");
+      await refreshStock();
+    });
+  });
+
+  const deleteButtons = document.querySelectorAll("[data-delete-stock-id]");
+  deleteButtons.forEach((button) => {
+    button.addEventListener("click", async (event) => {
+      event.stopPropagation();
+      const productId = button.getAttribute("data-delete-stock-id");
+      if (!productId) return;
+
+      const product = allStockProducts.find((item) => item.id === productId) || null;
+      const label = product?.name || "este producto";
+      const confirmed = window.confirm(`¿Eliminar ${label}? Esta accion no se puede deshacer.`);
+      if (!confirmed) return;
+
+      const result = await deleteProduct(productId);
+      if (!result.ok) {
+        setStockFeedback(result.error);
+        if (result.requiresLogin) {
+          redirectToLogin();
+          return;
+        }
+        await refreshStock();
         return;
       }
 

@@ -335,6 +335,12 @@ thead th {
   padding: 0.45rem 0.7rem;
 }
 
+.stock-delete-btn {
+  margin-top: 0;
+  padding: 0.45rem 0.7rem;
+  background: #b91c1c;
+}
+
 .stock-detail-panel {
   margin-top: 0.9rem;
   border: 1px solid var(--line);

@@ -81,6 +81,9 @@ export function renderStockTable(products, { canEditStock = false } = {}) {
             `<button type="button" class="stock-save-btn" data-save-stock-id="${escapeHtml(
               product.id
             )}">Guardar</button>`,
+            `<button type="button" class="stock-delete-btn" data-delete-stock-id="${escapeHtml(
+              product.id
+            )}">🗑️ Eliminar</button>`,
             "</div>"
           ].join("")
         : '<span class="subtitle">Solo empleador</span>';
