@@ -6,6 +6,7 @@ import { dom } from "./dom.js";
 import {
   createProduct,
   findProductByBarcodeForCurrentKiosco,
+  syncPendingProducts,
   listProductsForCurrentKiosco,
   updateProductStock
 } from "./products.js";
@@ -68,6 +69,7 @@ async function init() {
   currentUser = profileResult.user;
 
   showAppShell(currentUser);
+  dom.syncProductsBtn?.classList.toggle("hidden", !isEmployerRole(currentUser.role));
   renderCategoryOptions(PRODUCT_CATEGORIES);
   renderStockCategoryOptions(PRODUCT_CATEGORIES);
   setupDeviceSpecificUI();
@@ -91,6 +93,7 @@ function wireEvents() {
     await refreshCashPanel();
   });
   dom.addProductForm.addEventListener("submit", handleAddProductSubmit);
+  dom.syncProductsBtn?.addEventListener("click", handleManualProductsSync);
   dom.createEmployeeForm?.addEventListener("submit", handleCreateEmployeeSubmit);
   dom.uiModeToggle.addEventListener("click", () => {
     handleToggleUiMode().catch((error) => console.error(error));
@@ -108,6 +111,7 @@ function wireEvents() {
   dom.checkoutSaleBtn.addEventListener("click", handleCheckoutSale);
   dom.closeShiftBtn.addEventListener("click", handleCloseShift);
   dom.refreshCashBtn.addEventListener("click", refreshCashPanel);
+  window.addEventListener("online", handleOnlineProductsSync);
 }
 
 async function handleLogout() {
@@ -134,6 +138,27 @@ async function handleAddProductSubmit(event) {
   renderCategoryOptions(PRODUCT_CATEGORIES);
   setProductFeedbackSuccess(result.message);
   focusBarcodeInputIfDesktop();
+  await refreshStock();
+}
+
+async function handleManualProductsSync() {
+  clearProductFeedback();
+  const result = await syncPendingProducts({ force: true });
+  if (!result.ok) {
+    setProductFeedbackError(result.error);
+    if (result.requiresLogin) {
+      redirectToLogin();
+    }
+    return;
+  }
+  setProductFeedbackSuccess(result.message);
+  await refreshStock();
+}
+
+async function handleOnlineProductsSync() {
+  const result = await syncPendingProducts({ force: true });
+  if (!result.ok || result.syncedCount <= 0) return;
+  setProductFeedbackSuccess(result.message);
   await refreshStock();
 }
 
@@ -252,6 +277,7 @@ async function handleStartScanner() {
       elementId: "scanner-reader",
       onCode: handleDetectedCode
     });
+    dom.saleScannerReader.style.position = "absolute";
     scannerMode = "sell";
     setScanFeedback("Camara iniciada. Escanea un codigo.", "success");
   } catch (error) {
@@ -584,6 +610,11 @@ function getCurrentMode() {
 function shouldEnableKeyboardScanner(mode) {
   if (isMobileMode()) return false;
   return mode === "sell" || mode === "stock";
+}
+
+function isEmployerRole(role) {
+  const normalized = String(role || "").trim().toLowerCase();
+  return normalized === "empleador" || normalized === "dueno";
 }
 
 function loadUiModePreference() {

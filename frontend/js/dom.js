@@ -12,6 +12,7 @@ export const dom = {
   stockPanel: document.getElementById("stock-panel"),
   cashPanel: document.getElementById("cash-panel"),
   addProductForm: document.getElementById("add-product-form"),
+  syncProductsBtn: document.getElementById("sync-products-btn"),
   barcodeInput: document.getElementById("barcode"),
   productNameInput: document.getElementById("product-name"),
   addCameraControls: document.getElementById("add-camera-controls"),

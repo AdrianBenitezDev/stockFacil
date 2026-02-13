@@ -154,6 +154,51 @@ export async function getProductsByKiosco(kioscoId) {
   });
 }
 
+export async function getUnsyncedProductsByKiosco(kioscoId) {
+  const products = await getProductsByKiosco(kioscoId);
+  return products.filter((product) => product?.synced === false);
+}
+
+export async function markProductsAsSyncedByCodes(kioscoId, codes) {
+  const normalizedCodes = Array.from(
+    new Set((codes || []).map((value) => String(value || "").trim()).filter(Boolean))
+  );
+  if (normalizedCodes.length === 0) return 0;
+
+  const db = await openDatabase();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(STORES.products, "readwrite");
+    const store = tx.objectStore(STORES.products);
+    const byKioscoBarcode = store.index("byKioscoBarcode");
+    const now = Date.now();
+    let updatedCount = 0;
+
+    tx.oncomplete = () => resolve(updatedCount);
+    tx.onerror = () => reject(tx.error);
+    tx.onabort = () => reject(tx.error || new Error("No se pudo actualizar sincronizacion local."));
+
+    Promise.resolve()
+      .then(async () => {
+        for (const code of normalizedCodes) {
+          const product = await reqToPromise(byKioscoBarcode.get([kioscoId, code]));
+          if (!product) continue;
+          product.synced = true;
+          product.syncedAt = now;
+          store.put(product);
+          updatedCount += 1;
+        }
+      })
+      .catch((error) => {
+        try {
+          tx.abort();
+        } catch (_) {
+          // no-op
+        }
+        reject(error);
+      });
+  });
+}
+
 export async function getSalesByKioscoAndDateRange(kioscoId, startIso, endIso) {
   const db = await openDatabase();
   return new Promise((resolve, reject) => {
@@ -208,5 +253,12 @@ export async function getCashClosuresByKioscoAndDateRange(kioscoId, startIso, en
     const request = closures.index("byKioscoCreatedAt").getAll(range);
     request.onsuccess = () => resolve(request.result || []);
     request.onerror = () => reject(request.error);
+  });
+}
+
+function reqToPromise(request) {
+  return new Promise((resolve, reject) => {
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error || new Error("Error de IndexedDB."));
   });
 }

@@ -1,0 +1,120 @@
+Prompt completo para Codex (offline-first + multi-tenant + validación)
+
+Prompt:
+
+Implementar lógica de creación y sincronización de productos para una aplicación offline-first multi-tenant (KioscoStock).
+
+🧾 Reglas generales
+
+Solo usuarios autenticados de tipo "empleador" pueden crear productos.
+
+La validación de tipo debe hacerse tanto en el frontend (UX) como en la Cloud Function (seguridad).
+
+Los productos pueden crearse aunque el dispositivo no tenga internet.
+
+📦 Crear producto offline
+
+Al crearse el producto, debe guardarse en IndexedDB con esta estructura de datos:
+
+{
+  codigo: string,        // código universal, puede ser codigo de barras o un numero creado por si no tiene codigo de barras
+  nombre: string,
+  precioVenta: number,
+  precioCompra: number,
+   categoria: string, //seleccionada desde el frontend
+  stock: number,
+  tieneCodigoBarras: boolean,
+  tenantId: string,     // uid del empleador
+  synced: false,
+  createdAt: number
+}
+
+(
+
+    //generaremos el No codigo de barras asi:
+    "INT-" + Date.now() // el frontend ya lo envia y coloca false al boelanno
+
+)
+
+
+
+El campo synced = false indica que todavía no fue subido a Firebase.
+
+El codigoBarras se usa como referencia para evitar duplicados y facilitar búsquedas.
+
+🔁 Sincronización de productos
+
+La sincronización con Firebase debe ocurrir cuando:
+
+Existan 30 productos con synced = false
+
+O el usuario presione el botón "Sincronizar" (crea el boton)
+
+O el dispositivo recupere conexión a internet (opcional)
+
+☁️ Cloud Function: syncProducts
+
+La Cloud Function debe:
+
+Validar el token Firebase.
+
+Obtener el usuario autenticado.
+
+Verificar que el usuario sea tipo “empleador”.
+
+Obtener tenantId (uid del empleador).
+
+Guardar los productos en Firestore bajo:
+
+tenants/{tenantId}/productos/{codigo}
+
+
+– Cada documento de producto debe incluir:
+nombre, codigo, precioVenta, precioCompra, categoria, synced, stock, tenantId, createdAt
+
+Responder al frontend con los IDs sincronizados:
+
+{
+  success: true,
+  syncedIds: [codigo1,codigo2,codigo3] //son los distintos codigo de barras
+}
+
+🔄 Actualización local
+
+El frontend debe:
+
+Recibir la respuesta de la función.
+
+Buscar los productos en IndexedDB con esos IDs.
+
+Cambiar su campo synced a true.
+
+🔐 Seguridad
+
+Aunque la UI permita crear productos sin internet, la Cloud Function debe impedir que usuarios no autorizados (empleados o sin permisos) sincronicen productos.
+
+La validación real siempre debe ocurrir en la función.
+
+📌 Resumen
+
+✓ Crear productos offline con campos:
+
+
+  codigo: string,        // código universal, puede ser codigo de barras o un numero creado por si no tiene codigo de barras
+  nombre: string,
+  precioVenta: number,
+  precioCompra: number,
+   categoria: string, //seleccionada desde el frontend
+  stock: number,
+  tieneCodigoBarras: boolean,
+  tenantId: string,     // uid del empleador
+  synced: false,
+  createdAt: number
+
+  
+precioVenta
+✓ Guardarlos localmente con synced:false
+✓ syncProducts solo si es empleador autenticado
+✓ Firestore multi-tenant:
+
+tenants/{tenantId}/productos/{codigo}

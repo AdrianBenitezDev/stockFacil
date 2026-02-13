@@ -41,7 +41,7 @@
         <h3>🧷 Alta de producto</h3>
         <form id="add-product-form" autocomplete="off">
           <label for="barcode">Codigo de barras</label>
-          <input id="barcode" name="barcode" type="text" required>
+          <input id="barcode" name="barcode" type="text">
           <div id="add-camera-controls" class="scan-actions">
             <button id="start-add-scan-btn" type="button">📷 Escanear codigo</button>
             <button id="stop-add-scan-btn" type="button" class="mode-btn-secondary">⏹️ Detener camara</button>
@@ -69,6 +69,7 @@
           <input id="product-stock" name="stock" type="number" min="0" step="1" required>
 
           <button type="submit">💾 Guardar producto</button>
+          <button id="sync-products-btn" type="button" class="mode-btn-secondary">🔄 Sincronizar productos</button>
         </form>
         <p id="product-feedback" class="feedback" aria-live="polite"></p>
 

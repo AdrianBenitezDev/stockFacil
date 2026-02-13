@@ -182,3 +182,136 @@ exports.crearEmpleado = onCall(async (request) => {
     throw new HttpsError("internal", "No se pudo crear el empleado.");
   }
 });
+
+exports.syncProducts = onCall(async (request) => {
+  const callerUid = request.auth?.uid;
+  if (!callerUid) {
+    throw new HttpsError("unauthenticated", "Debes iniciar sesion.");
+  }
+
+  
+
+  const token = request.auth?.token || {};
+  const claimTenantId = String(token.tenantId || "").trim();
+  const claimRole = String(token.role || "").trim();
+  if (!claimTenantId || claimRole !== "empleador") {
+    throw new HttpsError("permission-denied", "Solo el empleador puede sincronizar productos.");
+  }
+
+  const callerDoc = await db.collection("usuarios").doc(callerUid).get();
+  if (!callerDoc.exists) {
+    throw new HttpsError("permission-denied", "Tu usuario no existe en la base.");
+  }
+  const caller = callerDoc.data() || {};
+  if (caller.role !== "empleador" || caller.tenantId !== claimTenantId) {
+    throw new HttpsError("permission-denied", "Claims y perfil no coinciden.");
+  }
+
+  const products = Array.isArray(request.data?.products) ? request.data.products : [];
+  if (products.length === 0) {
+    return { success: true, syncedIds: [] };
+  }
+  if (products.length > 500) {
+    throw new HttpsError("invalid-argument", "Maximo 500 productos por sincronizacion.");
+  }
+
+  const now = Timestamp.now();
+  const syncedIds = [];
+  let batch = db.batch();
+  let writesInBatch = 0;
+
+  const tenantDoc = await db.collection("tenants").doc(claimTenantId).get();
+
+if (!tenantDoc.exists) {
+  throw new HttpsError("permission-denied", "Tenant no existe.");
+}
+
+if (tenantDoc.data().ownerUid !== callerUid) {
+  throw new HttpsError("permission-denied", "No eres dueño de este tenant.");
+}
+
+
+  for (const input of products) {
+    const product = normalizeProductForSync(input, claimTenantId);
+    const productRef = db
+      .collection("tenants")
+      .doc(claimTenantId)
+      .collection("productos")
+      .doc(product.codigo);
+
+    batch.set(
+      productRef,
+      {
+        codigo: product.codigo,
+        nombre: product.nombre,
+        precioVenta: product.precioVenta,
+        precioCompra: product.precioCompra,
+        categoria: product.categoria,
+        stock: product.stock,
+        tieneCodigoBarras: product.tieneCodigoBarras,
+        tenantId: claimTenantId,
+        synced: true,
+        createdAt: product.createdAt,
+        updatedAt: now,
+        syncedAt: now
+      },
+      { merge: true }
+    );
+
+    syncedIds.push(product.codigo);
+    writesInBatch += 1;
+    if (writesInBatch >= 400) {
+      await batch.commit();
+      batch = db.batch();
+      writesInBatch = 0;
+    }
+  }
+
+  if (writesInBatch > 0) {
+    await batch.commit();
+  }
+
+  return { success: true, syncedIds };
+});
+
+function normalizeProductForSync(input, tenantId) {
+  const codigo = String(input?.codigo || "").trim();
+  const nombre = String(input?.nombre || "").trim();
+  const categoria = String(input?.categoria || "").trim();
+  const precioVenta = Number(input?.precioVenta);
+  const precioCompra = Number(input?.precioCompra);
+  const stock = Number(input?.stock);
+  const tieneCodigoBarras = Boolean(input?.tieneCodigoBarras);
+  const createdAt = Number(input?.createdAt);
+  const inputTenant = String(input?.tenantId || "").trim();
+
+  if (!codigo || !nombre) {
+    throw new HttpsError("invalid-argument", "Producto invalido: codigo y nombre son obligatorios.");
+  }
+  if (!Number.isFinite(precioVenta) || precioVenta < 0) {
+    throw new HttpsError("invalid-argument", `Producto invalido (${codigo}): precioVenta.`);
+  }
+  if (!Number.isFinite(precioCompra) || precioCompra < 0) {
+    throw new HttpsError("invalid-argument", `Producto invalido (${codigo}): precioCompra.`);
+  }
+  if (!Number.isFinite(stock) || stock < 0) {
+    throw new HttpsError("invalid-argument", `Producto invalido (${codigo}): stock.`);
+  }
+  if (!Number.isFinite(createdAt) || createdAt <= 0) {
+    throw new HttpsError("invalid-argument", `Producto invalido (${codigo}): createdAt.`);
+  }
+  if (inputTenant && inputTenant !== tenantId) {
+    throw new HttpsError("permission-denied", `Tenant invalido en producto ${codigo}.`);
+  }
+
+  return {
+    codigo,
+    nombre,
+    categoria: categoria || null,
+    precioVenta: Number(precioVenta.toFixed(2)),
+    precioCompra: Number(precioCompra.toFixed(2)),
+    stock: Math.trunc(stock),
+    tieneCodigoBarras,
+    createdAt
+  };
+}
