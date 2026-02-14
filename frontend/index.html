@@ -17,20 +17,20 @@
   <main class="container">
     <section>
       <h1>🏪 Kiosco Stock</h1>
-      <p class="subtitle">Autenticacion por roles</p>
+      <p class="subtitle">Acceso principal</p>
       <div class="scan-actions">
         <button id="register-business-btn" type="button">Registrar Negocio</button>
         <button id="login-employer-btn" type="button" class="mode-btn-secondary">Acceder Empleador</button>
-        <button id="login-employee-btn" type="button" class="mode-btn-secondary">Acceder Empleado</button>
       </div>
+      <p class="subtitle">El empleador accede con cuenta Google (sin contrasena).</p>
 
-      <form id="auth-form" autocomplete="off">
-        <h3 id="auth-title">Acceder Empleador</h3>
-        <label for="auth-email">Email</label>
-        <input id="auth-email" type="email" required>
-        <label for="auth-password">Contrasena</label>
-        <input id="auth-password" type="password" minlength="6" required>
-        <button id="auth-submit-btn" type="submit">Ingresar como empleador</button>
+      <h3>Acceder Empleado</h3>
+      <form id="employee-login-form" autocomplete="off">
+        <label for="employee-email">Usuario / Email</label>
+        <input id="employee-email" type="email" required>
+        <label for="employee-password">Contrasena</label>
+        <input id="employee-password" type="password" minlength="6" required>
+        <button id="employee-login-btn" type="submit" class="mode-btn-secondary">Ingresar como empleado</button>
       </form>
 
       <p id="login-feedback" class="feedback" aria-live="polite"></p>

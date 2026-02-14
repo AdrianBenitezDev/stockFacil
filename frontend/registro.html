@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Kiosco Stock - Registro</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="top-banner">
+    <div class="top-banner-inner">
+      <strong class="top-banner-title">🧾 kioscoStock.com.ar</strong>
+      <span class="top-banner-subtitle">🏪 Registro de negocio</span>
+    </div>
+  </header>
+
+  <main class="container">
+    <section>
+      <h1>Registrar Negocio</h1>
+      <p class="subtitle">Crea la cuenta del empleador con email y contrasena.</p>
+
+      <form id="register-form" autocomplete="off">
+        <label for="register-email">Email</label>
+        <input id="register-email" type="email" required>
+
+        <label for="register-password">Contrasena</label>
+        <input id="register-password" type="password" minlength="6" required>
+
+        <button id="register-submit-btn" type="submit">Crear negocio</button>
+        <button id="back-login-btn" type="button" class="mode-btn-secondary">Volver al login</button>
+      </form>
+
+      <p id="register-feedback" class="feedback" aria-live="polite"></p>
+    </section>
+  </main>
+
+  <script type="module" src="js/registro.js"></script>
+</body>
+</html>

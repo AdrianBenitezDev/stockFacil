@@ -1,0 +1,9 @@
+mejoras a realzar 
+
+en la pantalla index quiero que halla 2 botones:
+
+1. Registrar Negocio (lo envia al html de registro.html)
+2. Acceder Empleador (accede con la cuenta de google, no tiene contraseña)
+
+y abajo de eso quoero que este la sección Acceder Empleado, el cual tiene usuario y contraseña
+
