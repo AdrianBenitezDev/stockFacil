@@ -98,6 +98,14 @@
       <section id="sell-panel" class="panel hidden">
         <h3>🛍️ Venta</h3>
         <p id="sale-device-hint" class="subtitle hidden">Escanea con lector USB apuntando a esta pantalla.</p>
+        <div class="sell-search-row">
+          <input id="sale-scan-input" type="text" placeholder="Codigo escaneado" autocomplete="off">
+          <label class="sell-mode-switch" for="sale-mode-scanner-switch">
+            <span id="sale-mode-switch-label">Modo scanner</span>
+            <input id="sale-mode-scanner-switch" type="checkbox" checked>
+          </label>
+        </div>
+        <div id="sale-search-suggestions" class="sale-search-suggestions hidden"></div>
         <div class="scan-actions sell-action-bar">
           <button id="start-scan-btn" type="button">📷 Iniciar camara</button>
           <button id="stop-scan-btn" type="button" class="mode-btn-secondary">⏹️ Detener camara</button>
@@ -117,11 +125,12 @@
                 <th>Cantidad</th>
                 <th>Precio</th>
                 <th>Subtotal</th>
+                <th>Quitar</th>
               </tr>
             </thead>
             <tbody id="sale-table-body">
               <tr>
-                <td colspan="5">No hay productos escaneados.</td>
+                <td colspan="6">No hay productos escaneados.</td>
               </tr>
             </tbody>
           </table>

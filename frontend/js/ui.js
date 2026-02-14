@@ -131,7 +131,7 @@ export function clearAddScanFeedback() {
 
 export function renderCurrentSale(items) {
   if (items.length === 0) {
-    dom.saleTableBody.innerHTML = '<tr><td colspan="5">No hay productos escaneados.</td></tr>';
+    dom.saleTableBody.innerHTML = '<tr><td colspan="6">No hay productos escaneados.</td></tr>';
     dom.saleTotal.textContent = "$0.00";
     return;
   }
@@ -145,6 +145,9 @@ export function renderCurrentSale(items) {
         `<td>${item.quantity}</td>`,
         `<td>$${item.price.toFixed(2)}</td>`,
         `<td>$${item.subtotal.toFixed(2)}</td>`,
+        `<td><button type="button" class="sale-remove-btn" data-remove-sale-id="${escapeHtml(
+          item.productId
+        )}" aria-label="Quitar ${escapeHtml(item.name)}">❌</button></td>`,
         "</tr>"
       ].join("");
     })

@@ -167,6 +167,12 @@ body.ui-mode-pc #scanner-reader {
   display: none !important;
 }
 
+body.ui-mode-pc.sell-manual-mode #start-scan-btn,
+body.ui-mode-pc.sell-manual-mode #stop-scan-btn,
+body.ui-mode-pc.sell-manual-mode #scanner-reader {
+  display: initial !important;
+}
+
 .app-header {
   display: flex;
   justify-content: space-between;
@@ -294,6 +300,56 @@ thead th {
   margin-top: 0;
 }
 
+.sell-search-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: 0.55rem;
+  margin-bottom: 0.45rem;
+}
+
+.sell-search-row input {
+  margin: 0;
+}
+
+.sell-mode-switch {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-weight: 600;
+  color: #334155;
+}
+
+.sell-mode-switch input[type="checkbox"] {
+  width: 2.2rem;
+  height: 1.2rem;
+  margin: 0;
+}
+
+.sale-search-suggestions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin-bottom: 0.55rem;
+}
+
+.sale-suggestion-pill {
+  display: inline-flex;
+  align-items: center;
+  margin-top: 0;
+  padding: 0.35rem 0.55rem;
+  border-radius: 999px;
+  background: #0f766e;
+  font-size: 0.82rem;
+  color: #ffffff;
+  cursor: pointer;
+}
+
+.sale-suggestion-empty {
+  color: #64748b;
+  font-size: 0.88rem;
+}
+
 .scanner-box {
   top: 50px;
   margin-top: 0.6rem;
@@ -309,6 +365,13 @@ thead th {
   margin-bottom: 0;
 }
 
+.sale-remove-btn {
+  margin-top: 0;
+  padding: 0.3rem 0.55rem;
+  line-height: 1;
+  background: #b91c1c;
+}
+
 .stock-danger {
   color: #b91c1c;
   font-weight: 700;
@@ -321,6 +384,7 @@ thead th {
 
 .stock-edit-cell {
   display: flex;
+  flex-wrap: wrap;
   gap: 0.4rem;
   align-items: center;
 }
@@ -333,12 +397,14 @@ thead th {
 .stock-save-btn {
   margin-top: 0;
   padding: 0.45rem 0.7rem;
+  white-space: nowrap;
 }
 
 .stock-delete-btn {
   margin-top: 0;
   padding: 0.45rem 0.7rem;
   background: #b91c1c;
+  white-space: nowrap;
 }
 
 .stock-delete-btn.is-loading {
@@ -497,6 +563,32 @@ button:disabled {
 
   .stock-filters {
     grid-template-columns: 1fr;
+  }
+
+  .sell-search-row {
+    grid-template-columns: 1fr;
+    align-items: stretch;
+  }
+
+  .sell-mode-switch {
+    justify-content: flex-start;
+  }
+
+  .stock-edit-cell {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.35rem;
+    width: 100%;
+  }
+
+  .stock-edit-input {
+    grid-column: 1 / -1;
+    width: 100%;
+  }
+
+  .stock-save-btn,
+  .stock-delete-btn {
+    width: 100%;
   }
 
   .cash-summary {

@@ -52,6 +52,8 @@ let selectedStockProductId = null;
 const UI_MODE_STORAGE_KEY = "kioscoStockUiMode";
 const autoDetectedMobile = detectMobileDevice();
 let forcedUiMode = loadUiModePreference();
+let saleUseScannerMode = true;
+let saleSearchMatches = [];
 const keyboardScanner = createKeyboardScanner(handleKeyboardBarcode);
 
 init().catch((error) => {
@@ -74,6 +76,7 @@ async function init() {
   renderCategoryOptions(PRODUCT_CATEGORIES);
   renderStockCategoryOptions(PRODUCT_CATEGORIES);
   setupDeviceSpecificUI();
+  initSaleModeSwitch();
   focusBarcodeInputIfDesktop();
   renderCurrentSale(currentSaleItems);
   await refreshStock();
@@ -110,6 +113,12 @@ function wireEvents() {
   dom.stopStockScanBtn.addEventListener("click", handleStopStockScanner);
   dom.clearSaleBtn.addEventListener("click", handleClearSale);
   dom.checkoutSaleBtn.addEventListener("click", handleCheckoutSale);
+  dom.saleScanInput?.addEventListener("input", handleSaleScanInputChange);
+  dom.saleScanInput?.addEventListener("keydown", handleSaleScanInputKeydown);
+  dom.saleModeScannerSwitch?.addEventListener("change", handleSaleModeSwitchChange);
+  dom.saleSearchSuggestions?.addEventListener("click", handleSaleSuggestionClick);
+  dom.saleSearchSuggestions?.addEventListener("keydown", handleSaleSuggestionKeydown);
+  dom.saleTableBody.addEventListener("click", handleRemoveCurrentSaleItem);
   dom.closeShiftBtn.addEventListener("click", handleCloseShift);
   dom.refreshCashBtn.addEventListener("click", refreshCashPanel);
   window.addEventListener("online", handleOnlineProductsSync);
@@ -266,6 +275,10 @@ async function switchMode(mode) {
 }
 
 async function handleStartScanner() {
+  if (saleUseScannerMode) {
+    setScanFeedback("Desactiva 'Modo scanner' para usar la camara en ventas.");
+    return;
+  }
   clearScanFeedback();
   if (!isScannerReady()) {
     setScanFeedback("No se pudo cargar la libreria de escaneo.");
@@ -294,7 +307,31 @@ async function handleStopScanner() {
 function handleClearSale() {
   currentSaleItems.length = 0;
   renderCurrentSale(currentSaleItems);
+  clearSaleSuggestions();
+  if (dom.saleScanInput) dom.saleScanInput.value = "";
   setScanFeedback("Venta actual limpiada.", "success");
+}
+
+function handleRemoveCurrentSaleItem(event) {
+  const button = event.target.closest("[data-remove-sale-id]");
+  if (!button) return;
+
+  const productId = String(button.getAttribute("data-remove-sale-id") || "").trim();
+  if (!productId) return;
+
+  const index = currentSaleItems.findIndex((item) => item.productId === productId);
+  if (index === -1) return;
+
+  const item = currentSaleItems[index];
+  if (item.quantity > 1) {
+    item.quantity -= 1;
+    item.subtotal = Number((item.quantity * item.price).toFixed(2));
+  } else {
+    currentSaleItems.splice(index, 1);
+  }
+
+  renderCurrentSale(currentSaleItems);
+  setScanFeedback("Producto quitado de la venta actual.", "success");
 }
 
 async function handleStartAddBarcodeScanner() {
@@ -325,6 +362,7 @@ async function handleStopAddBarcodeScanner() {
 }
 
 async function handleDetectedCode(barcode) {
+  if (dom.saleScanInput) dom.saleScanInput.value = barcode;
   await processSaleBarcode(barcode);
 }
 
@@ -357,6 +395,7 @@ async function processSaleBarcode(barcode) {
   }
 
   renderCurrentSale(currentSaleItems);
+  clearSaleSuggestions();
   setScanFeedback(`Escaneado: ${product.name}`, "success");
 }
 
@@ -573,22 +612,25 @@ function wireStockRowEvents() {
 
 function setupDeviceSpecificUI() {
   const showCameraControls = isMobileMode();
+  if (showCameraControls && saleUseScannerMode) {
+    saleUseScannerMode = false;
+    if (dom.saleModeScannerSwitch) dom.saleModeScannerSwitch.checked = false;
+  }
   document.body.classList.toggle("ui-mode-mobile", showCameraControls);
   document.body.classList.toggle("ui-mode-pc", !showCameraControls);
   dom.addCameraControls.classList.toggle("hidden", !showCameraControls);
   dom.addScanFeedback.classList.toggle("hidden", !showCameraControls);
   dom.addScannerReader.classList.toggle("hidden", !showCameraControls);
-  dom.startScanBtn.classList.toggle("hidden", !showCameraControls);
-  dom.stopScanBtn.classList.toggle("hidden", !showCameraControls);
   dom.stockCameraControls.classList.toggle("hidden", !showCameraControls);
-  dom.saleScannerReader.classList.toggle("hidden", !showCameraControls);
-  dom.saleDeviceHint.classList.toggle("hidden", showCameraControls);
+  dom.saleDeviceHint.classList.toggle("hidden", showCameraControls || !saleUseScannerMode);
   forceCameraControlsDisplay(showCameraControls);
+  applySellModeUI();
   renderUiModeToggleLabel();
 }
 
 async function handleKeyboardBarcode(barcode) {
-  if (dom.sellPanel && !dom.sellPanel.classList.contains("hidden")) {
+  if (dom.sellPanel && !dom.sellPanel.classList.contains("hidden") && saleUseScannerMode) {
+    if (dom.saleScanInput) dom.saleScanInput.value = barcode;
     await processSaleBarcode(barcode);
     return;
   }
@@ -650,7 +692,8 @@ function getCurrentMode() {
 
 function shouldEnableKeyboardScanner(mode) {
   if (isMobileMode()) return false;
-  return mode === "sell" || mode === "stock";
+  if (mode === "sell") return saleUseScannerMode;
+  return mode === "stock";
 }
 
 function isEmployerRole(role) {
@@ -676,7 +719,203 @@ function forceCameraControlsDisplay(showCameraControls) {
   dom.stockCameraControls.style.display = displayValue;
   dom.stockFeedback.style.display = displayValue;
   dom.stockScannerReader.style.display = displayValue;
-  dom.startScanBtn.style.display = displayValue;
-  dom.stopScanBtn.style.display = displayValue;
-  dom.saleScannerReader.style.display = displayValue;
+  dom.startScanBtn.style.display = "";
+  dom.stopScanBtn.style.display = "";
+  dom.saleScannerReader.style.display = "";
+}
+
+function initSaleModeSwitch() {
+  saleUseScannerMode = !isMobileMode();
+  if (dom.saleModeScannerSwitch) {
+    dom.saleModeScannerSwitch.checked = saleUseScannerMode;
+  }
+  applySellModeUI();
+}
+
+async function handleSaleModeSwitchChange() {
+  saleUseScannerMode = Boolean(dom.saleModeScannerSwitch?.checked);
+  if (isMobileMode() && saleUseScannerMode) {
+    saleUseScannerMode = false;
+    if (dom.saleModeScannerSwitch) dom.saleModeScannerSwitch.checked = false;
+    setScanFeedback("En celular usa modo ingreso/busqueda manual.", "success");
+  }
+  applySellModeUI();
+  keyboardScanner.setEnabled(shouldEnableKeyboardScanner(getCurrentMode()));
+
+  if (saleUseScannerMode) {
+    clearSaleSuggestions();
+    if (dom.saleScanInput) dom.saleScanInput.value = "";
+    await stopAnyScanner({ targetMode: "sell", showMessage: false });
+    setScanFeedback("Modo scanner activo. La busqueda manual se deshabilito.", "success");
+  } else {
+    setScanFeedback("Modo busqueda manual activo. Puedes usar camara o escribir codigo/nombre.", "success");
+  }
+}
+
+function applySellModeUI() {
+  if (dom.saleModeSwitchLabel) {
+    dom.saleModeSwitchLabel.textContent = saleUseScannerMode ? "Modo scanner" : "Modo ingreso/busqueda manual";
+  }
+  if (dom.saleScanInput) {
+    dom.saleScanInput.disabled = saleUseScannerMode;
+    dom.saleScanInput.placeholder = saleUseScannerMode
+      ? "Codigo escaneado (modo scanner)"
+      : "Escribe codigo o nombre de producto";
+  }
+  if (dom.saleModeScannerSwitch) {
+    dom.saleModeScannerSwitch.disabled = isMobileMode();
+  }
+  document.body.classList.toggle("sell-manual-mode", !saleUseScannerMode);
+  document.body.classList.toggle("sell-scanner-mode", saleUseScannerMode);
+  dom.saleDeviceHint.classList.toggle("hidden", isMobileMode() || !saleUseScannerMode);
+}
+
+function handleSaleScanInputKeydown(event) {
+  if (saleUseScannerMode) return;
+  if (event.key !== "Enter") return;
+  event.preventDefault();
+  addFromSaleSearch(true).catch((error) => console.error(error));
+}
+
+function handleSaleScanInputChange() {
+  if (saleUseScannerMode) return;
+  renderSaleSuggestions();
+}
+
+function handleSaleSuggestionClick(event) {
+  const button = event.target.closest("[data-sale-suggestion-id]");
+  if (!button) return;
+
+  const productId = String(button.getAttribute("data-sale-suggestion-id") || "").trim();
+  if (!productId) return;
+  const product = allStockProducts.find((item) => item.id === productId);
+  if (!product) return;
+
+  addProductToCurrentSale(product);
+  if (dom.saleScanInput) {
+    dom.saleScanInput.value = "";
+    dom.saleScanInput.focus({ preventScroll: true });
+  }
+  clearSaleSuggestions();
+}
+
+function handleSaleSuggestionKeydown(event) {
+  if (event.key !== "Enter" && event.key !== " ") return;
+  const pill = event.target.closest("[data-sale-suggestion-id]");
+  if (!pill) return;
+  event.preventDefault();
+  pill.click();
+}
+
+function renderSaleSuggestions() {
+  if (!dom.saleSearchSuggestions || !dom.saleScanInput) return;
+  const query = String(dom.saleScanInput.value || "").trim().toLowerCase();
+  if (!query) {
+    clearSaleSuggestions();
+    return;
+  }
+
+  saleSearchMatches = allStockProducts
+    .filter((product) => {
+      const barcode = String(product.barcode || "").toLowerCase();
+      const name = String(product.name || "").toLowerCase();
+      const id = String(product.id || "").toLowerCase();
+      return barcode.includes(query) || name.includes(query) || id.includes(query);
+    })
+    .slice(0, 8);
+
+  if (saleSearchMatches.length === 0) {
+    dom.saleSearchSuggestions.innerHTML = '<span class="sale-suggestion-empty">Sin coincidencias</span>';
+    dom.saleSearchSuggestions.classList.remove("hidden");
+    return;
+  }
+
+  dom.saleSearchSuggestions.innerHTML = saleSearchMatches
+    .map((product) => {
+      const label = `${escapeHtml(product.name)} (${escapeHtml(product.barcode || product.id || "")})`;
+      return `<span class="sale-suggestion-pill" data-sale-suggestion-id="${escapeHtml(
+        product.id
+      )}" role="button" tabindex="0">${label}</span>`;
+    })
+    .join("");
+  dom.saleSearchSuggestions.classList.remove("hidden");
+}
+
+function clearSaleSuggestions() {
+  saleSearchMatches = [];
+  if (!dom.saleSearchSuggestions) return;
+  dom.saleSearchSuggestions.innerHTML = "";
+  dom.saleSearchSuggestions.classList.add("hidden");
+}
+
+async function addFromSaleSearch(showNoMatchMessage = false) {
+  if (saleUseScannerMode || !dom.saleScanInput) return;
+  const query = String(dom.saleScanInput.value || "").trim();
+  if (!query) return;
+
+  const lower = query.toLowerCase();
+  const exact = allStockProducts.find((product) => {
+    const barcode = String(product.barcode || "").toLowerCase();
+    const name = String(product.name || "").toLowerCase();
+    const id = String(product.id || "").toLowerCase();
+    return barcode === lower || name === lower || id === lower;
+  });
+
+  if (exact) {
+    addProductToCurrentSale(exact);
+    dom.saleScanInput.value = "";
+    clearSaleSuggestions();
+    return;
+  }
+
+  renderSaleSuggestions();
+  if (saleSearchMatches.length === 1) {
+    addProductToCurrentSale(saleSearchMatches[0]);
+    dom.saleScanInput.value = "";
+    clearSaleSuggestions();
+    return;
+  }
+
+  if (showNoMatchMessage) {
+    if (saleSearchMatches.length > 1) {
+      setScanFeedback("Hay varias coincidencias. Selecciona una de la lista.");
+    } else {
+      setScanFeedback(`No se encontro "${query}" en stock.`);
+    }
+  }
+}
+
+function addProductToCurrentSale(product) {
+  const existing = currentSaleItems.find((item) => item.productId === product.id);
+  const nextQuantity = existing ? existing.quantity + 1 : 1;
+  if (nextQuantity > Number(product.stock || 0)) {
+    setScanFeedback(`Stock insuficiente para ${product.name}. Disponible: ${product.stock}.`);
+    return;
+  }
+
+  if (existing) {
+    existing.quantity = nextQuantity;
+    existing.subtotal = existing.quantity * existing.price;
+  } else {
+    currentSaleItems.push({
+      productId: product.id,
+      barcode: product.barcode,
+      name: product.name,
+      quantity: 1,
+      price: Number(product.price || 0),
+      subtotal: Number(product.price || 0)
+    });
+  }
+
+  renderCurrentSale(currentSaleItems);
+  setScanFeedback(`Agregado: ${product.name}`, "success");
+}
+
+function escapeHtml(value) {
+  return String(value)
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
 }
