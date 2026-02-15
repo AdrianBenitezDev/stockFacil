@@ -295,6 +295,8 @@ const premiumSnap = await getDoc(premiumRef);
 
     const data = validSnaps[0].exists() ? validSnaps[0] .data() || {} : {};
 
+    console.log(data)
+
     availablePlans = normalizePlans(data.planes);
     if (!availablePlans.length) {
       availablePlans = DEFAULT_PLANS.filter((plan) => plan.activo !== false);
