@@ -288,17 +288,18 @@ const premiumSnap = await getDoc(premiumRef);
 
     const arrayPlanes= [freeSnap,standardSnap,premiumSnap];
     const validSnaps = arrayPlanes.filter((s) => s.exists() && s.data());
+    console.log(validSnaps)
     if (validSnaps.length === 0) {
       throw new Error("No se encontraron planes en Firestore.");
     }
 
-    const data = snap.exists() ? snap.data() || {} : {};
+    const data = validSnaps[0].exists() ? validSnaps[0] .data() || {} : {};
 
     availablePlans = normalizePlans(data.planes);
     if (!availablePlans.length) {
       availablePlans = DEFAULT_PLANS.filter((plan) => plan.activo !== false);
     }
-    
+
     renderPlanCards(availablePlans);
 
     plansFeedback.textContent = "";
