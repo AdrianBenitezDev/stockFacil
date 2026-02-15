@@ -63,7 +63,7 @@ exports.seedPlanes = functions.https.onRequest(async (req, res) => {
     const batch = db.batch();
 
     planes.forEach((plan) => {
-      const ref = db.collection("planes").doc(plan.id);
+      const ref = db.collection("admin").doc(plan.id);
       batch.set(ref, plan);
     });
 

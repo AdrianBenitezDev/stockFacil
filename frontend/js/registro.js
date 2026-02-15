@@ -27,7 +27,7 @@ const DEFAULT_PLANS = [
   {
     id: "prueba",
     titulo: "Prueba",
-    precio: "$0 / 7 dias",
+    precio: "$20000 dias",
     descripcion: "Ideal para validar el flujo inicial del negocio.",
     caracteristicas: ["Ventas y stock", "Sin costo inicial", "Soporte basico"],
     activo: true,
@@ -275,8 +275,25 @@ async function loadPlans() {
   availablePlans = [];
 
   try {
-    const snap = await getDoc(doc(firestoreDb,"planes"));
+    const freeRef = doc(firestoreDb, "planes", "free");
+const standardRef = doc(firestoreDb, "planes", "standard");
+const premiumRef = doc(firestoreDb, "planes", "premium");
+
+const freeSnap = await getDoc(freeRef);
+const standardSnap = await getDoc(standardRef);
+const premiumSnap = await getDoc(premiumRef);
+
+// Verificar que los documentos existen y tienen datos
+
+
+    const arrayPlanes= [freeSnap,standardSnap,premiumSnap];
+    const validSnaps = arrayPlanes.filter((s) => s.exists() && s.data());
+    if (validSnaps.length === 0) {
+      throw new Error("No se encontraron planes en Firestore.");
+    }
+
     const data = snap.exists() ? snap.data() || {} : {};
+
     availablePlans = normalizePlans(data.planes);
     if (!availablePlans.length) {
       availablePlans = DEFAULT_PLANS.filter((plan) => plan.activo !== false);
@@ -285,9 +302,8 @@ async function loadPlans() {
     plansFeedback.textContent = "";
   } catch (error) {
     console.warn("No se pudieron cargar planes desde Firestore:", error?.message || error);
-    availablePlans = DEFAULT_PLANS.filter((plan) => plan.activo !== false);
-    renderPlanCards(availablePlans);
-    plansFeedback.textContent = "Se cargaron planes locales por respaldo.";
+    
+    plansFeedback.textContent = "Error al conectarse con el servidor.";
   }
 }
 
