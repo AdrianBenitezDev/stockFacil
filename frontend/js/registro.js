@@ -522,11 +522,13 @@ async function requestVerificationEmail(idToken) {
   });
 
   const result = await response.json().catch(() => ({}));
+ 
+   console.log("respuesta")
+  console.log(result)
   if (!response.ok || !result.ok) {
     throw new Error(result?.error || "No se pudo enviar el correo de verificacion.");
   }
-  console.log("respuesta")
-  console.log(result)
+ 
 }
 
 function getSendVerificationEndpoint() {
