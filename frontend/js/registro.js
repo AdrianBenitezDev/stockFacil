@@ -236,16 +236,16 @@ async function handleRegisterSubmit(event) {
   clearFieldErrors();
   registerFeedback.textContent = "";
   plansFeedback.textContent = "";
-  setDisabled(true);
 
   const payload = getFormPayload();
   const validation = validatePayload(payload);
   if (!validation.ok) {
     applyFieldErrors(validation.fieldErrors);
     registerFeedback.textContent = "Revisa los campos marcados.";
-    setDisabled(false);
     return;
   }
+
+  setDisabled(true);
 
   const authUser = firebaseAuth.currentUser;
   if (!authUser) {
