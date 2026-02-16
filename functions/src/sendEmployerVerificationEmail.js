@@ -1,5 +1,5 @@
-const { onRequest, adminAuth, db } = require("./shared/context");
-const functions = require("firebase-functions");
+const crypto = require("crypto");
+const { onRequest, adminAuth, db, Timestamp } = require("./shared/context");
 
 const sendEmployerVerificationEmail = onRequest( { secrets: ["RESEND_API_KEY"] },async (req, res) => {
   setCors(res);
@@ -40,12 +40,12 @@ const sendEmployerVerificationEmail = onRequest( { secrets: ["RESEND_API_KEY"] }
 
     
     //creamos el token de verificacion y lo guardamos en el perfil del usuario para luego compararlo al momento de marcar el correo como verificado
-    const tokenCorreoVerificacion = functions.util.crypto.randomBytes(32).toString("hex");
-      const appBaseUrl = normalizeAppBaseUrl(req.body?.appBaseUrl);
+    const tokenCorreoVerificacion = crypto.randomBytes(32).toString("hex");
+    const appBaseUrl = normalizeAppBaseUrl(req.body?.appBaseUrl);
 
-     let url= `${appBaseUrl}/verificar-correo.html?email=${encodeURIComponent(email)}`
+    const url = `${appBaseUrl}/verificar-correo.html?email=${encodeURIComponent(email)}`;
 
-    const verificationLink = url+`&tokenCorreoVerificacion=`;
+    const verificationLink = `${url}&tokenCorreoVerificacion=${encodeURIComponent(tokenCorreoVerificacion)}`;
 
     await db.collection("usuarios").doc(uid).set(
       {
@@ -90,7 +90,6 @@ function normalizeAppBaseUrl(input) {
 }
 
 async function sendResendEmail({ to, verificationLink }) {
-  
   const resendApiKey = String(process.env.RESEND_API_KEY || "").trim();
   if (!resendApiKey) {
     throw new Error("Falta RESEND_API_KEY en variables de entorno.");
@@ -114,7 +113,7 @@ async function sendResendEmail({ to, verificationLink }) {
   });
 
   if (!response.ok) {
-    res.sendtatus(500).json({ ok: false, error: "No se pudo enviar el correo de verificacion.", mensaje: `Resend API responded with status ${response.status}` });
+    const body = await response.text().catch(() => "");
     throw new Error(`Resend error ${response.status}: ${body}`);
   }
 }
