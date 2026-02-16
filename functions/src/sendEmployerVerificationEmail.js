@@ -51,7 +51,7 @@ const sendEmployerVerificationEmail = onRequest(async (req, res) => {
     res.status(200).json({ ok: true, email });
   } catch (error) {
     console.error("sendEmployerVerificationEmail fallo:", error);
-    res.status(500).json({ ok: false, error: "No se pudo enviar el correo de verificacion.",detalle:error });
+    res.status(500).json({ ok: false, error: "No se pudo enviar el correo de verificacion.",detalle: error.message || error.toString() });
   }
 });
 
