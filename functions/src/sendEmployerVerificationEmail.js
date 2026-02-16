@@ -1,6 +1,6 @@
 const { onRequest, adminAuth, db } = require("./shared/context");
 
-const sendEmployerVerificationEmail = onRequest({ secrets: ["RESEND_API_KEY"] }, async (req, res) => {
+const sendEmployerVerificationEmail = onRequest(async (req, res) => {
   setCors(res);
   if (req.method === "OPTIONS") {
     res.status(204).send("");
@@ -30,7 +30,6 @@ const sendEmployerVerificationEmail = onRequest({ secrets: ["RESEND_API_KEY"] },
       res.status(404).json({ ok: false, error: "No existe perfil de usuario." });
       return;
     }
-
     const profile = userSnap.data() || {};
     const email = String(profile.email || "").trim().toLowerCase();
     if (!email) {
@@ -44,7 +43,11 @@ const sendEmployerVerificationEmail = onRequest({ secrets: ["RESEND_API_KEY"] },
       handleCodeInApp: true
     });
 
-    await sendResendEmail({ to: email, verificationLink });
+    await sendResendEmail({
+      to: email,
+      verificationLink
+    });
+
     res.status(200).json({ ok: true, email });
   } catch (error) {
     console.error("sendEmployerVerificationEmail fallo:", error);

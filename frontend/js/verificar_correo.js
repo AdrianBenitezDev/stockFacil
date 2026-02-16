@@ -1,4 +1,4 @@
-﻿import { applyActionCode, reload } from "https://www.gstatic.com/firebasejs/10.13.2/firebase-auth.js";
+import { applyActionCode, reload } from "https://www.gstatic.com/firebasejs/10.13.2/firebase-auth.js";
 import { ensureFirebaseAuth, firebaseAuth, firebaseConfig } from "../config.js";
 
 const targetNode = document.getElementById("verify-email-target");
