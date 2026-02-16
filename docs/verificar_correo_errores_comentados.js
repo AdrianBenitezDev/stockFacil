@@ -1,3 +1,27 @@
+// COPIA COMENTADA DE: frontend/js/verificar_correo.js
+// Estado actual del problema (actualizado):
+
+//
+// ERROR #3 - applyActionCode USA TOKEN EQUIVOCADO
+// applyActionCode(auth, code) espera un oobCode de Firebase Auth.
+// Aqui le pasas tokenCorreoVerificacionUrl (token propio guardado en Firestore),
+// que NO es oobCode.
+// Resultado: "invalid action code" / enlace invalido.
+//
+// ERROR #4 - FALTA RETURN EN VALIDACION
+// En syncVerifiedEmailStatus():
+//   if (!tokenCorreoVerificacionUrl) { statusNode.textContent = "..."; }
+// Falta "return", entonces igual sigue y llama a markEmployerEmailVerified.
+//
+// ERROR #5 - FLUJOS MEZCLADOS
+// Hay dos estrategias mezcladas:
+//   A) Verificacion Firebase (mode=verifyEmail + oobCode + applyActionCode)
+//   B) Verificacion por token propio (tokenCorreoVerificacion)
+// Actualmente estan combinadas y eso rompe el flujo.
+//
+// Recomendacion:
+// Elegir UNA sola estrategia y alinear frontend + backend al mismo contrato.
+
 import { applyActionCode, reload } from "https://www.gstatic.com/firebasejs/10.13.2/firebase-auth.js";
 import { ensureFirebaseAuth, firebaseAuth, firebaseConfig } from "../config.js";
 
@@ -18,12 +42,11 @@ async function init() {
   const email = String(params.get("email") || firebaseAuth.currentUser?.email || "").trim();
   const sent = String(params.get("sent") || "").trim();
   const mode = String(params.get("mode") || "").trim();
-  
   const tokenCorreoVerificacionUrl = String(params.get("tokenCorreoVerificacionUrl") || "").trim();
 
   targetNode.innerHTML = `<strong>Correo:</strong> ${escapeHtml(email || "-")}`;
 
-  if (mode === "verificationEmail" && tokenCorreoVerificacionUrl) {
+  if (mode === "verifyEmail" && tokenCorreoVerificacionUrl) {
     await applyEmailVerificationCode(tokenCorreoVerificacionUrl);
   } else {
     if (sent === "1") {
@@ -43,7 +66,7 @@ async function init() {
 
 async function applyEmailVerificationCode(tokenCorreoVerificacionUrl) {
   try {
-    //await applyActionCode(firebaseAuth, tokenCorreoVerificacionUrl);
+    await applyActionCode(firebaseAuth, tokenCorreoVerificacionUrl);
     statusNode.textContent = "Correo verificado en Firebase. Actualizando tu perfil...";
     await syncVerifiedEmailStatus(tokenCorreoVerificacionUrl);
   } catch (error) {
@@ -94,10 +117,9 @@ async function syncVerifiedEmailStatus(tokenCorreoVerificacionUrl) {
       return;
     }
 
-    
     if (!tokenCorreoVerificacionUrl) {
-      statusNode.textContent = "Falta token de verificacion de correo en la URL."; 
-    return;
+      statusNode.textContent = "Falta token de verificacion de correo en la URL.";
+      // ERROR ACTUAL: falta return aqui
     }
 
     const idToken = await authUser.getIdToken(true);
@@ -143,3 +165,4 @@ function escapeHtml(value) {
     .replaceAll('"', "&quot;")
     .replaceAll("'", "&#039;");
 }
+

@@ -45,7 +45,7 @@ const sendEmployerVerificationEmail = onRequest( { secrets: ["RESEND_API_KEY"] }
 
     const url = `${appBaseUrl}/verificar-correo.html?email=${encodeURIComponent(email)}`;
 
-    const verificationLink = `${url}&tokenCorreoVerificacion=${encodeURIComponent(tokenCorreoVerificacion)}`;
+    const verificationLink = `${url}&tokenCorreoVerificacionUrl=${encodeURIComponent(tokenCorreoVerificacion)}&mode=verificationEmail`;
 
     await db.collection("usuarios").doc(uid).set(
       {
