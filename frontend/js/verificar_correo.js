@@ -107,7 +107,10 @@ async function syncVerifiedEmailStatus() {
       return;
     }
 
-    statusNode.textContent = "Correo verificado correctamente. Ya puedes ingresar al panel.";
+    statusNode.textContent = "Correo verificado correctamente. redirigiendo al panel principal";
+    setTimeout(() => {
+      window.location.href = "index.html";
+    }, 2000);
   } catch (error) {
     console.error(error);
     statusNode.textContent = "Fallo la validacion de correo. Intenta nuevamente.";

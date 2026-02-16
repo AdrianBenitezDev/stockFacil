@@ -38,9 +38,27 @@ const markEmployerEmailVerified = onRequest(async (req, res) => {
       return;
     }
 
+    
+     let tokenCorreoVerificacionUrl = String(req.body?.tokenCorreoVerificacion || "").trim();
+     if(!tokenCorreoVerificacionUrl){
+      res.status(400).json({ ok: false, error: "Falta token de verificacion de correo." });
+      return;
+    }
+
+
+
+    const profile = userSnap.data() || {};
+    const tokenCorreoVerificacion = profile.tokenCorreoVerificacion;
+    
+    if(tokenCorreoVerificacion!== tokenCorreoVerificacionUrl){
+      res.status(409).json({ ok: false, error: "El token de verificacion no coincide." });
+      return;
+    }
+
     await userRef.set(
       {
         correoVerificado: true,
+        tokenCorreoVerificacion: null,
         updatedAt: Timestamp.now()
       },
       { merge: true }

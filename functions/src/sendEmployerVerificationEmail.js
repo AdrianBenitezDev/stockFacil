@@ -1,6 +1,7 @@
 const { onRequest, adminAuth, db } = require("./shared/context");
+const functions = require("firebase-functions");
 
-const sendEmployerVerificationEmail = onRequest(async (req, res) => {
+const sendEmployerVerificationEmail = onRequest( { secrets: ["RESEND_API_KEY"] },async (req, res) => {
   setCors(res);
   if (req.method === "OPTIONS") {
     res.status(204).send("");
@@ -37,21 +38,34 @@ const sendEmployerVerificationEmail = onRequest(async (req, res) => {
       return;
     }
 
-    const appBaseUrl = normalizeAppBaseUrl(req.body?.appBaseUrl);
-    const verificationLink = await adminAuth.generateEmailVerificationLink(email, {
-      url: `${appBaseUrl}/verificar-correo.html?email=${encodeURIComponent(email)}`,
-      handleCodeInApp: true
-    });
+    
+    //creamos el token de verificacion y lo guardamos en el perfil del usuario para luego compararlo al momento de marcar el correo como verificado
+    const tokenCorreoVerificacion = functions.util.crypto.randomBytes(32).toString("hex");
+      const appBaseUrl = normalizeAppBaseUrl(req.body?.appBaseUrl);
 
+     let url= `${appBaseUrl}/verificar-correo.html?email=${encodeURIComponent(email)}`
+
+    const verificationLink = url+`&tokenCorreoVerificacion=`;
+
+    await db.collection("usuarios").doc(uid).set(
+      {
+        correoVerificado: false,
+        tokenCorreoVerificacion,
+        updatedAt: Timestamp.now()
+      },
+      { merge: true }
+    );
+
+    //enviamos el correo de verificacion
     await sendResendEmail({
-      to: email,
+      to: "artbenitezdev@gmail.com",//email,
       verificationLink
     });
 
     res.status(200).json({ ok: true, email });
   } catch (error) {
     console.error("sendEmployerVerificationEmail fallo:", error);
-    res.status(500).json({ ok: false, error: "No se pudo enviar el correo de verificacion." });
+    res.status(500).json({ ok: false, error: "No se pudo enviar el correo de verificacion.",detalle: error.message || error.toString() });
   }
 });
 
@@ -76,6 +90,7 @@ function normalizeAppBaseUrl(input) {
 }
 
 async function sendResendEmail({ to, verificationLink }) {
+  
   const resendApiKey = String(process.env.RESEND_API_KEY || "").trim();
   if (!resendApiKey) {
     throw new Error("Falta RESEND_API_KEY en variables de entorno.");
