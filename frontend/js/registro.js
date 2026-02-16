@@ -2,6 +2,7 @@ import { doc, getDoc } from "https://www.gstatic.com/firebasejs/10.13.2/firebase
 import { ensureFirebaseAuth, firebaseAuth, firebaseConfig, firestoreDb } from "../config.js";
 import { ensureCurrentUserProfile } from "./auth.js";
 import { openDatabase } from "./db.js";
+import { paises } from "./paises.js";
 
 const registerForm = document.getElementById("register-form");
 const registerSubmitBtn = document.getElementById("register-submit-btn");
@@ -10,18 +11,12 @@ const registerFeedback = document.getElementById("register-feedback");
 const plansFeedback = document.getElementById("register-plans-feedback");
 const plansContainer = document.getElementById("register-plan-cards");
 const selectedPlanInput = document.getElementById("register-plan-selected");
-const countrySelect = document.getElementById("register-country");
+const countryInput = document.getElementById("register-country-input");
+const countrySuggestions = document.getElementById("register-country-suggestions");
 const provinceSelect = document.getElementById("register-province");
 const phoneInput = document.getElementById("register-phone");
 const registerEmailInput = document.getElementById("register-email");
-
-const COUNTRY_PROVINCES = {
-  AR: ["Buenos Aires", "CABA", "Cordoba", "Santa Fe", "Mendoza", "Tucuman"],
-  UY: ["Montevideo", "Canelones", "Maldonado", "Colonia", "Salto"],
-  CL: ["Santiago", "Valparaiso", "Biobio", "Araucania", "Antofagasta"],
-  MX: ["CDMX", "Jalisco", "Nuevo Leon", "Puebla", "Yucatan"],
-  ES: ["Madrid", "Cataluna", "Andalucia", "Valencia", "Galicia"]
-};
+const PROVINCES_API_URL = "https://countriesnow.space/api/v0.1/countries/states";
 
 const DEFAULT_PLANS = [
   {
@@ -54,6 +49,8 @@ const DEFAULT_PLANS = [
 ];
 
 let availablePlans = [];
+let currentCountryForProvinces = "";
+let currentProvinceOptions = [];
 
 init().catch((error) => {
   console.error(error);
@@ -77,13 +74,19 @@ async function init() {
     return;
   }
 
-  renderCountryOptions();
+  initCountryAutocomplete();
   prefillEmailFromQuery();
   await loadPlans();
 
-  countrySelect?.addEventListener("change", renderProvinceOptions);
   phoneInput?.addEventListener("input", () => {
     phoneInput.value = String(phoneInput.value || "").replace(/\D/g, "");
+  });
+  countrySuggestions?.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-country]");
+    if (!button) return;
+    const selectedCountry = String(button.getAttribute("data-country") || "").trim();
+    if (!selectedCountry) return;
+    selectCountry(selectedCountry);
   });
   plansContainer?.addEventListener("click", handlePlanCardClick);
   registerForm?.addEventListener("submit", handleRegisterSubmit);
@@ -102,26 +105,130 @@ function prefillEmailFromQuery() {
   }
 }
 
-function renderCountryOptions() {
-  const options = [
-    '<option value="">Selecciona un pais</option>',
-    '<option value="AR">Argentina</option>',
-    '<option value="UY">Uruguay</option>',
-    '<option value="CL">Chile</option>',
-    '<option value="MX">Mexico</option>',
-    '<option value="ES">Espana</option>'
-  ];
-  countrySelect.innerHTML = options.join("");
-  renderProvinceOptions();
+function initCountryAutocomplete() {
+  clearProvinceOptions();
+  countryInput?.addEventListener("input", () => {
+    const typedValue = String(countryInput.value || "").trim();
+    renderCountrySuggestions(typedValue);
+    if (!isValidCountry(typedValue)) {
+      clearProvinceOptions();
+    }
+  });
+  countryInput?.addEventListener("focus", () => {
+    renderCountrySuggestions(String(countryInput.value || "").trim());
+  });
+  countryInput?.addEventListener("blur", () => {
+    window.setTimeout(() => {
+      hideCountrySuggestions();
+    }, 120);
+  });
 }
 
-function renderProvinceOptions() {
-  const selected = String(countrySelect.value || "").trim();
-  const provinces = COUNTRY_PROVINCES[selected] || [];
-  provinceSelect.innerHTML = [
-    '<option value="">Selecciona una provincia/estado</option>',
-    ...provinces.map((item) => `<option value="${escapeHtml(item)}">${escapeHtml(item)}</option>`)
-  ].join("");
+function renderCountrySuggestions(searchTerm) {
+  const query = normalizeText(searchTerm);
+  const exactCountry = findExactCountry(searchTerm);
+  if (exactCountry) {
+    selectCountry(exactCountry);
+    return;
+  }
+
+  const matches = paises
+    .filter((country) => normalizeText(country).includes(query))
+    .slice(0, 8);
+
+  if (!query || !matches.length) {
+    hideCountrySuggestions();
+    return;
+  }
+
+  countrySuggestions.innerHTML = matches
+    .map(
+      (country) =>
+        `<button type="button" class="country-suggestion-item" data-country="${escapeHtml(country)}">${escapeHtml(country)}</button>`
+    )
+    .join("");
+  countrySuggestions.classList.remove("hidden");
+}
+
+function selectCountry(countryName) {
+  countryInput.value = countryName;
+  hideCountrySuggestions();
+  void renderProvinceOptions(countryName);
+}
+
+async function renderProvinceOptions(countryName) {
+  const exactCountry = findExactCountry(countryName);
+  if (!exactCountry) {
+    clearProvinceOptions();
+    return;
+  }
+
+  currentCountryForProvinces = exactCountry;
+  currentProvinceOptions = [];
+  provinceSelect.disabled = true;
+  provinceSelect.innerHTML = '<option value="">Cargando provincias...</option>';
+  const provinceErrorNode = document.getElementById("err-provinciaEstado");
+  if (provinceErrorNode) provinceErrorNode.textContent = "";
+
+  try {
+    const provinces = await fetchProvincesByCountry(exactCountry);
+    if (currentCountryForProvinces !== exactCountry) {
+      return;
+    }
+
+    currentProvinceOptions = provinces;
+    if (!provinces.length) {
+      clearProvinceOptions();
+      if (provinceErrorNode) {
+        provinceErrorNode.textContent = "No se encontraron provincias para este pais.";
+      }
+      return;
+    }
+
+    provinceSelect.innerHTML = [
+      '<option value="">Selecciona una provincia/estado</option>',
+      ...provinces.map((item) => `<option value="${escapeHtml(item)}">${escapeHtml(item)}</option>`)
+    ].join("");
+  } catch (error) {
+    console.warn("No se pudieron cargar provincias desde API:", error?.message || error);
+    if (currentCountryForProvinces !== exactCountry) return;
+    clearProvinceOptions();
+    if (provinceErrorNode) {
+      provinceErrorNode.textContent = "No se pudieron cargar provincias. Reintenta.";
+    }
+  } finally {
+    provinceSelect.disabled = false;
+  }
+}
+
+async function fetchProvincesByCountry(countryName) {
+  const response = await fetch(PROVINCES_API_URL, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ country: countryName })
+  });
+  if (!response.ok) {
+    throw new Error(`HTTP ${response.status}`);
+  }
+
+  const payload = await response.json();
+  const stateList = Array.isArray(payload?.data?.states) ? payload.data.states : [];
+  const provinceNames = stateList
+    .map((state) => String(state?.name || "").trim())
+    .filter(Boolean);
+
+  return [...new Set(provinceNames)];
+}
+
+function clearProvinceOptions() {
+  currentProvinceOptions = [];
+  provinceSelect.innerHTML = '<option value="">Selecciona una provincia/estado</option>';
+  provinceSelect.disabled = false;
+}
+
+function hideCountrySuggestions() {
+  countrySuggestions.classList.add("hidden");
+  countrySuggestions.innerHTML = "";
 }
 
 async function handleRegisterSubmit(event) {
@@ -223,9 +330,15 @@ function validatePayload(payload) {
   }
   if (!payload.pais) {
     fieldErrors.pais = "Pais obligatorio.";
+  } else if (!isValidCountry(payload.pais)) {
+    fieldErrors.pais = "Selecciona un pais valido de la lista.";
   }
   if (!payload.provinciaEstado) {
     fieldErrors.provinciaEstado = "Provincia/Estado obligatorio.";
+  } else {
+    if (!currentProvinceOptions.includes(payload.provinciaEstado)) {
+      fieldErrors.provinciaEstado = "Selecciona una provincia valida para el pais.";
+    }
   }
   if (!payload.distrito) {
     fieldErrors.distrito = "Distrito obligatorio.";
@@ -372,6 +485,23 @@ function handlePlanCardClick(event) {
   plansContainer.querySelectorAll("[data-plan-id]").forEach((node) => {
     node.classList.toggle("is-selected", node === target);
   });
+}
+
+function isValidCountry(countryName) {
+  return Boolean(findExactCountry(countryName));
+}
+
+function findExactCountry(countryName) {
+  const normalizedInput = normalizeText(countryName);
+  return paises.find((country) => normalizeText(country) === normalizedInput) || "";
+}
+
+function normalizeText(value) {
+  return String(value || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim()
+    .toLowerCase();
 }
 
 function getRegisterEndpoint() {

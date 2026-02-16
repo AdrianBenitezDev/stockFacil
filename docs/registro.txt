@@ -1,0 +1,7 @@
+modificaciones para el html registro
+
+las provincias deben ser traidas por una api
+
+saca el array de provinciasPorPais de pais.js
+
+genera un plan y planeteame tus objetivos y pide confirmación

@@ -40,8 +40,11 @@
         <input id="register-kiosk-name" name="nombreKiosco" type="text" required>
         <small id="err-nombreKiosco" class="feedback"></small>
 
-        <label for="register-country">Pais</label>
-        <select id="register-country" name="pais" required></select>
+        <label for="register-country-input">Pais</label>
+        <div class="country-autocomplete">
+          <input id="register-country-input" name="pais" type="text" autocomplete="off" required>
+          <div id="register-country-suggestions" class="country-suggestions hidden" role="listbox"></div>
+        </div>
         <small id="err-pais" class="feedback"></small>
 
         <label for="register-province">Provincia/Estado</label>
