@@ -1,5 +1,6 @@
 const crypto = require("crypto");
 const { onRequest, adminAuth, db, Timestamp } = require("./shared/context");
+const TOKEN_EXPIRY_HOURS = 24;
 
 const sendEmployerVerificationEmail = onRequest( { secrets: ["RESEND_API_KEY"] },async (req, res) => {
   setCors(res);
@@ -45,12 +46,16 @@ const sendEmployerVerificationEmail = onRequest( { secrets: ["RESEND_API_KEY"] }
 
     const url = `${appBaseUrl}/verificar-correo.html?email=${encodeURIComponent(email)}`;
 
-    const verificationLink = `${url}&tokenCorreoVerificacionUrl=${encodeURIComponent(tokenCorreoVerificacion)}&mode=verificationEmail`;
+    const verificationLink = `${url}&tokenCorreoVerificacion=${encodeURIComponent(tokenCorreoVerificacion)}`;
 
     await db.collection("usuarios").doc(uid).set(
       {
         correoVerificado: false,
         tokenCorreoVerificacion,
+        tokenCorreoVerificacionCreatedAt: Timestamp.now(),
+        tokenCorreoVerificacionExpiresAt: Timestamp.fromDate(
+          new Date(Date.now() + TOKEN_EXPIRY_HOURS * 60 * 60 * 1000)
+        ),
         updatedAt: Timestamp.now()
       },
       { merge: true }

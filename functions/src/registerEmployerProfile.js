@@ -160,7 +160,9 @@ async function normalizePayload(input, fallbackEmail) {
     fieldErrors.domicilio = "Domicilio obligatorio.";
   }
   const allowedPlans = await loadAvailablePlans();
-  if (!allowedPlans.has(data.plan.toLowerCase())) {
+  if (!allowedPlans.size) {
+    fieldErrors.plan = "No hay planes disponibles en backend.";
+  } else if (!allowedPlans.has(data.plan.toLowerCase())) {
     fieldErrors.plan = "Plan invalido.";
   }
 
@@ -174,28 +176,23 @@ async function normalizePayload(input, fallbackEmail) {
 }
 
 async function loadAvailablePlans() {
-  const fallbackPlans = new Set(["prueba", "standard", "premium"]);
-
   try {
-    const plansSnap = await db.collection("admin").doc("planes").get();
-    if (!plansSnap.exists) return fallbackPlans;
+    const plansSnap = await db.collection("planes").get();
+    if (plansSnap.empty) return new Set();
 
-    const rawPlans = plansSnap.data()?.planes;
-    if (!Array.isArray(rawPlans) || !rawPlans.length) return fallbackPlans;
+    const ids = plansSnap.docs
+      .map((snap) => {
+        const data = snap.data() || {};
+        const activo = data.activo !== false;
+        if (!activo) return "";
+        return String(snap.id || data.id || "").trim().toLowerCase();
+      })
+      .filter(Boolean);
 
-    const fromFirestore = rawPlans
-      .map((plan) => ({
-        id: String(plan?.id || "").trim().toLowerCase(),
-        activo: plan?.activo !== false
-      }))
-      .filter((plan) => plan.activo && Boolean(plan.id))
-      .map((plan) => plan.id);
-
-    if (!fromFirestore.length) return fallbackPlans;
-    return new Set(fromFirestore);
+    return new Set(ids);
   } catch (error) {
-    console.warn("registerEmployerProfile: no se pudo leer admin/planes", error?.message || error);
-    return fallbackPlans;
+    console.warn("registerEmployerProfile: no se pudo leer planes", error?.message || error);
+    return new Set();
   }
 }
 

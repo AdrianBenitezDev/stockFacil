@@ -25,12 +25,6 @@ const markEmployerEmailVerified = onRequest(async (req, res) => {
       return;
     }
 
-    const authUser = await adminAuth.getUser(uid);
-    if (!authUser.emailVerified) {
-      res.status(409).json({ ok: false, error: "El correo todavia no fue verificado en Firebase Auth." });
-      return;
-    }
-
     const userRef = db.collection("usuarios").doc(uid);
     const userSnap = await userRef.get();
     if (!userSnap.exists) {
@@ -38,20 +32,26 @@ const markEmployerEmailVerified = onRequest(async (req, res) => {
       return;
     }
 
-    
-     let tokenCorreoVerificacionUrl = String(req.body?.tokenCorreoVerificacion || "").trim();
-     if(!tokenCorreoVerificacionUrl){
+    const tokenCorreoVerificacionReq = String(req.body?.tokenCorreoVerificacion || "").trim();
+    if (!tokenCorreoVerificacionReq) {
       res.status(400).json({ ok: false, error: "Falta token de verificacion de correo." });
       return;
     }
 
-
-
     const profile = userSnap.data() || {};
     const tokenCorreoVerificacion = profile.tokenCorreoVerificacion;
+    const tokenCorreoVerificacionExpiresAt = profile.tokenCorreoVerificacionExpiresAt;
     
-    if(tokenCorreoVerificacion!== tokenCorreoVerificacionUrl){
+    if (tokenCorreoVerificacion !== tokenCorreoVerificacionReq) {
       res.status(409).json({ ok: false, error: "El token de verificacion no coincide." });
+      return;
+    }
+    if (!tokenCorreoVerificacionExpiresAt || typeof tokenCorreoVerificacionExpiresAt.toDate !== "function") {
+      res.status(409).json({ ok: false, error: "Token de verificacion invalido o sin expiracion." });
+      return;
+    }
+    if (tokenCorreoVerificacionExpiresAt.toDate().getTime() <= Date.now()) {
+      res.status(409).json({ ok: false, error: "El token de verificacion ya expiro." });
       return;
     }
 
@@ -59,6 +59,8 @@ const markEmployerEmailVerified = onRequest(async (req, res) => {
       {
         correoVerificado: true,
         tokenCorreoVerificacion: null,
+        tokenCorreoVerificacionCreatedAt: null,
+        tokenCorreoVerificacionExpiresAt: null,
         updatedAt: Timestamp.now()
       },
       { merge: true }

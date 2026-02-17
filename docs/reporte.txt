@@ -1,0 +1,64 @@
+REPORTE ACTUALIZADO - ESTADO DE CONSISTENCIA
+Fecha: 2026-02-16
+
+Resumen general:
+- Se adoptó estrategia B para verificación de correo:
+  token propio `tokenCorreoVerificacion` guardado en Firestore.
+- Se corrigieron inconsistencias de nombres de parámetros y expiración de token.
+- La app compila en los archivos críticos revisados.
+
+Estado por punto:
+
+1) Flujo bloqueado por dependencia de emailVerified (RESUELTO)
+Archivos:
+- frontend/js/verificar_correo.js
+- functions/src/markEmployerEmailVerified.js
+Estado:
+- Se removió el bloqueo por `authUser.emailVerified` para el flujo por token propio.
+
+2) Correo hardcodeado a destinatario fijo (PENDIENTE INTENCIONAL)
+Archivo:
+- functions/src/sendEmployerVerificationEmail.js
+Estado:
+- Sigue enviando a un correo fijo por decisión explícita.
+
+3) Inconsistencia de planes frontend/backend (RESUELTO)
+Archivos:
+- frontend/js/registro.js
+- functions/src/registerEmployerProfile.js
+Estado:
+- Ambos usan colección `planes` en backend.
+- Sin fallback local en frontend; si falla carga de planes, no permite registrar.
+
+4) Token sin expiración (RESUELTO)
+Archivos:
+- functions/src/sendEmployerVerificationEmail.js
+- functions/src/markEmployerEmailVerified.js
+Estado:
+- Se guarda `tokenCorreoVerificacionExpiresAt` y se valida vencimiento.
+- Se limpia token y metadatos al verificar.
+
+5) Nomenclatura de token confusa (RESUELTO)
+Archivos:
+- frontend/js/verificar_correo.js
+- functions/src/sendEmployerVerificationEmail.js
+- functions/src/markEmployerEmailVerified.js
+Estado:
+- Unificado a `tokenCorreoVerificacion` en URL, frontend y backend.
+
+6) Mezcla de estrategias Firebase/oobCode vs token propio (RESUELTO)
+Archivos:
+- frontend/js/verificar_correo.js
+- functions/src/sendEmployerVerificationEmail.js
+- functions/src/markEmployerEmailVerified.js
+Estado:
+- Se eliminó el uso de `mode` en el enlace de verificación.
+- Frontend verifica exclusivamente por presencia de `tokenCorreoVerificacion`.
+- No hay dependencia de `oobCode` ni `applyActionCode`.
+
+Chequeo técnico:
+- frontend/js/verificar_correo.js: compila.
+- functions/src/sendEmployerVerificationEmail.js: compila.
+- functions/src/markEmployerEmailVerified.js: compila.
+- frontend/js/registro.js: compila.
+- functions/src/registerEmployerProfile.js: compila.

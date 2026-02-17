@@ -1,4 +1,4 @@
-import { applyActionCode, reload } from "https://www.gstatic.com/firebasejs/10.13.2/firebase-auth.js";
+import { reload } from "https://www.gstatic.com/firebasejs/10.13.2/firebase-auth.js";
 import { ensureFirebaseAuth, firebaseAuth, firebaseConfig } from "../config.js";
 
 const targetNode = document.getElementById("verify-email-target");
@@ -17,14 +17,12 @@ async function init() {
   const params = new URLSearchParams(window.location.search);
   const email = String(params.get("email") || firebaseAuth.currentUser?.email || "").trim();
   const sent = String(params.get("sent") || "").trim();
-  const mode = String(params.get("mode") || "").trim();
-  
-  const tokenCorreoVerificacionUrl = String(params.get("tokenCorreoVerificacionUrl") || "").trim();
+  const tokenCorreoVerificacion = String(params.get("tokenCorreoVerificacion") || "").trim();
 
   targetNode.innerHTML = `<strong>Correo:</strong> ${escapeHtml(email || "-")}`;
 
-  if (mode === "verificationEmail" && tokenCorreoVerificacionUrl) {
-    await applyEmailVerificationCode(tokenCorreoVerificacionUrl);
+  if (tokenCorreoVerificacion) {
+    await applyEmailVerificationCode(tokenCorreoVerificacion);
   } else {
     if (sent === "1") {
       statusNode.textContent = "Correo enviado. Revisa tu bandeja y haz click en el enlace.";
@@ -41,11 +39,10 @@ async function init() {
   });
 }
 
-async function applyEmailVerificationCode(tokenCorreoVerificacionUrl) {
+async function applyEmailVerificationCode(tokenCorreoVerificacion) {
   try {
-    //await applyActionCode(firebaseAuth, tokenCorreoVerificacionUrl);
-    statusNode.textContent = "Correo verificado en Firebase. Actualizando tu perfil...";
-    await syncVerifiedEmailStatus(tokenCorreoVerificacionUrl);
+    statusNode.textContent = "Validando token de verificacion...";
+    await syncVerifiedEmailStatus(tokenCorreoVerificacion);
   } catch (error) {
     console.error(error);
     statusNode.textContent = "El enlace de verificacion no es valido o ya expiro.";
@@ -80,7 +77,7 @@ async function sendVerificationEmail() {
   }
 }
 
-async function syncVerifiedEmailStatus(tokenCorreoVerificacionUrl) {
+async function syncVerifiedEmailStatus(tokenCorreoVerificacion) {
   const authUser = firebaseAuth.currentUser;
   if (!authUser) {
     statusNode.textContent = "Inicia sesion para completar la verificacion del perfil.";
@@ -89,15 +86,9 @@ async function syncVerifiedEmailStatus(tokenCorreoVerificacionUrl) {
 
   try {
     await reload(authUser);
-    if (!authUser.emailVerified) {
-      statusNode.textContent = "Tu correo aun no figura verificado. Revisa el enlace del email.";
-      return;
-    }
-
-    
-    if (!tokenCorreoVerificacionUrl) {
+    if (!tokenCorreoVerificacion) {
       statusNode.textContent = "Falta token de verificacion de correo en la URL."; 
-    return;
+      return;
     }
 
     const idToken = await authUser.getIdToken(true);
@@ -107,7 +98,7 @@ async function syncVerifiedEmailStatus(tokenCorreoVerificacionUrl) {
         "Content-Type": "application/json",
         Authorization: `Bearer ${idToken}`
       },
-      body: JSON.stringify({ tokenCorreoVerificacion: tokenCorreoVerificacionUrl })
+      body: JSON.stringify({ tokenCorreoVerificacion })
     });
     const result = await response.json().catch(() => ({}));
     if (!response.ok || !result.ok) {

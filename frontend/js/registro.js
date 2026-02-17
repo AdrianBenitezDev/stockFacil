@@ -17,40 +17,12 @@ const provinceSelect = document.getElementById("register-province");
 const phoneInput = document.getElementById("register-phone");
 const registerEmailInput = document.getElementById("register-email");
 const PROVINCES_API_URL = "https://countriesnow.space/api/v0.1/countries/states";
-
-const DEFAULT_PLANS = [
-  {
-    id: "prueba",
-    titulo: "Prueba",
-    precio: "$20000 dias",
-    descripcion: "Ideal para validar el flujo inicial del negocio.",
-    caracteristicas: ["Ventas y stock", "Sin costo inicial", "Soporte basico"],
-    activo: true,
-    orden: 1
-  },
-  {
-    id: "standard",
-    titulo: "Standard",
-    precio: "$9.99 / mes",
-    descripcion: "Plan equilibrado para operaciones diarias.",
-    caracteristicas: ["Ventas + stock + caja", "Sincronizacion continua", "Soporte prioritario"],
-    activo: true,
-    orden: 2
-  },
-  {
-    id: "premium",
-    titulo: "Premium",
-    precio: "$19.99 / mes",
-    descripcion: "Para operaciones con mas volumen y control.",
-    caracteristicas: ["Todo en Standard", "Reportes avanzados", "Soporte extendido"],
-    activo: true,
-    orden: 3
-  }
-];
+const PLAN_DOC_IDS = ["prueba", "standar", "premiun"];
 
 let availablePlans = [];
 let currentCountryForProvinces = "";
 let currentProvinceOptions = [];
+let plansLoaded = false;
 
 init().catch((error) => {
   console.error(error);
@@ -77,6 +49,9 @@ async function init() {
   initCountryAutocomplete();
   prefillEmailFromQuery();
   await loadPlans();
+  if (!plansLoaded) {
+    registerSubmitBtn.disabled = true;
+  }
 
   phoneInput?.addEventListener("input", () => {
     phoneInput.value = String(phoneInput.value || "").replace(/\D/g, "");
@@ -237,6 +212,11 @@ async function handleRegisterSubmit(event) {
   registerFeedback.textContent = "";
   plansFeedback.textContent = "";
 
+  if (!plansLoaded || !availablePlans.length) {
+    registerFeedback.textContent = "No hay planes disponibles. Contacta al administrador.";
+    return;
+  }
+
   const payload = getFormPayload();
   const validation = validatePayload(payload);
   if (!validation.ok) {
@@ -388,51 +368,32 @@ async function loadPlans() {
   plansContainer.innerHTML = "";
   plansFeedback.textContent = "Cargando planes...";
   availablePlans = [];
+  plansLoaded = false;
 
   try {
-    const freeRef = doc(firestoreDb, "planes", "prueba");
-const standardRef = doc(firestoreDb, "planes", "standard");
-const premiumRef = doc(firestoreDb, "planes", "premium");
+    const snaps = await Promise.all(
+      PLAN_DOC_IDS.map((planId) => getDoc(doc(firestoreDb, "planes", planId)))
+    );
+    const docsData = snaps
+      .filter((snap) => snap.exists())
+      .map((snap) => ({ id: snap.id, ...(snap.data() || {}) }));
 
-const freeSnap = await getDoc(freeRef);
-const standardSnap = await getDoc(standardRef);
-const premiumSnap = await getDoc(premiumRef);
-
-// Verificar que los documentos existen y tienen datos
-
-
-    const arrayPlanes= [freeSnap,standardSnap,premiumSnap];
-    const validSnaps = arrayPlanes.filter((s) => s.exists() && s.data());
-    console.log(validSnaps)
-    if (validSnaps.length === 0) {
-      throw new Error("No se encontraron planes en Firestore.");
-    }
-
-    
-    const data = validSnaps.map((snap) => snap.data())
-
-    // const data = validSnaps[0].exists() ? validSnaps[0].data() || {} : {};
-
-    console.log(data)
-
-    availablePlans = normalizePlans(data);
-
-    console.log("Planes disponibles:", availablePlans);
-
+    availablePlans = normalizePlans(docsData);
     if (!availablePlans.length) {
-      availablePlans = DEFAULT_PLANS.filter((plan) => plan.activo !== false);
+      throw new Error("No hay planes activos en backend.");
     }
 
     renderPlanCards(availablePlans);
-
+    plansLoaded = true;
     plansFeedback.textContent = "";
-
-
+    registerSubmitBtn.disabled = false;
   } catch (error) {
-
     console.warn("No se pudieron cargar planes desde Firestore:", error?.message || error);
-    
-    plansFeedback.textContent = "Error al conectarse con el servidor.";
+    plansContainer.innerHTML = "";
+    selectedPlanInput.value = "";
+    plansLoaded = false;
+    plansFeedback.textContent = "No se pudieron cargar los planes desde el backend.";
+    registerSubmitBtn.disabled = true;
   }
 }
 
