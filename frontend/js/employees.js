@@ -35,12 +35,11 @@ export async function createEmployeeViaCallable(formValues) {
 
 function normalizePayload(values) {
   const displayName = String(values?.displayName || "").trim();
-  const username = String(values?.username || "").trim().toLowerCase();
   const email = String(values?.email || "").trim().toLowerCase();
   const password = String(values?.password || "");
 
-  if (!displayName || !username || !email || !password) {
-    return { ok: false, error: "Completa todos los campos para crear el empleado." };
+  if (!displayName || !email || !password) {
+    return { ok: false, error: "Completa nombre visible, email y contrasena para crear el empleado." };
   }
 
   if (password.length < 6) {
@@ -49,7 +48,7 @@ function normalizePayload(values) {
 
   return {
     ok: true,
-    data: { displayName, username, email, password, appBaseUrl: window.location.origin }
+    data: { displayName, email, password, appBaseUrl: window.location.origin }
   };
 }
 

@@ -8,17 +8,20 @@ const crearEmpleado = onCall({ secrets: ["RESEND_API_KEY"] }, async (request) =>
   const email = String(payload.email || "").trim().toLowerCase();
   const password = String(payload.password || "");
   const displayName = String(payload.displayName || "").trim();
-  const username = String(payload.username || "").trim().toLowerCase();
+  const username = normalizeUsername(displayName);
   const appBaseUrl = normalizeAppBaseUrl(payload.appBaseUrl);
 
-  if (!email || !password || !displayName || !username) {
-    throw new HttpsError("invalid-argument", "Completa email, username, password y nombre.");
+  if (!email || !password || !displayName) {
+    throw new HttpsError("invalid-argument", "Completa email, password y nombre.");
   }
   if (password.length < 6) {
     throw new HttpsError("invalid-argument", "La password debe tener al menos 6 caracteres.");
   }
   if (!/^[a-z0-9._-]{3,40}$/.test(username)) {
-    throw new HttpsError("invalid-argument", "Username invalido. Usa 3-40 caracteres [a-z0-9._-].");
+    throw new HttpsError(
+      "invalid-argument",
+      "Nombre visible invalido para generar usuario interno. Usa 3-40 caracteres alfanumericos."
+    );
   }
 
   const employerEmail = String(caller.email || "").trim().toLowerCase();
@@ -54,17 +57,26 @@ const crearEmpleado = onCall({ secrets: ["RESEND_API_KEY"] }, async (request) =>
       uid: createdUser.uid,
       role: "empleado",
       comercioId: tenantId,
+      email,
+      displayName,
       username,
       usernameKey,
       emailEmpleador: employerEmail,
       createdAt: now,
-      createdBy: callerUid
+      createdBy: callerUid,
+      emailVerified: false
     });
 
-    const verificationLink = await adminAuth.generateEmailVerificationLink(email, {
-      url: `${appBaseUrl}/index.html`
-    });
-    await sendEmployeeVerificationEmail({ to: email, displayName, verificationLink });
+    let verificationEmailSent = false;
+    try {
+      const verificationLink = await adminAuth.generateEmailVerificationLink(email, {
+        url: `${appBaseUrl}/index.html`
+      });
+      await sendEmployeeVerificationEmail({ to: email, displayName, verificationLink });
+      verificationEmailSent = true;
+    } catch (emailError) {
+      console.error("No se pudo enviar correo de verificacion de empleado:", emailError);
+    }
 
     await adminAuth.setCustomUserClaims(createdUser.uid, {
       tenantId,
@@ -76,7 +88,7 @@ const crearEmpleado = onCall({ secrets: ["RESEND_API_KEY"] }, async (request) =>
       uid: createdUser.uid,
       tenantId,
       role: "empleado",
-      verificationEmailSent: true
+      verificationEmailSent
     };
   } catch (error) {
     if (createdUser?.uid) {
@@ -229,6 +241,19 @@ function escapeHtml(value) {
     .replaceAll(">", "&gt;")
     .replaceAll('"', "&quot;")
     .replaceAll("'", "&#039;");
+}
+
+function normalizeUsername(displayName) {
+  const base = String(displayName || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9._-]+/g, "_")
+    .replace(/^_+|_+$/g, "");
+
+  if (base.length >= 3) return base.slice(0, 40);
+  if (base.length > 0) return `${base}_emp`;
+  return "empleado";
 }
 
 module.exports = {

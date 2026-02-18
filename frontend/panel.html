@@ -243,9 +243,6 @@
             <label for="employee-display-name">Nombre visible</label>
             <input id="employee-display-name" name="displayName" type="text" required>
 
-            <label for="employee-username">Usuario</label>
-            <input id="employee-username" name="username" type="text" required>
-
             <label for="employee-email">Email</label>
             <input id="employee-email" name="email" type="email" required>
 
@@ -255,7 +252,26 @@
             <button type="submit">Crear empleado</button>
           </form>
           <p id="employee-feedback" class="feedback" aria-live="polite"></p>
-          <p class="subtitle">Solo para empleador. Maximo 2 empleados por kiosco.</p>
+          <p class="subtitle">Solo para empleador. El cupo depende del plan activo.</p>
+
+          <h4>Empleados actuales</h4>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Nombre</th>
+                  <th>Email</th>
+                  <th>Verificado</th>
+                  <th>Creado</th>
+                </tr>
+              </thead>
+              <tbody id="employee-list-table-body">
+                <tr>
+                  <td colspan="4">Cargando empleados...</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
         </section>
       </section>
     </section>

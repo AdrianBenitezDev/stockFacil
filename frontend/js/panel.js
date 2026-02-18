@@ -1,7 +1,13 @@
 import { PRODUCT_CATEGORIES } from "./config.js";
+import {
+  collection,
+  getDocs,
+  query,
+  where
+} from "https://www.gstatic.com/firebasejs/10.13.2/firebase-firestore.js";
 import { ensureCurrentUserProfile, signOutUser } from "./auth.js";
 import { openDatabase } from "./db.js";
-import { ensureFirebaseAuth } from "../config.js";
+import { ensureFirebaseAuth, firestoreDb } from "../config.js";
 import { dom } from "./dom.js";
 import {
   createProduct,
@@ -81,6 +87,7 @@ async function init() {
   renderCurrentSale(currentSaleItems);
   await refreshStock();
   await refreshCashPanel();
+  await refreshEmployeesPanel();
   wireEvents();
 }
 
@@ -96,7 +103,10 @@ function wireEvents() {
     await switchMode("cash");
     await refreshCashPanel();
   });
-  dom.configModeBtn?.addEventListener("click", () => switchMode("config"));
+  dom.configModeBtn?.addEventListener("click", async () => {
+    await switchMode("config");
+    await refreshEmployeesPanel();
+  });
   dom.addProductForm.addEventListener("submit", handleAddProductSubmit);
   dom.syncProductsBtn?.addEventListener("click", handleManualProductsSync);
   dom.createEmployeeForm?.addEventListener("submit", handleCreateEmployeeSubmit);
@@ -185,7 +195,6 @@ async function handleCreateEmployeeSubmit(event) {
   const formData = new FormData(dom.createEmployeeForm);
   const result = await createEmployeeViaCallable({
     displayName: formData.get("displayName"),
-    username: formData.get("username"),
     email: formData.get("email"),
     password: formData.get("password")
   });
@@ -196,7 +205,48 @@ async function handleCreateEmployeeSubmit(event) {
   }
 
   dom.createEmployeeForm.reset();
-  setEmployeeFeedback("Empleado creado en Firebase correctamente.", "success");
+  setEmployeeFeedback(
+    result?.data?.verificationEmailSent === false
+      ? "Empleado creado, pero no se pudo enviar correo de verificacion. Revisa configuracion de Resend."
+      : "Empleado creado en Firebase y correo de verificacion enviado.",
+    result?.data?.verificationEmailSent === false ? "error" : "success"
+  );
+  await refreshEmployeesPanel();
+}
+
+async function refreshEmployeesPanel() {
+  if (!dom.employeeListTableBody) return;
+  if (!currentUser || currentUser.role !== "empleador") return;
+
+  dom.employeeListTableBody.innerHTML = '<tr><td colspan="4">Cargando empleados...</td></tr>';
+  try {
+    const q = query(
+      collection(firestoreDb, "empleados"),
+      where("comercioId", "==", String(currentUser.tenantId || "").trim())
+    );
+    const snap = await getDocs(q);
+    const rows = snap.docs.map((docSnap) => ({ id: docSnap.id, ...(docSnap.data() || {}) }));
+    rows.sort((a, b) => formatDateValue(b.createdAt) - formatDateValue(a.createdAt));
+
+    if (!rows.length) {
+      dom.employeeListTableBody.innerHTML = '<tr><td colspan="4">No hay empleados registrados.</td></tr>';
+      return;
+    }
+
+    dom.employeeListTableBody.innerHTML = rows
+      .map((employee) => {
+        const name = escapeHtml(employee.displayName || employee.username || employee.uid || "-");
+        const email = escapeHtml(employee.email || "-");
+        const verified = employee.emailVerified === true ? "Si" : "No";
+        const created = escapeHtml(formatDateForTable(employee.createdAt));
+        return `<tr><td>${name}</td><td>${email}</td><td>${verified}</td><td>${created}</td></tr>`;
+      })
+      .join("");
+  } catch (error) {
+    console.error("No se pudo cargar listado de empleados:", error);
+    dom.employeeListTableBody.innerHTML =
+      '<tr><td colspan="4">No se pudo cargar empleados. Verifica permisos y reglas.</td></tr>';
+  }
 }
 
 async function handleBarcodeEnterOnAddProduct(event) {
@@ -920,4 +970,22 @@ function escapeHtml(value) {
     .replaceAll(">", "&gt;")
     .replaceAll('"', "&quot;")
     .replaceAll("'", "&#039;");
+}
+
+function formatDateForTable(value) {
+  const date = normalizeDate(value);
+  if (!date) return "-";
+  return date.toLocaleString("es-AR");
+}
+
+function formatDateValue(value) {
+  const date = normalizeDate(value);
+  return date ? date.getTime() : 0;
+}
+
+function normalizeDate(value) {
+  if (!value) return null;
+  if (typeof value?.toDate === "function") return value.toDate();
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date;
 }

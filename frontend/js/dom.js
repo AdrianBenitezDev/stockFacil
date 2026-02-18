@@ -24,6 +24,7 @@ export const dom = {
   employeeAdminPanel: document.getElementById("employee-admin-panel"),
   createEmployeeForm: document.getElementById("create-employee-form"),
   employeeFeedback: document.getElementById("employee-feedback"),
+  employeeListTableBody: document.getElementById("employee-list-table-body"),
   productCategory: document.getElementById("product-category"),
   startAddScanBtn: document.getElementById("start-add-scan-btn"),
   stopAddScanBtn: document.getElementById("stop-add-scan-btn"),
