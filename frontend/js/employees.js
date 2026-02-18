@@ -4,6 +4,7 @@ import { ensureCurrentUserProfile } from "./auth.js";
 
 const functions = getFunctions(firebaseApp);
 const crearEmpleadoCallable = httpsCallable(functions, "crearEmpleado");
+const deleteEmpleadoCallable = httpsCallable(functions, "deleteEmpleado");
 
 export async function createEmployeeViaCallable(formValues) {
   const payload = normalizePayload(formValues);
@@ -26,6 +27,36 @@ export async function createEmployeeViaCallable(formValues) {
     };
   } catch (error) {
     const message = mapCallableError(error);
+    return {
+      ok: false,
+      error: message
+    };
+  }
+}
+
+export async function deleteEmployeeViaCallable(uidEmpleado) {
+  const uid = String(uidEmpleado || "").trim();
+  if (!uid) {
+    return { ok: false, error: "Empleado invalido." };
+  }
+
+  await ensureFirebaseAuth();
+  if (!firebaseAuth.currentUser) {
+    return { ok: false, error: "No hay sesion Firebase valida. Inicia sesion con Google." };
+  }
+  const profileResult = await ensureCurrentUserProfile();
+  if (!profileResult.ok) {
+    return { ok: false, error: profileResult.error || "No se pudo validar tu perfil." };
+  }
+
+  try {
+    const result = await deleteEmpleadoCallable({ uidEmpleado: uid });
+    return {
+      ok: true,
+      data: result?.data || null
+    };
+  } catch (error) {
+    const message = mapDeleteCallableError(error);
     return {
       ok: false,
       error: message
@@ -73,4 +104,14 @@ function mapCallableError(error) {
     return "Se alcanzo el limite de empleados para este kiosco.";
   }
   return "No se pudo crear el empleado en Firebase.";
+}
+
+function mapDeleteCallableError(error) {
+  const code = String(error?.code || "");
+  const message = String(error?.message || "");
+  if (message) return message;
+  if (code.includes("unauthenticated")) return "No hay sesion Firebase valida.";
+  if (code.includes("permission-denied")) return "No tienes permisos para eliminar empleados.";
+  if (code.includes("not-found")) return "El empleado no existe o ya fue eliminado.";
+  return "No se pudo eliminar el empleado.";
 }

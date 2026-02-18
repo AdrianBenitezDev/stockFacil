@@ -1,5 +1,6 @@
 const { bootstrapGoogleUser } = require("./src/bootstrapGoogleUser");
 const { crearEmpleado } = require("./src/crearEmpleado");
+const { deleteEmpleado } = require("./src/deleteEmpleado");
 const { syncProducts } = require("./src/syncProducts");
 const { deleteProductByCode } = require("./src/deleteProductByCode");
 const { createSale } = require("./src/createSale");
@@ -14,6 +15,7 @@ exports.seedPlanes = seedPlanes;
 
 exports.bootstrapGoogleUser = bootstrapGoogleUser;
 exports.crearEmpleado = crearEmpleado;
+exports.deleteEmpleado = deleteEmpleado;
 exports.syncProducts = syncProducts;
 exports.deleteProductByCode = deleteProductByCode;
 exports.createSale = createSale;

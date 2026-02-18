@@ -44,9 +44,25 @@ service cloud.firestore {
     }
 
     match /empleados/{uid} {
-      allow read: if hasVerifiedEmail() && (
-        uid == request.auth.uid ||
-        (resource.data.comercioId is string && resource.data.comercioId == tenantId())
+      allow read: if isAuthenticated() && (
+        (
+          role() == "empleador" &&
+          tenantId() != null &&
+          resource.data.comercioId is string &&
+          resource.data.comercioId == tenantId()
+        ) ||
+        (
+          role() == "empleado" &&
+          hasVerifiedEmail() &&
+          (
+            uid == request.auth.uid ||
+            (
+              tenantId() != null &&
+              resource.data.comercioId is string &&
+              resource.data.comercioId == tenantId()
+            )
+          )
+        )
       );
       allow create, update, delete: if false;
     }

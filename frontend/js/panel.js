@@ -48,7 +48,7 @@ import {
   setProductFeedbackSuccess,
   showAppShell
 } from "./ui.js";
-import { createEmployeeViaCallable } from "./employees.js";
+import { createEmployeeViaCallable, deleteEmployeeViaCallable } from "./employees.js";
 
 const currentSaleItems = [];
 let scannerMode = null;
@@ -132,6 +132,7 @@ function wireEvents() {
   dom.saleTableBody.addEventListener("click", handleRemoveCurrentSaleItem);
   dom.closeShiftBtn.addEventListener("click", handleCloseShift);
   dom.refreshCashBtn.addEventListener("click", refreshCashPanel);
+  dom.employeeListTableBody?.addEventListener("click", handleDeleteEmployeeClick);
   window.addEventListener("online", handleOnlineProductsSync);
 }
 
@@ -218,7 +219,7 @@ async function refreshEmployeesPanel() {
   if (!dom.employeeListTableBody) return;
   if (!currentUser || currentUser.role !== "empleador") return;
 
-  dom.employeeListTableBody.innerHTML = '<tr><td colspan="4">Cargando empleados...</td></tr>';
+  dom.employeeListTableBody.innerHTML = '<tr><td colspan="5">Cargando empleados...</td></tr>';
   try {
     const q = query(
       collection(firestoreDb, "empleados"),
@@ -229,7 +230,7 @@ async function refreshEmployeesPanel() {
     rows.sort((a, b) => formatDateValue(b.createdAt) - formatDateValue(a.createdAt));
 
     if (!rows.length) {
-      dom.employeeListTableBody.innerHTML = '<tr><td colspan="4">No hay empleados registrados.</td></tr>';
+      dom.employeeListTableBody.innerHTML = '<tr><td colspan="5">No hay empleados registrados.</td></tr>';
       return;
     }
 
@@ -239,13 +240,55 @@ async function refreshEmployeesPanel() {
         const email = escapeHtml(employee.email || "-");
         const verified = employee.emailVerified === true ? "Si" : "No";
         const created = escapeHtml(formatDateForTable(employee.createdAt));
-        return `<tr><td>${name}</td><td>${email}</td><td>${verified}</td><td>${created}</td></tr>`;
+        const uid = escapeHtml(employee.uid || employee.id || "");
+        return [
+          "<tr>",
+          `<td>${name}</td>`,
+          `<td>${email}</td>`,
+          `<td>${verified}</td>`,
+          `<td>${created}</td>`,
+          `<td><button type="button" class="stock-delete-btn" data-delete-employee-id="${uid}" title="Eliminar empleado" aria-label="Eliminar empleado">🗑</button></td>`,
+          "</tr>"
+        ].join("");
       })
       .join("");
   } catch (error) {
     console.error("No se pudo cargar listado de empleados:", error);
     dom.employeeListTableBody.innerHTML =
-      '<tr><td colspan="4">No se pudo cargar empleados. Verifica permisos y reglas.</td></tr>';
+      '<tr><td colspan="5">No se pudo cargar empleados. Verifica permisos y reglas.</td></tr>';
+  }
+}
+
+async function handleDeleteEmployeeClick(event) {
+  const button = event.target.closest("[data-delete-employee-id]");
+  if (!button) return;
+
+  const uidEmpleado = String(button.getAttribute("data-delete-employee-id") || "").trim();
+  if (!uidEmpleado) return;
+
+  const row = button.closest("tr");
+  const name = String(row?.children?.[0]?.textContent || "este empleado").trim();
+  const confirmed = window.confirm(
+    `¿Eliminar a ${name}? Esta accion borrara el usuario en Authentication y su documento en la base de datos.`
+  );
+  if (!confirmed) return;
+
+  const originalText = button.textContent;
+  button.disabled = true;
+  button.textContent = "...";
+  clearEmployeeFeedback();
+
+  try {
+    const result = await deleteEmployeeViaCallable(uidEmpleado);
+    if (!result.ok) {
+      setEmployeeFeedback(result.error);
+      return;
+    }
+    setEmployeeFeedback("Empleado eliminado correctamente.", "success");
+    await refreshEmployeesPanel();
+  } finally {
+    button.disabled = false;
+    button.textContent = originalText || "🗑";
   }
 }
 
