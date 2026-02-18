@@ -192,7 +192,8 @@ async function sendEmployeeVerificationEmail({ to, displayName, verificationLink
     throw new Error("Falta RESEND_API_KEY en variables de entorno.");
   }
 
-  const from = String(process.env.RESEND_FROM || "onboarding@resend.dev").trim();
+  //String(process.env.RESEND_FROM || 
+  const from = "no-reply@stockfacil.com.ar";
   const payload = {
     from,
     to: [to],
