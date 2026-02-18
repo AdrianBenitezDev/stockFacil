@@ -67,6 +67,12 @@ const ICON_DEVICE_PC_SVG =
   '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8"/><path d="M12 16v4"/></svg>';
 const ICON_DEVICE_PHONE_SVG =
   '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="7" y="2.5" width="10" height="19" rx="2"/><path d="M11 18h2"/></svg>';
+const ICON_EYE_SVG =
+  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7S1 12 1 12z"/><circle cx="12" cy="12" r="3"/></svg>';
+const ICON_EYE_OFF_SVG =
+  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M17.94 17.94A10.94 10.94 0 0 1 12 19c-7 0-11-7-11-7a21.77 21.77 0 0 1 5.06-5.94"/><path d="M9.9 4.24A10.94 10.94 0 0 1 12 4c7 0 11 7 11 7a21.8 21.8 0 0 1-3.17 4.35"/><path d="M14.12 14.12a3 3 0 1 1-4.24-4.24"/><path d="M1 1l22 22"/></svg>';
+let cashSensitiveMasked = true;
+let latestCashSnapshot = null;
 
 init().catch((error) => {
   console.error(error);
@@ -138,6 +144,7 @@ function wireEvents() {
   dom.saleTableBody.addEventListener("click", handleRemoveCurrentSaleItem);
   dom.closeShiftBtn.addEventListener("click", handleCloseShift);
   dom.refreshCashBtn.addEventListener("click", refreshCashPanel);
+  dom.cashPrivacyToggle?.addEventListener("click", handleToggleCashPrivacy);
   dom.employeeListTableBody?.addEventListener("click", handleDeleteEmployeeClick);
   window.addEventListener("online", handleOnlineProductsSync);
 }
@@ -602,16 +609,44 @@ async function refreshCashPanel() {
     setCashFeedback(snapshot.error);
     return;
   }
+  latestCashSnapshot = snapshot;
+  renderCashSnapshot(snapshot);
+}
 
+function renderCashSnapshot(snapshot) {
+  renderCashPrivacyToggle();
   renderCashScopeLabel(snapshot.scopeLabel);
-  renderCashSummary(snapshot.summary);
   const canViewProfit = isEmployerRole(currentUser?.role);
-  renderCashSalesTable(snapshot.sales, { canViewProfit });
+  const maskProfit = canViewProfit && cashSensitiveMasked;
+  renderCashSummary(snapshot.summary, { maskProfit });
+  renderCashSalesTable(snapshot.sales, { canViewProfit, maskProfit });
   renderCashClosureStatus(snapshot.todayClosure);
   if (canViewProfit) {
-    renderCashClosuresTable(snapshot.recentClosures);
+    renderCashClosuresTable(snapshot.recentClosures, { maskProfit });
   }
   dom.closeShiftBtn.disabled = Boolean(snapshot.todayClosure);
+}
+
+function handleToggleCashPrivacy() {
+  if (!isEmployerRole(currentUser?.role)) return;
+  cashSensitiveMasked = !cashSensitiveMasked;
+  renderCashPrivacyToggle();
+  if (latestCashSnapshot) {
+    renderCashSnapshot(latestCashSnapshot);
+  }
+}
+
+function renderCashPrivacyToggle() {
+  if (!dom.cashPrivacyToggle) return;
+  const canViewProfit = isEmployerRole(currentUser?.role);
+  dom.cashPrivacyToggle.classList.toggle("hidden", !canViewProfit);
+  if (!canViewProfit) return;
+  const icon = cashSensitiveMasked ? ICON_EYE_OFF_SVG : ICON_EYE_SVG;
+  const label = cashSensitiveMasked ? "Mostrar ganancias" : "Ocultar ganancias";
+  dom.cashPrivacyToggle.innerHTML = iconWithLabel(icon, label);
+  dom.cashPrivacyToggle.setAttribute("title", label);
+  dom.cashPrivacyToggle.setAttribute("aria-label", label);
+  dom.cashPrivacyToggle.setAttribute("aria-pressed", String(!cashSensitiveMasked));
 }
 
 async function handleCloseShift() {
@@ -625,8 +660,13 @@ async function handleCloseShift() {
     return;
   }
 
+  const canViewProfit = isEmployerRole(currentUser?.role);
+  const profitText =
+    canViewProfit && cashSensitiveMasked
+      ? "****"
+      : `$${result.summary.profitAmount.toFixed(2)}`;
   setCashFeedback(
-    `Turno cerrado. Debes entregar $${result.summary.totalAmount.toFixed(2)}. Ganancia del dia: $${result.summary.profitAmount.toFixed(2)}.`,
+    `Turno cerrado. Debes entregar $${result.summary.totalAmount.toFixed(2)}. Ganancia del dia: ${profitText}.`,
     "success"
   );
   await refreshCashPanel();

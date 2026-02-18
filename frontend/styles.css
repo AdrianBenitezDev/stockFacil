@@ -631,6 +631,26 @@ thead th {
   grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
+.cash-header-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem;
+}
+
+.cash-header-row h3 {
+  margin: 0;
+}
+
+.cash-privacy-toggle {
+  margin-top: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  white-space: nowrap;
+}
+
 .cash-card {
   border: 1px solid var(--line);
   border-radius: 10px;

@@ -58,6 +58,7 @@ export const dom = {
   saleTableBody: document.getElementById("sale-table-body"),
   saleTotal: document.getElementById("sale-total"),
   cashScopeLabel: document.getElementById("cash-scope-label"),
+  cashPrivacyToggle: document.getElementById("cash-privacy-toggle"),
   cashSalesCount: document.getElementById("cash-sales-count"),
   cashItemsCount: document.getElementById("cash-items-count"),
   cashTotalAmount: document.getElementById("cash-total-amount"),

@@ -174,15 +174,17 @@ export function renderCashScopeLabel(label) {
   dom.cashScopeLabel.textContent = label;
 }
 
-export function renderCashSummary(summary) {
+export function renderCashSummary(summary, { maskProfit = false } = {}) {
   dom.cashSalesCount.textContent = String(summary.salesCount || 0);
   dom.cashItemsCount.textContent = String(summary.itemsCount || 0);
   dom.cashTotalAmount.textContent = `$${Number(summary.totalAmount || 0).toFixed(2)}`;
   dom.cashTotalCost.textContent = `$${Number(summary.totalCost || 0).toFixed(2)}`;
-  dom.cashProfitAmount.textContent = `$${Number(summary.profitAmount || 0).toFixed(2)}`;
+  dom.cashProfitAmount.textContent = maskProfit
+    ? "****"
+    : `$${Number(summary.profitAmount || 0).toFixed(2)}`;
 }
 
-export function renderCashSalesTable(sales, { canViewProfit = true } = {}) {
+export function renderCashSalesTable(sales, { canViewProfit = true, maskProfit = false } = {}) {
   const emptyColspan = canViewProfit ? 5 : 4;
   if (!sales || sales.length === 0) {
     dom.cashSalesTableBody.innerHTML = `<tr><td colspan="${emptyColspan}">No hay ventas registradas hoy.</td></tr>`;
@@ -199,7 +201,9 @@ export function renderCashSalesTable(sales, { canViewProfit = true } = {}) {
         `<td>${username}</td>`,
         `<td>${Number(sale.itemsCount || 0)}</td>`,
         `<td>$${Number(sale.total || 0).toFixed(2)}</td>`,
-        ...(canViewProfit ? [`<td>$${Number(sale.profit || 0).toFixed(2)}</td>`] : []),
+        ...(canViewProfit
+          ? [`<td>${maskProfit ? "****" : `$${Number(sale.profit || 0).toFixed(2)}`}</td>`]
+          : []),
         "</tr>"
       ].join("");
     })
@@ -251,7 +255,7 @@ export function renderCashClosureStatus(todayClosure) {
     `Turno cerrado hoy a las ${time}. Monto: $${Number(todayClosure.totalAmount || 0).toFixed(2)}.`;
 }
 
-export function renderCashClosuresTable(closures) {
+export function renderCashClosuresTable(closures, { maskProfit = false } = {}) {
   if (!closures || closures.length === 0) {
     dom.cashClosuresTableBody.innerHTML = '<tr><td colspan="5">No hay cierres registrados.</td></tr>';
     return;
@@ -265,7 +269,7 @@ export function renderCashClosuresTable(closures) {
         `<td>${escapeHtml(closure.username || "-")}</td>`,
         `<td>${Number(closure.salesCount || 0)}</td>`,
         `<td>$${Number(closure.totalAmount || 0).toFixed(2)}</td>`,
-        `<td>$${Number(closure.profitAmount || 0).toFixed(2)}</td>`,
+        `<td>${maskProfit ? "****" : `$${Number(closure.profitAmount || 0).toFixed(2)}`}</td>`,
         "</tr>"
       ].join("");
     })
