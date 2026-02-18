@@ -61,6 +61,8 @@ let forcedUiMode = loadUiModePreference();
 let saleUseScannerMode = true;
 let saleSearchMatches = [];
 const keyboardScanner = createKeyboardScanner(handleKeyboardBarcode);
+const ICON_TRASH_SVG =
+  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/></svg>';
 
 init().catch((error) => {
   console.error(error);
@@ -249,7 +251,7 @@ async function refreshEmployeesPanel() {
           `<td>${email}</td>`,
           `<td>${verified}</td>`,
           `<td>${created}</td>`,
-          `<td><button type="button" class="stock-delete-btn" data-delete-employee-id="${uid}" title="Eliminar empleado" aria-label="Eliminar empleado">🗑</button></td>`,
+          `<td><button type="button" class="stock-delete-btn icon-only-btn" data-delete-employee-id="${uid}" title="Eliminar empleado" aria-label="Eliminar empleado">${iconOnly(ICON_TRASH_SVG)}</button></td>`,
           "</tr>"
         ].join("");
       })
@@ -270,12 +272,10 @@ async function handleDeleteEmployeeClick(event) {
 
   const row = button.closest("tr");
   const name = String(row?.children?.[0]?.textContent || "este empleado").trim();
-  const confirmed = window.confirm(
-    `¿Eliminar a ${name}? Esta accion borrara el usuario en Authentication y su documento en la base de datos.`
-  );
+  const confirmed = window.confirm(`Eliminar a ${name}? Esta accion borrara el usuario en Authentication y su documento en la base de datos.`);
   if (!confirmed) return;
 
-  const originalText = button.textContent;
+  const originalHtml = button.innerHTML;
   button.disabled = true;
   button.textContent = "...";
   clearEmployeeFeedback();
@@ -290,7 +290,7 @@ async function handleDeleteEmployeeClick(event) {
     await refreshEmployeesPanel();
   } finally {
     button.disabled = false;
-    button.textContent = originalText || "🗑";
+    button.innerHTML = originalHtml || iconOnly(ICON_TRASH_SVG);
   }
 }
 
@@ -667,10 +667,10 @@ function wireStockRowEvents() {
 
       const product = allStockProducts.find((item) => item.id === productId) || null;
       const label = product?.name || "este producto";
-      const confirmed = window.confirm(`¿Eliminar ${label}? Esta accion no se puede deshacer.`);
+      const confirmed = window.confirm(`Eliminar ${label}? Esta accion no se puede deshacer.`);
       if (!confirmed) return;
 
-      const originalLabel = button.textContent;
+      const originalLabel = button.innerHTML;
       button.disabled = true;
       button.classList.add("is-loading");
       button.textContent = "Eliminando...";
@@ -693,7 +693,7 @@ function wireStockRowEvents() {
       } finally {
         button.disabled = false;
         button.classList.remove("is-loading");
-        button.textContent = originalLabel || "🗑️ Eliminar";
+        button.innerHTML = originalLabel || iconWithLabel(ICON_TRASH_SVG, "Eliminar");
       }
     });
   });
@@ -1008,6 +1008,14 @@ function addProductToCurrentSale(product) {
   setScanFeedback(`Agregado: ${product.name}`, "success");
 }
 
+
+function iconWithLabel(iconSvg, label) {
+  return `<span class="btn-icon" aria-hidden="true">${iconSvg}</span><span>${escapeHtml(label)}</span>`;
+}
+
+function iconOnly(iconSvg) {
+  return `<span class="btn-icon" aria-hidden="true">${iconSvg}</span>`;
+}
 function escapeHtml(value) {
   return String(value)
     .replaceAll("&", "&amp;")
@@ -1034,3 +1042,4 @@ function normalizeDate(value) {
   const date = new Date(value);
   return Number.isNaN(date.getTime()) ? null : date;
 }
+

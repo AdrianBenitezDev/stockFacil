@@ -1,4 +1,8 @@
 import { dom } from "./dom.js";
+const ICON_TRASH_SVG =
+  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/></svg>';
+const ICON_REMOVE_SVG =
+  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M18 6L6 18"/><path d="M6 6l12 12"/></svg>';
 
 export function showAppShell(user) {
   dom.sessionInfo.textContent = `${user.displayName} (${user.role})`;
@@ -87,7 +91,7 @@ export function renderStockTable(products, { canEditStock = false } = {}) {
             )}">Guardar</button>`,
             `<button type="button" class="stock-delete-btn" data-delete-stock-id="${escapeHtml(
               product.id
-            )}">🗑️ Eliminar</button>`,
+            )}">${iconWithLabel(ICON_TRASH_SVG, "Eliminar")}</button>`,
             "</div>"
           ].join("")
         : '<span class="subtitle">Solo empleador</span>';
@@ -151,7 +155,7 @@ export function renderCurrentSale(items) {
         `<td>$${item.subtotal.toFixed(2)}</td>`,
         `<td><button type="button" class="sale-remove-btn" data-remove-sale-id="${escapeHtml(
           item.productId
-        )}" aria-label="Quitar ${escapeHtml(item.name)}">❌</button></td>`,
+        )}" aria-label="Quitar ${escapeHtml(item.name)}">${iconOnly(ICON_REMOVE_SVG)}</button></td>`,
         "</tr>"
       ].join("");
     })
@@ -262,8 +266,17 @@ export function renderCashClosuresTable(closures) {
     .join("");
 }
 
+
+function iconWithLabel(iconSvg, label) {
+  return `<span class="btn-icon" aria-hidden="true">${iconSvg}</span><span>${escapeHtml(label)}</span>`;
+}
+
+function iconOnly(iconSvg) {
+  return `<span class="btn-icon" aria-hidden="true">${iconSvg}</span>`;
+}
 function formatTime(isoDate) {
   if (!isoDate) return "--:--";
   const date = new Date(isoDate);
   return date.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" });
 }
+
