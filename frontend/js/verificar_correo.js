@@ -56,6 +56,7 @@ async function sendVerificationEmail() {
     return;
   }
 
+  setButtonLoading(resendBtn, true);
   try {
     const idToken = await authUser.getIdToken(true);
     const response = await fetch(getSendVerificationEndpoint(), {
@@ -74,6 +75,8 @@ async function sendVerificationEmail() {
   } catch (error) {
     console.error(error);
     statusNode.textContent = "No se pudo enviar el correo. Intenta reenviar nuevamente.";
+  } finally {
+    setButtonLoading(resendBtn, false);
   }
 }
 
@@ -133,4 +136,10 @@ function escapeHtml(value) {
     .replaceAll(">", "&gt;")
     .replaceAll('"', "&quot;")
     .replaceAll("'", "&#039;");
+}
+
+function setButtonLoading(button, loading) {
+  if (!button) return;
+  button.classList.toggle("btn-loading", loading);
+  button.disabled = loading;
 }

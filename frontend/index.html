@@ -9,7 +9,12 @@
 <body>
   <header class="top-banner">
     <div class="top-banner-inner">
-      <strong class="top-banner-title">stockfacil.com.ar</strong>
+      <strong class="top-banner-title top-banner-brand">
+        <span class="btn-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7l9-4 9 4-9 4-9-4z"/><path d="M3 17l9 4 9-4"/><path d="M3 12l9 4 9-4"/></svg>
+        </span>
+        <span>stockfacil.com.ar</span>
+      </strong>
       <span class="top-banner-subtitle">Gestion de stock y ventas</span>
     </div>
   </header>
@@ -19,8 +24,18 @@
       <h1>StockFacil</h1>
       <p class="subtitle">Acceso principal</p>
       <div class="scan-actions">
-        <button id="register-business-btn" type="button">Registrar Negocio</button>
-        <button id="login-employer-btn" type="button" class="mode-btn-secondary">Acceder Empleador</button>
+        <button id="register-business-btn" type="button" class="btn-with-icon">
+          <span class="btn-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14"/><path d="M5 12h14"/></svg>
+          </span>
+          <span>Registrar Negocio</span>
+        </button>
+        <button id="login-employer-btn" type="button" class="mode-btn-secondary btn-with-icon">
+          <span class="btn-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v6h-6"/></svg>
+          </span>
+          <span>Acceder Empleador</span>
+        </button>
       </div>
       <p class="subtitle">El empleador accede con cuenta Google (sin contrasena).</p>
 
@@ -30,7 +45,12 @@
         <input id="employee-email" type="email" required>
         <label for="employee-password">Contrasena</label>
         <input id="employee-password" type="password" minlength="6" required>
-        <button id="employee-login-btn" type="submit" class="mode-btn-secondary">Ingresar como empleado</button>
+        <button id="employee-login-btn" type="submit" class="mode-btn-secondary btn-with-icon">
+          <span class="btn-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><path d="M10 17l5-5-5-5"/><path d="M15 12H3"/></svg>
+          </span>
+          <span>Ingresar como empleado</span>
+        </button>
       </form>
 
       <p id="login-feedback" class="feedback" aria-live="polite"></p>

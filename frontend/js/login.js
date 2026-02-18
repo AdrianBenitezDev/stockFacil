@@ -42,6 +42,7 @@ async function init() {
 
 async function handleRegisterBusinessStart() {
   setUiDisabled(true);
+  setButtonLoading(registerBtn, true);
   loginFeedback.textContent = "";
 
   try {
@@ -65,12 +66,14 @@ async function handleRegisterBusinessStart() {
     console.error(error);
     loginFeedback.textContent = "No se pudo iniciar sesion con Google.";
   } finally {
+    setButtonLoading(registerBtn, false);
     setUiDisabled(false);
   }
 }
 
 async function handleEmployerGoogleLogin() {
   setUiDisabled(true);
+  setButtonLoading(employerBtn, true);
   loginFeedback.textContent = "";
   try {
     await signInWithGoogle();
@@ -105,6 +108,7 @@ async function handleEmployerGoogleLogin() {
     console.error(error);
     loginFeedback.textContent = "No se pudo iniciar sesion con Google.";
   } finally {
+    setButtonLoading(employerBtn, false);
     setUiDisabled(false);
   }
 }
@@ -112,6 +116,7 @@ async function handleEmployerGoogleLogin() {
 async function handleEmployeeLogin(event) {
   event.preventDefault();
   setUiDisabled(true);
+  setButtonLoading(employeeLoginBtn, true);
   loginFeedback.textContent = "";
 
   const email = String(employeeEmailInput.value || "").trim().toLowerCase();
@@ -150,6 +155,7 @@ async function handleEmployeeLogin(event) {
     console.error(error);
     loginFeedback.textContent = "No se pudo iniciar sesion.";
   } finally {
+    setButtonLoading(employeeLoginBtn, false);
     setUiDisabled(false);
   }
 }
@@ -160,6 +166,11 @@ function setUiDisabled(disabled) {
   employeeEmailInput.disabled = disabled;
   employeePasswordInput.disabled = disabled;
   employeeLoginBtn.disabled = disabled;
+}
+
+function setButtonLoading(button, loading) {
+  if (!button) return;
+  button.classList.toggle("btn-loading", loading);
 }
 
 function normalizeRole(roleValue) {

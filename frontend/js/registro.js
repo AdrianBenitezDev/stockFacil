@@ -226,6 +226,7 @@ async function handleRegisterSubmit(event) {
   }
 
   setDisabled(true);
+  setButtonLoading(registerSubmitBtn, true);
 
   const authUser = firebaseAuth.currentUser;
   if (!authUser) {
@@ -276,6 +277,8 @@ async function handleRegisterSubmit(event) {
     console.error(error);
     registerFeedback.textContent = "Error de red al registrar negocio.";
     setDisabled(false);
+  } finally {
+    setButtonLoading(registerSubmitBtn, false);
   }
 }
 
@@ -362,6 +365,11 @@ function setDisabled(disabled) {
   controls.forEach((node) => {
     node.disabled = disabled;
   });
+}
+
+function setButtonLoading(button, loading) {
+  if (!button) return;
+  button.classList.toggle("btn-loading", loading);
 }
 
 async function loadPlans() {
