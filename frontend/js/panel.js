@@ -63,6 +63,10 @@ let saleSearchMatches = [];
 const keyboardScanner = createKeyboardScanner(handleKeyboardBarcode);
 const ICON_TRASH_SVG =
   '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/></svg>';
+const ICON_DEVICE_PC_SVG =
+  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8"/><path d="M12 16v4"/></svg>';
+const ICON_DEVICE_PHONE_SVG =
+  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="7" y="2.5" width="10" height="19" rx="2"/><path d="M11 18h2"/></svg>';
 
 init().catch((error) => {
   console.error(error);
@@ -776,7 +780,10 @@ async function handleToggleUiMode() {
 }
 
 function renderUiModeToggleLabel() {
-  dom.uiModeToggle.textContent = isMobileMode() ? "Modo: Celular" : "Modo: PC";
+  if (!dom.uiModeToggle) return;
+  const icon = isMobileMode() ? ICON_DEVICE_PHONE_SVG : ICON_DEVICE_PC_SVG;
+  const label = isMobileMode() ? "Modo: Celular" : "Modo: PC";
+  dom.uiModeToggle.innerHTML = iconWithLabel(icon, label);
 }
 
 function getCurrentMode() {
