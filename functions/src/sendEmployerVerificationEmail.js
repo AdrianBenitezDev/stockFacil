@@ -87,7 +87,7 @@ function getBearerToken(req) {
 }
 
 function normalizeAppBaseUrl(input) {
-  const fallback = "https://kioscostock.com.ar";
+  const fallback = "https://stockfacil.com.ar";
   const raw = String(input || "").trim();
   if (!raw) return fallback;
   if (!/^https?:\/\//i.test(raw)) return fallback;
@@ -104,7 +104,7 @@ async function sendResendEmail({ to, verificationLink }) {
   const payload = {
     from,
     to: [to],
-    subject: "Verifica tu correo en negocioStock.com",
+    subject: "Verifica tu correo en stockfacil.com.ar",
     html: buildEmailHtml({ verificationLink })
   };
 
@@ -128,7 +128,7 @@ function buildEmailHtml({ verificationLink }) {
     <div style="font-family:Segoe UI,Arial,sans-serif;max-width:560px;margin:0 auto;padding:20px;">
       <h2 style="margin:0 0 12px;">Verifica tu correo</h2>
       <p style="margin:0 0 10px;">
-        Tu correo fue registrado en <strong>negocioStock.com</strong>.
+        Tu correo fue registrado en <strong>stockfacil.com.ar</strong>.
       </p>
       <p style="margin:0 0 16px;">
         Para completar tu alta, haz click en el siguiente enlace:

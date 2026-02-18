@@ -1,22 +1,22 @@
-<!doctype html>
+﻿<!doctype html>
 <html lang="es">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Kiosco Stock - Panel</title>
+  <title>StockFacil - Panel</title>
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
   <header class="top-banner">
     <div class="top-banner-inner">
       <div>
-        <strong class="top-banner-title">🧾 kioscoStock.com.ar</strong>
-        <span class="top-banner-subtitle">📡 Panel operativo en linea</span>
+        <strong class="top-banner-title">stockfacil.com.ar</strong>
+        <span class="top-banner-subtitle">Panel operativo en linea</span>
       </div>
       <div class="top-banner-controls">
-        <button id="ui-mode-toggle" class="top-banner-mode-toggle" type="button">💻 Modo: PC</button>
-        <button id="config-mode-btn" class="top-banner-config hidden" type="button">⚙️ Configuracion</button>
-        <button id="logout-btn" class="top-banner-logout" type="button">🚪 Cerrar sesion</button>
+        <button id="ui-mode-toggle" class="top-banner-mode-toggle" type="button">Modo: PC</button>
+        <button id="config-mode-btn" class="top-banner-config hidden" type="button">Configuracion</button>
+        <button id="logout-btn" class="top-banner-logout" type="button">Cerrar sesion</button>
       </div>
     </div>
   </header>
@@ -25,27 +25,27 @@
     <section id="app-view">
       <header class="app-header">
         <div>
-          <h2>📌 Panel principal</h2>
+          <h2>Panel principal</h2>
           <p id="session-info" class="subtitle"></p>
           <p id="session-email" class="subtitle"></p>
         </div>
       </header>
 
       <nav class="top-actions top-actions-4">
-        <button id="mode-add-product" class="mode-btn mode-btn-secondary is-active" type="button">➕ AGREGAR NUEVO PRODUCTO</button>
-        <button id="mode-sell" class="mode-btn mode-btn-secondary" type="button">🛒 VENTA</button>
-        <button id="mode-stock" class="mode-btn mode-btn-secondary" type="button">📦 STOCK</button>
-        <button id="mode-cash" class="mode-btn mode-btn-secondary" type="button">💵 CAJA</button>
+        <button id="mode-add-product" class="mode-btn mode-btn-secondary is-active" type="button">AGREGAR NUEVO PRODUCTO</button>
+        <button id="mode-sell" class="mode-btn mode-btn-secondary" type="button">VENTA</button>
+        <button id="mode-stock" class="mode-btn mode-btn-secondary" type="button">STOCK</button>
+        <button id="mode-cash" class="mode-btn mode-btn-secondary" type="button">CAJA</button>
       </nav>
 
       <section id="add-product-panel" class="panel">
-        <h3>🧷 Alta de producto</h3>
+        <h3>Alta de producto</h3>
         <form id="add-product-form" autocomplete="off">
           <label for="barcode">Codigo de barras</label>
           <input id="barcode" name="barcode" type="text">
           <div id="add-camera-controls" class="scan-actions">
-            <button id="start-add-scan-btn" type="button">📷 Escanear codigo</button>
-            <button id="stop-add-scan-btn" type="button" class="mode-btn-secondary">⏹️ Detener camara</button>
+            <button id="start-add-scan-btn" type="button">Escanear codigo</button>
+            <button id="stop-add-scan-btn" type="button" class="mode-btn-secondary">Detener camara</button>
           </div>
           <p id="add-scan-feedback" class="feedback" aria-live="polite"></p>
           <div id="add-scanner-reader" class="scanner-box hidden"></div>
@@ -69,15 +69,15 @@
           <label for="product-stock">Stock inicial</label>
           <input id="product-stock" name="stock" type="number" min="0" step="1" required>
 
-          <button type="submit">💾 Guardar producto</button>
-          <button id="sync-products-btn" type="button" class="mode-btn-secondary">🔄 Sincronizar productos</button>
+          <button type="submit">Guardar producto</button>
+          <button id="sync-products-btn" type="button" class="mode-btn-secondary">Sincronizar productos</button>
         </form>
         <p id="product-feedback" class="feedback" aria-live="polite"></p>
 
       </section>
 
       <section id="sell-panel" class="panel hidden">
-        <h3>🛍️ Venta</h3>
+        <h3>Venta</h3>
         <p id="sale-device-hint" class="subtitle hidden">Escanea con lector USB apuntando a esta pantalla.</p>
         <div class="sell-search-row">
           <input id="sale-scan-input" type="text" placeholder="Codigo escaneado" autocomplete="off">
@@ -88,15 +88,15 @@
         </div>
         <div id="sale-search-suggestions" class="sale-search-suggestions hidden"></div>
         <div class="scan-actions sell-action-bar">
-          <button id="start-scan-btn" type="button">📷 Iniciar camara</button>
-          <button id="stop-scan-btn" type="button" class="mode-btn-secondary">⏹️ Detener camara</button>
-          <button id="clear-sale-btn" type="button" class="mode-btn-secondary">🧹 Limpiar venta</button>
-          <button id="checkout-sale-btn" type="button">💳 COBRAR</button>
+          <button id="start-scan-btn" type="button">Iniciar camara</button>
+          <button id="stop-scan-btn" type="button" class="mode-btn-secondary">Detener camara</button>
+          <button id="clear-sale-btn" type="button" class="mode-btn-secondary">Limpiar venta</button>
+          <button id="checkout-sale-btn" type="button">COBRAR</button>
         </div>
         <p id="scan-feedback" class="feedback" aria-live="polite"></p>
         <div id="scanner-reader" class="scanner-box"></div>
 
-        <h4>🧾 Venta actual</h4>
+        <h4>Venta actual</h4>
         <div class="table-wrap">
           <table>
             <thead>
@@ -120,7 +120,7 @@
       </section>
 
       <section id="stock-panel" class="panel hidden">
-        <h3>📦 Stock</h3>
+        <h3>Stock</h3>
         <div class="stock-filters">
           <input id="stock-search-input" type="text" placeholder="Buscar por codigo o nombre">
           <select id="stock-category-filter">
@@ -128,8 +128,8 @@
           </select>
         </div>
         <div id="stock-camera-controls" class="scan-actions">
-          <button id="start-stock-scan-btn" type="button">📷 Escanear para buscar</button>
-          <button id="stop-stock-scan-btn" type="button" class="mode-btn-secondary">⏹️ Detener camara</button>
+          <button id="start-stock-scan-btn" type="button">Escanear para buscar</button>
+          <button id="stop-stock-scan-btn" type="button" class="mode-btn-secondary">Detener camara</button>
         </div>
         <p id="stock-feedback" class="feedback" aria-live="polite"></p>
         <div id="stock-scanner-reader" class="scanner-box hidden"></div>
@@ -151,7 +151,7 @@
           </table>
         </div>
         <aside id="stock-detail-panel" class="stock-detail-panel hidden">
-          <h4>🔎 Detalle de producto</h4>
+          <h4>Detalle de producto</h4>
           <p><strong>Nombre:</strong> <span id="stock-detail-name">-</span></p>
           <p><strong>Codigo:</strong> <span id="stock-detail-barcode">-</span></p>
           <p><strong>Categoria:</strong> <span id="stock-detail-category">-</span></p>
@@ -161,7 +161,7 @@
       </section>
 
       <section id="cash-panel" class="panel hidden">
-        <h3>💵 Caja</h3>
+        <h3>Caja</h3>
         <p id="cash-scope-label" class="subtitle"></p>
         <div class="cash-summary">
           <article class="cash-card">
@@ -189,12 +189,12 @@
         <p id="cash-closure-status" class="subtitle"></p>
 
         <div class="scan-actions">
-          <button id="close-shift-btn" type="button">🧮 TERMINAR TURNO</button>
-          <button id="refresh-cash-btn" type="button" class="mode-btn-secondary">🔄 Actualizar caja</button>
+          <button id="close-shift-btn" type="button">TERMINAR TURNO</button>
+          <button id="refresh-cash-btn" type="button" class="mode-btn-secondary">Actualizar caja</button>
         </div>
         <p id="cash-feedback" class="feedback" aria-live="polite"></p>
 
-        <h4>📊 Ventas del dia</h4>
+        <h4>Ventas del dia</h4>
         <div class="table-wrap">
           <table>
             <thead>
@@ -214,7 +214,7 @@
           </table>
         </div>
 
-        <h4>🗂️ Historial de cierres</h4>
+        <h4>Historial de cierres</h4>
         <div class="table-wrap">
           <table>
             <thead>
@@ -236,7 +236,7 @@
       </section>
 
       <section id="config-panel" class="panel hidden">
-        <h3>⚙️ Configuracion</h3>
+        <h3>Configuracion</h3>
         <section id="employee-admin-panel" class="owner-admin hidden">
           <h4>Alta de empleado (Firebase)</h4>
           <form id="create-employee-form" autocomplete="off">
@@ -280,8 +280,8 @@
 
   <footer class="site-footer">
     <div class="site-footer-inner">
-      <span>👨‍💻 Developer: Adrian Benitez Dev</span>
-      <span>🚧 web actualmente en construccion desde el 10/2/26</span>
+      <span>Developer: Adrian Benitez Dev</span>
+      <span>web actualmente en construccion desde el 10/2/26</span>
     </div>
   </footer>
 
@@ -289,3 +289,4 @@
   <script type="module" src="js/panel.js"></script>
 </body>
 </html>
+

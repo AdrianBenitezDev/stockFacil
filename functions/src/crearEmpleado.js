@@ -68,14 +68,14 @@ const crearEmpleado = onCall({ secrets: ["RESEND_API_KEY"] }, async (request) =>
     });
 
     let verificationEmailSent = false;
+    let verificationEmailError = "";
     try {
-      const verificationLink = await adminAuth.generateEmailVerificationLink(email, {
-        url: `${appBaseUrl}/index.html`
-      });
+      const verificationLink = await generateEmployeeVerificationLink(email, appBaseUrl);
       await sendEmployeeVerificationEmail({ to: email, displayName, verificationLink });
       verificationEmailSent = true;
     } catch (emailError) {
       console.error("No se pudo enviar correo de verificacion de empleado:", emailError);
+      verificationEmailError = getErrorMessage(emailError);
     }
 
     await adminAuth.setCustomUserClaims(createdUser.uid, {
@@ -88,7 +88,8 @@ const crearEmpleado = onCall({ secrets: ["RESEND_API_KEY"] }, async (request) =>
       uid: createdUser.uid,
       tenantId,
       role: "empleado",
-      verificationEmailSent
+      verificationEmailSent,
+      verificationEmailError
     };
   } catch (error) {
     if (createdUser?.uid) {
@@ -178,7 +179,7 @@ async function isUsernameTaken(tenantId, usernameKey) {
 }
 
 function normalizeAppBaseUrl(input) {
-  const fallback = "https://kioscostock.com.ar";
+  const fallback = "https://stockfacil.com.ar";
   const raw = String(input || "").trim();
   if (!raw) return fallback;
   if (!/^https?:\/\//i.test(raw)) return fallback;
@@ -211,6 +212,24 @@ async function sendEmployeeVerificationEmail({ to, displayName, verificationLink
   if (!response.ok) {
     const body = await response.text().catch(() => "");
     throw new Error(`Resend error ${response.status}: ${body}`);
+  }
+}
+
+async function generateEmployeeVerificationLink(email, appBaseUrl) {
+  const preferredUrl = `${appBaseUrl}/index.html`;
+  try {
+    return await adminAuth.generateEmailVerificationLink(email, { url: preferredUrl });
+  } catch (error) {
+    const message = getErrorMessage(error).toLowerCase();
+    const canRetryWithoutUrl =
+      message.includes("continue url") ||
+      message.includes("continue_uri") ||
+      message.includes("authorized domain") ||
+      message.includes("invalid-continue-uri");
+    if (!canRetryWithoutUrl) {
+      throw error;
+    }
+    return adminAuth.generateEmailVerificationLink(email);
   }
 }
 
@@ -254,6 +273,10 @@ function normalizeUsername(displayName) {
   if (base.length >= 3) return base.slice(0, 40);
   if (base.length > 0) return `${base}_emp`;
   return "empleado";
+}
+
+function getErrorMessage(error) {
+  return String(error?.message || error?.details || error?.code || "Error desconocido.");
 }
 
 module.exports = {

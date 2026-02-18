@@ -208,7 +208,9 @@ async function handleCreateEmployeeSubmit(event) {
   dom.createEmployeeForm.reset();
   setEmployeeFeedback(
     result?.data?.verificationEmailSent === false
-      ? "Empleado creado, pero no se pudo enviar correo de verificacion. Revisa configuracion de Resend."
+      ? `Empleado creado, pero no se pudo enviar correo de verificacion. Detalle: ${String(
+          result?.data?.verificationEmailError || "sin detalle"
+        )}`
       : "Empleado creado en Firebase y correo de verificacion enviado.",
     result?.data?.verificationEmailSent === false ? "error" : "success"
   );
