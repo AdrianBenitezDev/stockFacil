@@ -189,7 +189,7 @@ export async function ensureCurrentUserProfile() {
     currentSession = null;
     return {
       ok: false,
-      error: "No existe perfil de usuario en Firestore."
+      error: "No existe perfil de usuario."
     };
   }
 
@@ -201,7 +201,7 @@ export async function ensureCurrentUserProfile() {
 
   if (!tenantId) {
     currentSession = null;
-    return { ok: false, error: "El perfil no tiene kioscoId valido." };
+    return { ok: false, error: "El perfil no tiene comercio valido." };
   }
 
   // Si Auth ya marca email verificado, actualiza Firestore en segundo plano.

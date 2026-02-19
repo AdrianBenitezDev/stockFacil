@@ -13,7 +13,7 @@ export async function createEmployeeViaCallable(formValues) {
 
   await ensureFirebaseAuth();
   if (!firebaseAuth.currentUser) {
-    return { ok: false, error: "No hay sesion Firebase valida. Inicia sesion con Google." };
+    return { ok: false, error: "No hay sesion valida. Vuelve a iniciar sesion." };
   }
   const profileResult = await ensureCurrentUserProfile();
   if (!profileResult.ok) {
@@ -43,7 +43,7 @@ export async function deleteEmployeeViaCallable(uidEmpleado) {
 
   await ensureFirebaseAuth();
   if (!firebaseAuth.currentUser) {
-    return { ok: false, error: "No hay sesion Firebase valida. Inicia sesion con Google." };
+    return { ok: false, error: "No hay sesion valida. Vuelve a iniciar sesion." };
   }
   const profileResult = await ensureCurrentUserProfile();
   if (!profileResult.ok) {
@@ -76,7 +76,7 @@ export async function updateEmployeeCreateProductsPermission(uidEmpleado, puedeC
 
   await ensureFirebaseAuth();
   if (!firebaseAuth.currentUser) {
-    return { ok: false, error: "No hay sesion Firebase valida. Inicia sesion con Google." };
+    return { ok: false, error: "No hay sesion valida. Vuelve a iniciar sesion." };
   }
   const profileResult = await ensureCurrentUserProfile();
   if (!profileResult.ok) {
@@ -126,7 +126,7 @@ function mapCallableError(error) {
   }
 
   if (code.includes("unauthenticated")) {
-    return "No hay sesion Firebase valida. Inicia sesion con Firebase Auth.";
+    return "No hay sesion valida. Vuelve a iniciar sesion.";
   }
   if (code.includes("permission-denied")) {
     return "No tienes permisos para crear empleados.";
@@ -137,14 +137,14 @@ function mapCallableError(error) {
   if (code.includes("failed-precondition")) {
     return "Se alcanzo el limite de empleados para este kiosco.";
   }
-  return "No se pudo crear el empleado en Firebase.";
+  return "No se pudo crear el empleado.";
 }
 
 function mapDeleteCallableError(error) {
   const code = String(error?.code || "");
   const message = String(error?.message || "");
   if (message) return message;
-  if (code.includes("unauthenticated")) return "No hay sesion Firebase valida.";
+  if (code.includes("unauthenticated")) return "No hay sesion valida.";
   if (code.includes("permission-denied")) return "No tienes permisos para eliminar empleados.";
   if (code.includes("not-found")) return "El empleado no existe o ya fue eliminado.";
   return "No se pudo eliminar el empleado.";
@@ -154,7 +154,7 @@ function mapPermissionCallableError(error) {
   const code = String(error?.code || "");
   const message = String(error?.message || "");
   if (message) return message;
-  if (code.includes("unauthenticated")) return "No hay sesion Firebase valida.";
+  if (code.includes("unauthenticated")) return "No hay sesion valida.";
   if (code.includes("permission-denied")) return "No tienes permisos para editar este empleado.";
   if (code.includes("not-found")) return "El empleado no existe.";
   if (code.includes("invalid-argument")) return "Datos invalidos para actualizar permisos.";

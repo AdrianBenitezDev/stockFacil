@@ -275,14 +275,14 @@ async function runOfflinePendingSyncInternal({ forceCloudPull = false, showSucce
       }
       const cloudPull = await syncProductsFromCloudForCurrentKiosco();
       if (!cloudPull.ok) {
-        syncError = syncError || cloudPull.error || "No se pudieron descargar productos desde Firebase.";
+        syncError = syncError || cloudPull.error || "No se pudieron descargar productos desde el servidor.";
       } else if (cloudPull.syncedCount > 0 || forceCloudPull) {
         shouldRefreshStock = true;
       }
     } else {
       const cloudPull = await syncProductsFromCloudForCurrentKiosco();
       if (!cloudPull.ok) {
-        syncError = cloudPull.error || "No se pudieron descargar productos desde Firebase.";
+        syncError = cloudPull.error || "No se pudieron descargar productos desde el servidor.";
       } else if (cloudPull.syncedCount > 0 || forceCloudPull) {
         shouldRefreshStock = true;
       }
@@ -350,7 +350,7 @@ async function handleCreateEmployeeSubmit(event) {
       ? `Empleado creado, pero no se pudo enviar correo de verificacion. Detalle: ${String(
           result?.data?.verificationEmailError || "sin detalle"
         )}`
-      : "Empleado creado en Firebase y correo de verificacion enviado.",
+      : "Empleado creado y correo de verificacion enviado.",
     result?.data?.verificationEmailSent === false ? "error" : "success"
   );
   await refreshEmployeesPanel();
@@ -441,7 +441,7 @@ async function handleDeleteEmployeeClick(event) {
 
   const row = button.closest("tr");
   const name = String(row?.children?.[0]?.textContent || "este empleado").trim();
-  const confirmed = window.confirm(`Eliminar a ${name}? Esta accion borrara el usuario en Authentication y su documento en la base de datos.`);
+  const confirmed = window.confirm(`Eliminar a ${name}? Esta accion borrara su acceso y su registro.`);
   if (!confirmed) return;
 
   const originalHtml = button.innerHTML;

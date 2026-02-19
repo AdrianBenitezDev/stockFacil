@@ -92,7 +92,7 @@ export async function createProduct(formData) {
   await putProduct(product);
   const immediateSync = await trySyncProductsNow(session, [normalizeProduct(product)]);
   if (immediateSync.ok) {
-    return { ok: true, message: "Producto guardado y sincronizado con Firebase." };
+    return { ok: true, message: "Producto guardado y sincronizado correctamente." };
   }
 
   const pending = await getUnsyncedProductsByKiosco(session.tenantId);
@@ -182,7 +182,7 @@ export async function syncProductsFromCloudForCurrentKiosco() {
 
     return { ok: true, syncedCount };
   } catch (error) {
-    return { ok: false, error: String(error?.message || error || "No se pudo traer productos desde Firebase.") };
+    return { ok: false, error: String(error?.message || error || "No se pudo traer productos desde el servidor.") };
   }
 }
 
@@ -263,7 +263,7 @@ export async function syncPendingProducts({ force = false } = {}) {
 
   await ensureFirebaseAuth();
   if (!firebaseAuth.currentUser || !navigator.onLine) {
-    return { ok: false, error: "No hay sesion Firebase valida para sincronizar." };
+    return { ok: false, error: "No hay sesion valida para sincronizar." };
   }
 
   const pendingDeletes = pending.filter((product) => product?.pendingDelete === true);
@@ -355,7 +355,7 @@ export async function deleteProduct(productId) {
       return {
         ok: true,
         localDeleted: true,
-        message: `Producto ocultado en local. Pendiente eliminar en Firebase: ${mapCallableError(error)}`
+        message: `Producto ocultado en local. Pendiente de eliminacion: ${mapCallableError(error)}`
       };
     }
   }
@@ -364,7 +364,7 @@ export async function deleteProduct(productId) {
   return {
     ok: true,
     localDeleted: true,
-    message: "Producto ocultado en local sin conexion. Se eliminara en Firebase al reconectar."
+    message: "Producto ocultado en local sin conexion. Se eliminara al reconectar."
   };
 }
 
@@ -426,7 +426,7 @@ function mapCallableError(error) {
 
   const code = String(error?.code || "");
   if (code.includes("unauthenticated")) {
-    return "No hay sesion Firebase valida para sincronizar.";
+    return "No hay sesion valida para sincronizar.";
   }
   if (code.includes("permission-denied")) {
     return "No tienes permisos para sincronizar productos.";
@@ -434,7 +434,7 @@ function mapCallableError(error) {
   if (code.includes("invalid-argument")) {
     return "La carga de productos para sincronizar es invalida.";
   }
-  return "No se pudo sincronizar productos con Firebase.";
+  return "No se pudo sincronizar productos.";
 }
 
 function isEmployerRole(role) {
