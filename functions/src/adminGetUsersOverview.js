@@ -72,6 +72,8 @@ const adminGetUsersOverview = onRequest(async (req, res) => {
           ).trim() || "-",
         email: String(employer.email || "-").trim() || "-",
         telefono: String(employer.telefono || employer.phone || "-").trim() || "-",
+        activo: employer.activo !== false,
+        estado: String(employer.estado || "").trim() || (employer.activo === false ? "suspendido" : "activo"),
         planActual: tenantSummary.planActual || String(employer.plan || "-").trim() || "-",
         ultimoAcceso: lastAccessIso || null,
         fechaCreacion: toIsoString(employer.createdAt || employer.fechaCreacion),

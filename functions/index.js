@@ -13,6 +13,7 @@ const {seedPlanes} = require("./src/seedPlanes");
 const { updateEmpleadoProductoPermission } = require("./src/updateEmpleadoProductoPermission");
 const { adminGetUsersOverview } = require("./src/adminGetUsersOverview");
 const { adminManagePlans } = require("./src/adminManagePlans");
+const { adminManageAccounts } = require("./src/adminManageAccounts");
 
 exports.seedPlanes = seedPlanes;
 
@@ -30,3 +31,4 @@ exports.sendEmployerVerificationEmail = sendEmployerVerificationEmail;
 exports.updateEmpleadoProductoPermission = updateEmpleadoProductoPermission;
 exports.adminGetUsersOverview = adminGetUsersOverview;
 exports.adminManagePlans = adminManagePlans;
+exports.adminManageAccounts = adminManageAccounts;
