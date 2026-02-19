@@ -11,23 +11,25 @@ async function requireAuthenticated(request) {
 async function requireTenantMemberContext(request) {
   const uid = await requireAuthenticated(request);
   const token = request.auth?.token || {};
-  const tenantId = String(token.tenantId || "").trim();
-  if (!tenantId) {
-    throw new HttpsError("permission-denied", "Tu sesion no tiene tenant valido.");
-  }
 
   const caller = await resolveCallerProfile(uid);
   if (!caller) {
     throw new HttpsError("permission-denied", "Tu usuario no existe en la base.");
   }
-  if (String(caller.tenantId || "").trim() !== tenantId) {
+  const tokenTenantId = String(token.tenantId || "").trim();
+  const callerTenantId = String(caller.tenantId || "").trim();
+  const tenantId = tokenTenantId || callerTenantId;
+  if (!tenantId) {
+    throw new HttpsError("permission-denied", "Tu sesion no tiene tenant valido.");
+  }
+  if (tokenTenantId && callerTenantId && tokenTenantId !== callerTenantId) {
     throw new HttpsError("permission-denied", "Tu tenant no coincide con el perfil.");
   }
 
   return {
     uid,
     tenantId,
-    role: String(caller.role || "empleado").trim(),
+    role: normalizeRole(caller.role || token.role || "empleado"),
     caller
   };
 }
@@ -58,18 +60,20 @@ async function resolveCallerProfile(uid) {
 async function requireEmployerContext(request, { requireOwner = false } = {}) {
   const uid = await requireAuthenticated(request);
   const token = request.auth?.token || {};
-  const tenantId = String(token.tenantId || "").trim();
-  const role = String(token.role || "").trim();
-  if (!tenantId || role !== "empleador") {
-    throw new HttpsError("permission-denied", "Solo el empleador puede ejecutar esta accion.");
-  }
-
   const callerDoc = await db.collection("usuarios").doc(uid).get();
   if (!callerDoc.exists) {
     throw new HttpsError("permission-denied", "Tu usuario no existe en la base.");
   }
   const caller = callerDoc.data() || {};
-  if (caller.role !== "empleador" || caller.tenantId !== tenantId) {
+  const tokenTenantId = String(token.tenantId || "").trim();
+  const callerTenantId = String(caller.tenantId || caller.kioscoId || "").trim();
+  const tenantId = tokenTenantId || callerTenantId;
+  const effectiveRole = normalizeRole(token.role || caller.role || "");
+  const callerRole = normalizeRole(caller.role || "");
+  if (!tenantId || effectiveRole !== "empleador" || callerRole !== "empleador") {
+    throw new HttpsError("permission-denied", "Solo el empleador puede ejecutar esta accion.");
+  }
+  if (tokenTenantId && callerTenantId && tokenTenantId !== callerTenantId) {
     throw new HttpsError("permission-denied", "Claims y perfil no coinciden.");
   }
 
@@ -83,7 +87,12 @@ async function requireEmployerContext(request, { requireOwner = false } = {}) {
     }
   }
 
-  return { uid, tenantId, role, caller };
+  return { uid, tenantId, role: "empleador", caller };
+}
+
+function normalizeRole(value) {
+  const role = String(value || "").trim().toLowerCase();
+  return role === "dueno" ? "empleador" : role;
 }
 
 module.exports = {

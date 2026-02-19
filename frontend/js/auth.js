@@ -196,7 +196,7 @@ export async function ensureCurrentUserProfile() {
   const profile = resolved.profile;
   const profileRef = resolved.ref;
   const tenantId = String(profile.kioscoId || profile.tenantId || profile.comercioId || "").trim();
-  const role = String(profile.tipo || profile.role || "empleado").trim();
+  const role = normalizeRole(profile.tipo || profile.role || "empleado");
   const estado = String(profile.estado || (profile.activo === false ? "inactivo" : "activo")).trim();
 
   if (!tenantId) {
@@ -241,6 +241,11 @@ export async function ensureCurrentUserProfile() {
   }
 
   return { ok: true, user: currentSession };
+}
+
+function normalizeRole(value) {
+  const role = String(value || "").trim().toLowerCase();
+  return role === "dueno" ? "empleador" : role;
 }
 
 async function resolveUserProfile(uid) {
