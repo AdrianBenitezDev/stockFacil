@@ -1,6 +1,6 @@
 import { doc, getDoc } from "https://www.gstatic.com/firebasejs/10.13.2/firebase-firestore.js";
 import { ensureFirebaseAuth, firebaseAuth, firebaseConfig, firestoreDb } from "../config.js";
-import { ensureCurrentUserProfile } from "./auth.js";
+import { ensureCurrentUserProfile, signInWithGoogle } from "./auth.js";
 import { openDatabase } from "./db.js";
 import { paises } from "./paises.js";
 
@@ -36,13 +36,6 @@ async function init() {
   const result = await ensureCurrentUserProfile();
   if (result.ok) {
     window.location.href = "panel.html";
-    return;
-  }
-
-  if (!firebaseAuth.currentUser) {
-    registerFeedback.textContent = "Primero debes acceder como empleador con Google.";
-    setDisabled(true);
-    backLoginBtn.disabled = false;
     return;
   }
 
@@ -228,9 +221,29 @@ async function handleRegisterSubmit(event) {
   setDisabled(true);
   setButtonLoading(registerSubmitBtn, true);
 
-  const authUser = firebaseAuth.currentUser;
+  let authUser = firebaseAuth.currentUser;
   if (!authUser) {
-    registerFeedback.textContent = "Sesion expirada. Vuelve a acceder con Google.";
+    registerFeedback.textContent = "Para completar el registro debes validar tu cuenta Google.";
+    try {
+      await signInWithGoogle();
+      authUser = firebaseAuth.currentUser;
+    } catch (error) {
+      console.error(error);
+      registerFeedback.textContent = "No se pudo iniciar sesion con Google.";
+      setDisabled(false);
+      return;
+    }
+  }
+
+  const profileResult = await ensureCurrentUserProfile();
+  if (profileResult.ok) {
+    registerFeedback.textContent = "Esta cuenta ya esta registrada. Ingresa como empleador.";
+    setDisabled(false);
+    return;
+  }
+  const profileError = String(profileResult.error || "").toLowerCase();
+  if (profileError && !profileError.includes("no existe perfil")) {
+    registerFeedback.textContent = profileResult.error || "No se pudo validar la cuenta.";
     setDisabled(false);
     return;
   }

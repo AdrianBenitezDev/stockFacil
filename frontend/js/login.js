@@ -48,34 +48,7 @@ async function init() {
 }
 
 async function handleRegisterBusinessStart() {
-  setUiDisabled(true);
-  setButtonLoading(registerBtn, true);
-  loginFeedback.textContent = "";
-
-  try {
-    await signInWithGoogle();
-    const profileResult = await ensureCurrentUserProfile();
-    if (profileResult.ok) {
-      redirectToPanel();
-      return;
-    }
-
-    const errorMsg = String(profileResult.error || "").toLowerCase();
-    if (errorMsg.includes("no existe perfil")) {
-      const email = encodeURIComponent(String(firebaseAuth.currentUser?.email || ""));
-      window.location.href = `registro.html?email=${email}`;
-      return;
-    }
-
-    loginFeedback.textContent = profileResult.error || "No se pudo cargar tu perfil.";
-    await signOutUser();
-  } catch (error) {
-    console.error(error);
-    loginFeedback.textContent = "No se pudo iniciar sesion con Google.";
-  } finally {
-    setButtonLoading(registerBtn, false);
-    setUiDisabled(false);
-  }
+  window.location.href = "registro.html";
 }
 
 async function handleEmployerGoogleLogin() {
