@@ -1,0 +1,165 @@
+﻿PLAN DE PRUEBAS INTEGRAL PRE-PRODUCCION - STOCKFACIL
+
+Objetivo
+Validar que la aplicacion web sea consistente, estable, segura y lista para produccion, cubriendo flujos criticos de negocio, calidad tecnica y experiencia de usuario.
+
+Alcance
+- Frontend (pantallas, flujos, validaciones, permisos visuales).
+- Backend/API/funciones (reglas de negocio, autorizacion, manejo de errores).
+- Base de datos (integridad, consistencia, concurrencia, respaldo).
+- Seguridad (autenticacion, autorizacion, protecciones basicas).
+- Rendimiento (tiempos de respuesta y comportamiento bajo carga moderada).
+- Compatibilidad (navegadores, resoluciones y dispositivos).
+
+Criterio general de salida (Go/No-Go)
+- Sin errores bloqueantes (Severidad Alta/Critica) en flujos de negocio clave.
+- Al menos 95% de casos de prueba aprobados.
+- Sin brechas de seguridad evidentes (accesos indebidos, exposicion de datos).
+- Rendimiento dentro de umbrales definidos.
+- Plan de rollback y respaldo probado.
+
+Datos de prueba recomendados
+- 1 usuario admin.
+- 2 usuarios empleados con permisos distintos.
+- 30 productos (incluyendo agotados, con impuesto, sin impuesto, promociones).
+- 20 ventas de ejemplo (efectivo, mixto, devoluciones si aplica).
+- 5 clientes frecuentes y 5 nuevos.
+
+Plantilla de registro por caso
+- ID:
+- Modulo:
+- Precondiciones:
+- Pasos:
+- Resultado esperado:
+- Resultado obtenido:
+- Evidencia (captura/video/log):
+- Estado (OK/Fallo):
+- Severidad:
+
+FASE 0 - PREPARACION
+1. Congelar version candidata (commit/tag) y anotar fecha/hora.
+2. Definir entorno de pruebas similar a produccion (variables, reglas, dominios).
+3. Limpiar datos basura y cargar dataset de pruebas.
+4. Verificar monitoreo/logs activos.
+5. Confirmar responsables: quien prueba, quien corrige, quien aprueba salida.
+
+FASE 1 - SANITY CHECK (15-30 min)
+1. Abrir la web y confirmar que carga sin errores de consola criticos.
+2. Iniciar sesion con usuario valido.
+3. Navegar entre modulos principales sin recargar de forma anomala.
+4. Crear un registro minimo (ejemplo: producto o venta).
+5. Cerrar sesion y volver a ingresar.
+Resultado esperado: la app es utilizable y los flujos basicos funcionan.
+
+FASE 2 - PRUEBAS FUNCIONALES DETALLADAS
+A. Autenticacion y cuentas
+1. Login correcto con credenciales validas.
+2. Login con password incorrecta (mensaje claro, sin filtrar informacion sensible).
+3. Recuperacion/verificacion de correo (si aplica).
+4. Cierre de sesion y expiracion de sesion.
+5. Intento de acceso a rutas protegidas sin login.
+
+B. Roles y permisos
+1. Admin puede ver y operar todos los modulos permitidos.
+2. Empleado no puede acceder a configuraciones restringidas.
+3. Verificar controles backend (no solo ocultar botones).
+4. Intentar ejecutar accion restringida por URL directa/API.
+
+C. Productos e inventario
+1. Crear producto con datos validos.
+2. Validar campos obligatorios, formatos y limites.
+3. Editar producto y confirmar persistencia.
+4. Eliminar/desactivar producto y validar impacto en ventas.
+5. Ajustar stock manualmente y validar movimientos.
+6. Prevenir stock negativo (si la regla lo exige).
+7. Buscar/filtrar/ordenar productos.
+
+D. Ventas y caja
+1. Crear venta simple (1 item).
+2. Crear venta multiple (varios items, descuentos/impuestos si aplica).
+3. Verificar calculo de subtotal, impuestos, total y redondeos.
+4. Confirmar decremento de inventario al vender.
+5. Anular/cancelar venta (si aplica) y validar reversa de stock.
+6. Apertura y cierre de caja (si existe), arqueo y diferencias.
+7. Validar metodos de pago y registros asociados.
+
+E. Empleados/usuarios internos
+1. Alta de empleado con datos validos.
+2. Edicion de perfil y permisos.
+3. Baja/logica de desactivacion (si aplica).
+4. Validar que usuario desactivado no pueda ingresar.
+
+F. Reportes y panel
+1. Totales del dia/mes coinciden con ventas registradas.
+2. Filtros por fecha funcionan correctamente.
+3. Exportaciones (PDF/Excel/CSV) si aplica.
+4. Verificar consistencia entre dashboard y detalle transaccional.
+
+FASE 3 - CONSISTENCIA DE DATOS
+1. Ejecutar acciones encadenadas (crear/editar/eliminar) y revisar que no queden datos huerfanos.
+2. Validar unicidad (codigos SKU/correo/documento segun reglas).
+3. Probar concurrencia basica:
+   - Dos usuarios editan el mismo producto casi al mismo tiempo.
+   - Dos usuarios venden el ultimo item simultaneamente.
+4. Revisar timestamps, zonas horarias y orden cronologico.
+5. Confirmar que los datos visibles en UI coinciden con base de datos y reportes.
+
+FASE 4 - PRUEBAS DE SEGURIDAD BASICAS
+1. Revisar headers y transporte HTTPS en entorno productivo/staging.
+2. Probar entradas maliciosas basicas (XSS/SQLi basica en formularios) y confirmar sanitizacion.
+3. Verificar que no se expongan tokens/secretos en frontend.
+4. Probar control de acceso por API con usuario sin privilegios.
+5. Confirmar politicas de contrasena y flujo de recuperacion.
+6. Revisar reglas de base de datos (lectura/escritura por rol).
+
+FASE 5 - RENDIMIENTO Y ESTABILIDAD
+1. Medir tiempo de carga inicial (objetivo sugerido: <3 s en red estable).
+2. Medir acciones criticas (login, buscar producto, crear venta).
+3. Simular carga moderada (varios usuarios concurrentes en horario pico).
+4. Verificar que no haya degradacion grave ni errores 5xx repetidos.
+5. Revisar consumo de recursos y memoria en sesiones largas.
+
+FASE 6 - COMPATIBILIDAD Y UX
+1. Navegadores: Chrome, Edge, Firefox (ultimas versiones).
+2. Dispositivos: desktop y movil (ancho pequeno).
+3. Validar responsive en pantallas comunes (1366x768, 1920x1080, 390x844).
+4. Confirmar legibilidad, estados de error y mensajes al usuario.
+5. Validar accesibilidad basica:
+   - Navegacion por teclado en acciones principales.
+   - Contraste aceptable en textos importantes.
+   - Labels visibles en formularios.
+
+FASE 7 - PRUEBAS DE RESILIENCIA
+1. Cortar internet durante una operacion y validar comportamiento.
+2. Reintentar accion luego de error transitorio.
+3. Verificar idempotencia donde aplique (evitar duplicados por doble click/refresh).
+4. Confirmar mensajes de error utiles y no tecnicos para usuario final.
+
+FASE 8 - RESPALDO Y RECUPERACION
+1. Ejecutar respaldo completo de base de datos.
+2. Restaurar respaldo en entorno de prueba.
+3. Validar integridad tras restauracion (conteos, relaciones, operaciones clave).
+4. Probar plan de rollback de version de aplicacion.
+
+FASE 9 - PRUEBA FINAL DE ACEPTACION (UAT)
+1. Ejecutar 5-10 escenarios reales de punta a punta con datos reales anonimizados.
+2. Validar con responsable del negocio que reglas y numeros son correctos.
+3. Registrar observaciones finales y pendientes.
+
+Checklist final de liberacion
+- [ ] Sin errores criticos/altos abiertos.
+- [ ] Flujos criticos aprobados: login, productos, ventas, caja, reportes.
+- [ ] Seguridad basica validada.
+- [ ] Rendimiento aceptable en picos previstos.
+- [ ] Backups y rollback comprobados.
+- [ ] Monitoreo y alertas configurados.
+- [ ] Acta de aprobacion firmada por responsable tecnico/negocio.
+
+Decision
+- GO: todos los criterios de salida cumplidos.
+- NO-GO: existe al menos un bloqueo critico o riesgo no mitigado.
+
+Sugerencia de ejecucion (2-3 dias)
+- Dia 1: Fase 0, 1, 2 (A-D).
+- Dia 2: Fase 2 (E-F), 3, 4, 6.
+- Dia 3: Fase 5, 7, 8, 9 y decision GO/NO-GO.
