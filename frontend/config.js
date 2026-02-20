@@ -1,6 +1,6 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.2/firebase-app.js";
 import {
-  browserLocalPersistence,
+  browserSessionPersistence,
   getAuth,
   setPersistence
 } from "https://www.gstatic.com/firebasejs/10.13.2/firebase-auth.js";
@@ -23,7 +23,7 @@ let authReadyPromise = null;
 
 export async function ensureFirebaseAuth() {
   if (!authReadyPromise) {
-    authReadyPromise = setPersistence(firebaseAuth, browserLocalPersistence).catch((error) => {
+    authReadyPromise = setPersistence(firebaseAuth, browserSessionPersistence).catch((error) => {
       console.warn("No se pudo configurar persistencia de Firebase Auth:", error?.message || error);
     });
   }
