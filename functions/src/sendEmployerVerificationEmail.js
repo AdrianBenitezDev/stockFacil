@@ -71,7 +71,7 @@ const sendEmployerVerificationEmail = onRequest( { secrets: ["RESEND_API_KEY"] }
 
     //enviamos el correo de verificacion
     await sendResendEmail({
-      to: "artbenitezdev@gmail.com",//email,
+      to: email,
       verificationLink
     });
 
