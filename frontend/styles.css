@@ -89,9 +89,6 @@ body {
   gap: 0.45rem;
   margin-top: 0;
   padding: 0.45rem 0.7rem;
-  border-radius: 10px;
-  background: rgba(15, 23, 42, 0.22);
-  border: 1px solid rgba(255, 255, 255, 0.45);
   color: #ffffff;
   min-width: 200px;
 }
