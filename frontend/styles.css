@@ -1,4 +1,4 @@
-:root {
+﻿:root {
   --bg: #f4f6fb;
   --card: #ffffff;
   --text: #1f2937;
@@ -232,8 +232,10 @@ button {
   font-weight: 600;
 }
 
-button:hover {
-  filter: brightness(1.05);
+@media (hover: hover) and (pointer: fine) {
+  button:hover {
+    background: #475569;
+  }
 }
 
 .scan-actions > button {
@@ -918,4 +920,5 @@ button:disabled {
     font-size: 0.8rem;
   }
 }
+
 
