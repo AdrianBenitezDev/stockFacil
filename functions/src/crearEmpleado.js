@@ -107,28 +107,46 @@ const crearEmpleado = onCall({ secrets: ["RESEND_API_KEY"] }, async (request) =>
       }
     }
 
+    if (error instanceof HttpsError) {
+      throw error;
+    }
+
+    const firebaseAuthCode = String(error?.code || "").toLowerCase();
     const message = String(error?.message || "");
-    if (message.includes("EMAIL_EXISTS") || message.includes("email-already-exists")) {
+    if (
+      message.includes("EMAIL_EXISTS") ||
+      message.includes("email-already-exists") ||
+      firebaseAuthCode.includes("email-already-exists")
+    ) {
       throw new HttpsError("already-exists", "El email ya esta registrado.");
     }
     if (message.includes("Ese username ya existe")) {
       throw new HttpsError("already-exists", "Ese username ya existe en este tenant.");
     }
-    throw new HttpsError("internal", "No se pudo crear el empleado.");
+    if (message.toLowerCase().includes("requires an index")) {
+      throw new HttpsError(
+        "failed-precondition",
+        "Falta indice en Firestore para crear empleado. Revisa logs de Functions para el enlace de creacion de indice."
+      );
+    }
+    throw new HttpsError("internal", `No se pudo crear el empleado. Detalle: ${getErrorMessage(error)}`);
   }
 });
 
 async function resolveEmployeeLimitForTenant(tenantId, caller) {
   const tenantSnap = await db.collection("tenants").doc(tenantId).get();
   const tenant = tenantSnap.exists ? tenantSnap.data() || {} : {};
-  const planId = String(tenant.plan || caller.plan || "").trim().toLowerCase();
+  const planId = resolvePlanId(tenant, caller);
   if (!planId) {
     throw new HttpsError("failed-precondition", "No hay plan asociado al tenant.");
   }
 
   const planSnap = await db.collection("planes").doc(planId).get();
   if (!planSnap.exists) {
-    throw new HttpsError("failed-precondition", "No se encontro configuracion del plan actual.");
+    throw new HttpsError(
+      "failed-precondition",
+      `No se encontro configuracion del plan actual (${planId}).`
+    );
   }
 
   const plan = planSnap.data() || {};
@@ -148,17 +166,21 @@ async function resolveEmployeeLimitForTenant(tenantId, caller) {
 async function countActiveEmployeesForTenant(tenantId) {
   const [employeesSnap, legacySnap] = await Promise.all([
     db.collection("empleados").where("comercioId", "==", tenantId).get(),
-    db
-      .collection("usuarios")
-      .where("tenantId", "==", tenantId)
-      .where("role", "==", "empleado")
-      .where("activo", "==", true)
-      .get()
+    db.collection("usuarios").where("tenantId", "==", tenantId).get()
   ]);
 
   const ids = new Set();
-  employeesSnap.docs.forEach((doc) => ids.add(doc.id));
-  legacySnap.docs.forEach((doc) => ids.add(doc.id));
+  employeesSnap.docs.forEach((doc) => {
+    const row = doc.data() || {};
+    if (!isActiveEmployeeRow(row)) return;
+    ids.add(doc.id);
+  });
+  legacySnap.docs.forEach((doc) => {
+    const row = doc.data() || {};
+    if (String(row.role || "").trim().toLowerCase() !== "empleado") return;
+    if (!isActiveEmployeeRow(row)) return;
+    ids.add(doc.id);
+  });
   return ids.size;
 }
 
@@ -170,14 +192,12 @@ async function isUsernameTaken(tenantId, usernameKey) {
 
   if (!inEmployees.empty || !inUsuarios.empty) return true;
 
-  const duplicateInTenant = await db
-    .collection("empleados")
-    .where("comercioId", "==", tenantId)
-    .where("username", "==", String(usernameKey.split("::")[1] || "").trim())
-    .limit(1)
-    .get();
-
-  return !duplicateInTenant.empty;
+  const tenantEmployees = await db.collection("empleados").where("comercioId", "==", tenantId).get();
+  const targetUsername = String(usernameKey.split("::")[1] || "").trim();
+  return tenantEmployees.docs.some((doc) => {
+    const row = doc.data() || {};
+    return String(row.username || "").trim() === targetUsername;
+  });
 }
 
 function normalizeAppBaseUrl(input) {
@@ -186,6 +206,44 @@ function normalizeAppBaseUrl(input) {
   if (!raw) return fallback;
   if (!/^https?:\/\//i.test(raw)) return fallback;
   return raw.replace(/\/+$/, "");
+}
+
+function resolvePlanId(tenant, caller) {
+  const candidates = [
+    tenant?.plan,
+    tenant?.planId,
+    tenant?.planActual,
+    tenant?.subscription?.planId,
+    tenant?.suscripcion?.planId,
+    caller?.plan,
+    caller?.planId,
+    caller?.planActual
+  ];
+
+  for (const candidate of candidates) {
+    const normalized = normalizePlanId(candidate);
+    if (normalized) return normalized;
+  }
+  return "";
+}
+
+function normalizePlanId(value) {
+  const raw = String(value || "")
+    .trim()
+    .toLowerCase();
+  if (!raw) return "";
+  if (raw === "básico") return "basico";
+  if (raw.includes("premium")) return "premium";
+  if (raw.includes("prueba")) return "prueba";
+  if (raw.includes("basico")) return "basico";
+  return raw;
+}
+
+function isActiveEmployeeRow(row) {
+  const estado = String(row?.estado || "").trim().toLowerCase();
+  if (row?.activo === false) return false;
+  if (estado === "inactivo" || estado === "suspendido" || estado === "eliminado") return false;
+  return true;
 }
 
 async function sendEmployeeVerificationEmail({ to, displayName, verificationLink }) {
