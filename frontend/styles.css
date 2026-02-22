@@ -115,6 +115,12 @@ body {
   font-size: 0.73rem;
 }
 
+.top-banner-userplan {
+  opacity: 0.96;
+  font-size: 0.69rem;
+  letter-spacing: 0.01em;
+}
+
 .top-banner-mode-toggle {
   display: inline-flex;
   align-items: center;
@@ -921,6 +927,10 @@ button:disabled {
 
   .top-banner-useremail {
     font-size: 0.67rem;
+  }
+
+  .top-banner-userplan {
+    font-size: 0.64rem;
   }
 
   .top-banner-mode-toggle {

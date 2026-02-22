@@ -1,6 +1,7 @@
 export const dom = {
   sessionInfo: document.getElementById("session-info"),
   sessionEmail: document.getElementById("session-email"),
+  sessionPlan: document.getElementById("session-plan"),
   logoutBtn: document.getElementById("logout-btn"),
   configModeBtn: document.getElementById("config-mode-btn"),
   uiModeToggle: document.getElementById("ui-mode-toggle"),

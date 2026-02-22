@@ -16,8 +16,10 @@ let nextEmployeeToneIndex = 0;
 export function showAppShell(user) {
   const role = String(user.role || "").trim().toLowerCase();
   const isOwner = role === "empleador";
+  const planLabel = String(user.planActual || "prueba").toUpperCase();
   dom.sessionInfo.textContent = `${user.displayName} (${user.role})`;
   dom.sessionEmail.textContent = user.email ? `${user.email}` : "****";
+  dom.sessionPlan.textContent = `Plan ${planLabel}`;
   const canCreateProducts = isOwner || user?.canCreateProducts === true || user?.puedeCrearProductos === true;
   dom.providerCostGroup.classList.toggle("hidden", !canCreateProducts);
   dom.providerCostInput.required = canCreateProducts;
