@@ -1,10 +1,4 @@
 import { getFunctions, httpsCallable } from "https://www.gstatic.com/firebasejs/10.13.2/firebase-functions.js";
-import {
-  collection,
-  getDocs,
-  query,
-  where
-} from "https://www.gstatic.com/firebasejs/10.13.2/firebase-firestore.js";
 import { ensureFirebaseAuth, firebaseApp, firebaseAuth } from "../config.js";
 import { getCurrentSession } from "./auth.js";
 import {
@@ -13,11 +7,11 @@ import {
   getSalesByKiosco,
   putCashClosure
 } from "./db.js";
-import { firestoreDb } from "../config.js";
 import { syncPendingSales } from "./sales.js";
 
 const functions = getFunctions(firebaseApp);
 const closeCashboxCallable = httpsCallable(functions, "closeCashbox");
+const getOpenCashSalesCallable = httpsCallable(functions, "getOpenCashSales");
 
 export async function getCashSnapshotForToday() {
   const session = getCurrentSession();
@@ -55,17 +49,17 @@ export async function closeTodayShift() {
   }
 
   const { dateKey } = getTodayRangeIso();
-  const localSales = await loadScopedOpenSales(session);
-  const localSummary = summarizeSales(localSales);
-  if (localSummary.salesCount === 0) {
-    return { ok: false, error: "No hay ventas pendientes para cerrar caja." };
-  }
-
   const scopeKey = getScopeKey(session);
   const closureKey = buildClosureKey(session.tenantId, dateKey, scopeKey);
-
   const canUseBackend = navigator.onLine && (await hasFirebaseSession());
+
   if (!canUseBackend) {
+    const localSales = await loadScopedOpenSales(session);
+    const localSummary = summarizeSales(localSales);
+    if (localSummary.salesCount === 0) {
+      return { ok: false, error: "No hay ventas pendientes para cerrar caja." };
+    }
+
     const provisional = buildLocalClosure({
       session,
       dateKey,
@@ -76,6 +70,9 @@ export async function closeTodayShift() {
     await putCashClosure(provisional);
     return { ok: true, summary: localSummary, provisional: true };
   }
+
+  const localSales = await loadScopedOpenSalesFromLocal(session);
+  const localSummary = summarizeSales(localSales);
 
   const syncResult = await syncPendingSales();
   if (!syncResult.ok) {
@@ -176,24 +173,20 @@ async function loadScopedOpenSales(session) {
   const canUseCloud = navigator.onLine && (await hasFirebaseSession());
   if (canUseCloud) {
     try {
-      const cloudSales = await loadScopedOpenSalesFromCloud(session);
+      const cloudSales = await loadScopedOpenSalesFromCallable();
       if (cloudSales.length > 0) return cloudSales;
     } catch (_) {
-      // Si falla por permisos/reglas o red intermitente, mantiene operativa la caja con datos locales.
+      // Si falla backend o red intermitente, mantiene operativa la caja con datos locales.
     }
   }
   return loadScopedOpenSalesFromLocal(session);
 }
 
-async function loadScopedOpenSalesFromCloud(session) {
-  const tenantPath = collection(firestoreDb, "tenants", session.tenantId, "ventas");
-  const filters = [where("cajaCerrada", "==", false)];
-  if (session.role !== "empleador") {
-    filters.push(where("usuarioUid", "==", session.userId));
-  }
-  const snap = await getDocs(query(tenantPath, ...filters));
-  const rows = snap.docs.map((docSnap) => normalizeCloudSale(docSnap.id, docSnap.data() || {}));
-  return rows.filter((sale) => sale.cajaCerrada !== true);
+async function loadScopedOpenSalesFromCallable() {
+  const response = await getOpenCashSalesCallable();
+  const data = response?.data || {};
+  const rows = Array.isArray(data.sales) ? data.sales : [];
+  return rows.map((sale) => normalizeCallableSale(sale));
 }
 
 async function loadScopedOpenSalesFromLocal(session) {
@@ -205,9 +198,9 @@ async function loadScopedOpenSalesFromLocal(session) {
   });
 }
 
-function normalizeCloudSale(id, sale) {
+function normalizeCallableSale(sale) {
   return {
-    id: id || String(sale.idVenta || ""),
+    id: String(sale.idVenta || sale.id || ""),
     userId: String(sale.usuarioUid || sale.userId || ""),
     username: String(sale.usuarioNombre || sale.username || "-"),
     itemsCount: Number(sale.itemsCount || 0),
