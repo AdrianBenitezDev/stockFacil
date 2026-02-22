@@ -806,8 +806,8 @@ function renderCashSnapshot(snapshot) {
   renderCashScopeLabel(snapshot.scopeLabel);
   const canViewProfit = isEmployerRole(currentUser?.role);
   const maskProfit = canViewProfit && cashSensitiveMasked;
-  renderCashSummary(snapshot.summary, { maskProfit });
-  renderCashSensitiveCards({ canViewProfit, maskProfit });
+  const maskCost = canViewProfit && cashSensitiveMasked;
+  renderCashSummary(snapshot.summary, { maskProfit, maskCost });
   renderCashSalesTable(snapshot.sales, { canViewProfit, maskProfit });
   renderCashClosureStatus(snapshot.todayClosure);
   if (canViewProfit) {
@@ -837,11 +837,6 @@ function renderCashPrivacyToggle() {
   dom.cashPrivacyToggle.setAttribute("title", label);
   dom.cashPrivacyToggle.setAttribute("aria-label", label);
   dom.cashPrivacyToggle.setAttribute("aria-pressed", String(!cashSensitiveMasked));
-}
-
-function renderCashSensitiveCards({ canViewProfit, maskProfit }) {
-  const hideCostCard = !canViewProfit || maskProfit;
-  dom.cashCardCost?.classList.toggle("hidden", hideCostCard);
 }
 
 function handleToggleCashSalesSection() {

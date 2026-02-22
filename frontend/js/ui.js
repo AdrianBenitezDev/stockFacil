@@ -193,11 +193,11 @@ export function renderCashScopeLabel(label) {
   dom.cashScopeLabel.textContent = label;
 }
 
-export function renderCashSummary(summary, { maskProfit = false } = {}) {
+export function renderCashSummary(summary, { maskProfit = false, maskCost = false } = {}) {
   dom.cashSalesCount.textContent = String(summary.salesCount || 0);
   dom.cashItemsCount.textContent = String(summary.itemsCount || 0);
   dom.cashTotalAmount.textContent = `$${Number(summary.totalAmount || 0).toFixed(2)}`;
-  dom.cashTotalCost.textContent = `$${Number(summary.totalCost || 0).toFixed(2)}`;
+  dom.cashTotalCost.textContent = maskCost ? "****" : `$${Number(summary.totalCost || 0).toFixed(2)}`;
   dom.cashProfitAmount.textContent = maskProfit
     ? "****"
     : `$${Number(summary.profitAmount || 0).toFixed(2)}`;
