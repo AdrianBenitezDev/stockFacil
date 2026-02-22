@@ -175,8 +175,12 @@ async function listRecentClosures(session, scopeKey) {
 async function loadScopedOpenSales(session) {
   const canUseCloud = navigator.onLine && (await hasFirebaseSession());
   if (canUseCloud) {
-    const cloudSales = await loadScopedOpenSalesFromCloud(session);
-    if (cloudSales.length > 0) return cloudSales;
+    try {
+      const cloudSales = await loadScopedOpenSalesFromCloud(session);
+      if (cloudSales.length > 0) return cloudSales;
+    } catch (_) {
+      // Si falla por permisos/reglas o red intermitente, mantiene operativa la caja con datos locales.
+    }
   }
   return loadScopedOpenSalesFromLocal(session);
 }

@@ -26,3 +26,20 @@ Todo sin errores de sintaxis.
 Siguiente paso necesario:
 
 Desplegar Functions para que tome el cambio de closeCashbox (closeCashbox.js), si no, frontend y backend quedarían desalineados.
+
+esto provoco un loop =>
+
+Causa encontrada: el rebote panel.html -> index.html lo provocaba un error no manejado en la carga de caja, no un login inválido.
+
+Qué pasaba:
+
+En panel.js, cualquier excepción en init() termina en redirectToLogin() (panel.js (line 83)).
+Durante init(), se llama refreshCashPanel() y ahí getCashSnapshotForToday() (panel.js (line 108), panel.js (line 771)).
+La carga cloud de ventas en cash.js podía fallar (permisos/reglas/red) y estaba dejando caer la promesa, disparando el redirect global.
+Arreglo aplicado:
+
+Añadí fallback seguro en loadScopedOpenSales() para que, si falla la consulta cloud, use local sin tirar excepción.
+Archivo: cash.js (line 175)
+Cambio exacto:
+
+try/catch alrededor de loadScopedOpenSalesFromCloud(session) y fallback a loadScopedOpenSalesFromLocal(session).
