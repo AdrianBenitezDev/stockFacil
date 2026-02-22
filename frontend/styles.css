@@ -82,6 +82,39 @@ body {
   gap: 0.45rem;
 }
 
+.top-banner-userbadge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+  margin-top: 0;
+  padding: 0.45rem 0.7rem;
+  border-radius: 10px;
+  background: rgba(15, 23, 42, 0.22);
+  border: 1px solid rgba(255, 255, 255, 0.45);
+  color: #ffffff;
+  min-width: 200px;
+}
+
+.top-banner-usertext {
+  display: grid;
+  line-height: 1.15;
+}
+
+.top-banner-userline {
+  display: block;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 220px;
+  font-size: 0.78rem;
+}
+
+.top-banner-useremail {
+  opacity: 0.92;
+  font-size: 0.73rem;
+}
+
 .top-banner-mode-toggle {
   display: inline-flex;
   align-items: center;
@@ -873,6 +906,21 @@ button:disabled {
   .top-banner-logout {
     padding: 0.5rem 0.62rem;
     font-size: 0.76rem;
+  }
+
+  .top-banner-userbadge {
+    min-width: 0;
+    max-width: 180px;
+    padding: 0.42rem 0.55rem;
+  }
+
+  .top-banner-userline {
+    max-width: 128px;
+    font-size: 0.7rem;
+  }
+
+  .top-banner-useremail {
+    font-size: 0.67rem;
   }
 
   .top-banner-mode-toggle {

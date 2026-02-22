@@ -29,6 +29,15 @@
         <span class="top-banner-subtitle">Panel operativo en linea</span>
       </div>
       <div class="top-banner-controls">
+        <div id="session-badge" class="top-banner-userbadge" aria-live="polite">
+          <span class="btn-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21a8 8 0 0 0-16 0"/><circle cx="12" cy="8" r="4"/></svg>
+          </span>
+          <span class="top-banner-usertext">
+            <span id="session-info" class="top-banner-userline">****</span>
+            <span id="session-email" class="top-banner-userline top-banner-useremail">****</span>
+          </span>
+        </div>
         <button id="ui-mode-toggle" class="top-banner-mode-toggle" type="button">
           <span class="btn-icon" aria-hidden="true">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8"/><path d="M12 16v4"/></svg>
@@ -53,13 +62,11 @@
 
   <main class="container">
     <section id="app-view">
-      <header class="app-header">
+      <!-- <header class="app-header">
         <div>
           <h2>Panel principal</h2>
-          <p id="session-info" class="subtitle"></p>
-          <p id="session-email" class="subtitle"></p>
         </div>
-      </header>
+      </header> -->
 
       <nav class="top-actions top-actions-4">
         <button id="mode-add-product" class="mode-btn mode-btn-secondary is-active" type="button">

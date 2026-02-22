@@ -16,15 +16,8 @@ let nextEmployeeToneIndex = 0;
 export function showAppShell(user) {
   const role = String(user.role || "").trim().toLowerCase();
   const isOwner = role === "empleador";
-  const planLabel = String(user.planActual || "prueba").toUpperCase();
-  if (isOwner) {
-    dom.sessionInfo.innerHTML = `${escapeHtml(user.displayName)} (${escapeHtml(
-      user.role
-    )}) · Plan: <a href="planes.html" class="session-plan-link">${escapeHtml(planLabel)}</a>`;
-  } else {
-    dom.sessionInfo.textContent = `${user.displayName} (${user.role})`;
-  }
-  dom.sessionEmail.textContent = user.email ? `Email: ${user.email}` : "----@gmail.com";
+  dom.sessionInfo.textContent = `${user.displayName} (${user.role})`;
+  dom.sessionEmail.textContent = user.email ? `${user.email}` : "****";
   const canCreateProducts = isOwner || user?.canCreateProducts === true || user?.puedeCrearProductos === true;
   dom.providerCostGroup.classList.toggle("hidden", !canCreateProducts);
   dom.providerCostInput.required = canCreateProducts;
