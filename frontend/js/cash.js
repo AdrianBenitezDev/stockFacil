@@ -20,7 +20,11 @@ export async function getCashSnapshotForToday() {
   }
 
   const { dateKey } = getTodayRangeIso();
-  const sales = await loadScopedOpenSales(session);
+  const salesResult = await loadScopedOpenSales(session);
+  if (salesResult.loadError) {
+    return { ok: false, error: salesResult.loadError };
+  }
+  const sales = salesResult.sales;
   const orderedSales = sales.sort((a, b) => String(b.createdAt || "").localeCompare(String(a.createdAt || "")));
   const summary = summarizeSales(orderedSales);
   const scopeKey = getScopeKey(session);
@@ -54,7 +58,11 @@ export async function closeTodayShift() {
   const canUseBackend = navigator.onLine && (await hasFirebaseSession());
 
   if (!canUseBackend) {
-    const localSales = await loadScopedOpenSales(session);
+    const localResult = await loadScopedOpenSales(session);
+    if (localResult.loadError) {
+      return { ok: false, error: localResult.loadError };
+    }
+    const localSales = localResult.sales;
     const localSummary = summarizeSales(localSales);
     if (localSummary.salesCount === 0) {
       return { ok: false, error: "No hay ventas pendientes para cerrar caja." };
@@ -171,15 +179,20 @@ async function listRecentClosures(session, scopeKey) {
 
 async function loadScopedOpenSales(session) {
   const canUseCloud = navigator.onLine && (await hasFirebaseSession());
+  let cloudError = null;
   if (canUseCloud) {
     try {
       const cloudSales = await loadScopedOpenSalesFromCallable();
-      if (cloudSales.length > 0) return cloudSales;
-    } catch (_) {
-      // Si falla backend o red intermitente, mantiene operativa la caja con datos locales.
+      if (cloudSales.length > 0) return { sales: cloudSales };
+    } catch (error) {
+      cloudError = error;
     }
   }
-  return loadScopedOpenSalesFromLocal(session);
+  const localSales = await loadScopedOpenSalesFromLocal(session);
+  if (localSales.length === 0 && cloudError) {
+    return { sales: [], loadError: mapOpenCashSalesError(cloudError) };
+  }
+  return { sales: localSales };
 }
 
 async function loadScopedOpenSalesFromCallable() {
@@ -223,6 +236,21 @@ function normalizeDateToIso(value) {
     if (!Number.isNaN(parsed.getTime())) return parsed.toISOString();
   }
   return "";
+}
+
+function mapOpenCashSalesError(error) {
+  const code = String(error?.code || "");
+  const message = String(error?.message || "");
+  if (code.includes("not-found")) {
+    return "Caja no disponible en backend: falta desplegar la funcion getOpenCashSales.";
+  }
+  if (code.includes("permission-denied")) {
+    return "Sin permisos para leer ventas abiertas de caja.";
+  }
+  if (code.includes("unauthenticated")) {
+    return "Sesion invalida para consultar caja.";
+  }
+  return message || "No se pudieron cargar las ventas abiertas de caja.";
 }
 
 async function hasFirebaseSession() {
