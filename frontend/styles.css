@@ -30,6 +30,52 @@ body {
   color: var(--text);
 }
 
+.app-loading-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 120;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(230, 238, 248, 0.88);
+  backdrop-filter: blur(4px);
+  transition: opacity 0.24s ease;
+}
+
+.app-loading-overlay.is-hidden {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.app-loading-box {
+  display: grid;
+  justify-items: center;
+  gap: 0.75rem;
+}
+
+.app-loading-spinner {
+  width: 2.25rem;
+  height: 2.25rem;
+  border-radius: 50%;
+  border: 3px solid rgba(15, 118, 110, 0.2);
+  border-top-color: #0f766e;
+  animation: app-loading-spin 0.9s linear infinite;
+}
+
+.app-loading-text {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 700;
+  color: #0f766e;
+  text-transform: capitalize;
+}
+
+@keyframes app-loading-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 .top-banner {
   position: fixed;
   top: 0;

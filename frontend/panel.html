@@ -10,6 +10,12 @@
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
+  <div id="app-loading-overlay" class="app-loading-overlay" role="status" aria-live="polite" aria-label="Cargando panel">
+    <div class="app-loading-box">
+      <span class="app-loading-spinner" aria-hidden="true"></span>
+      <p class="app-loading-text">bienvenido a StockFacil</p>
+    </div>
+  </div>
   <button id="offline-sync-banner" type="button" class="offline-sync-banner hidden" aria-live="polite"></button>
   <button id="floating-sync-btn" type="button" class="floating-sync-btn" title="Sincronizar ahora" aria-label="Sincronizar ahora">
     <span class="btn-icon" aria-hidden="true">

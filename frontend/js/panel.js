@@ -82,22 +82,26 @@ let offlineSyncInProgress = false;
 let cashSalesSectionVisible = true;
 let cashClosuresSectionVisible = true;
 
-init().catch((error) => {
-  console.error(error);
-  const msg = String(error?.message || "").toLowerCase();
-  const looksLikeAuthError =
-    msg.includes("sesion") ||
-    msg.includes("auth") ||
-    msg.includes("permission-denied") ||
-    msg.includes("unauthenticated");
-  if (looksLikeAuthError) {
-    redirectToLogin();
-    return;
-  }
-  if (dom.sessionInfo) {
-    dom.sessionInfo.textContent = "No se pudo cargar el panel. Revisa consola y recarga la pagina.";
-  }
-});
+init()
+  .catch((error) => {
+    console.error(error);
+    const msg = String(error?.message || "").toLowerCase();
+    const looksLikeAuthError =
+      msg.includes("sesion") ||
+      msg.includes("auth") ||
+      msg.includes("permission-denied") ||
+      msg.includes("unauthenticated");
+    if (looksLikeAuthError) {
+      redirectToLogin();
+      return;
+    }
+    if (dom.sessionInfo) {
+      dom.sessionInfo.textContent = "No se pudo cargar el panel. Revisa consola y recarga la pagina.";
+    }
+  })
+  .finally(() => {
+    hideStartupOverlay();
+  });
 
 async function init() {
   await ensureFirebaseAuth();
@@ -123,6 +127,14 @@ async function init() {
   await refreshEmployeesPanel();
   wireEvents();
   initializeOfflineSyncBanner();
+}
+
+function hideStartupOverlay() {
+  if (!dom.appLoadingOverlay) return;
+  dom.appLoadingOverlay.classList.add("is-hidden");
+  window.setTimeout(() => {
+    dom.appLoadingOverlay?.classList.add("hidden");
+  }, 260);
 }
 
 function wireEvents() {

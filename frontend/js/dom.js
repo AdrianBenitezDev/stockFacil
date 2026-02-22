@@ -1,4 +1,5 @@
 export const dom = {
+  appLoadingOverlay: document.getElementById("app-loading-overlay"),
   sessionInfo: document.getElementById("session-info"),
   sessionEmail: document.getElementById("session-email"),
   sessionPlan: document.getElementById("session-plan"),

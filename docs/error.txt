@@ -1,7 +1,41 @@
-https://us-central1-kiosco-stock-493c6.cloudfunctions.net/sendEmployerVerificationEmail 500 (Internal Server Error)
-requestVerificationEmail @ registro.js:502
-handleRegisterSubmit @ registro.js:285Understand this error
-registro.js:512 Respuesta de sendEmployerVerificationEmail: No se pudo enviar el correo de verificacion.
-registro.js:289 Error: No se pudo enviar el correo de verificacion.
-    at requestVerificationEmail (registro.js:514:11)
-    at async HTMLFormElement.handleRegisterSubmit (registro.js:285:5)
+Failed to load resource: the server responded with a status of 500 ()Understand this error
+cash.js:212 No se pudo sincronizar cierres de caja desde backend: INTERNAL
+syncRecentClosuresFromCloud @ cash.js:212Understand this warning
+service.ts:225  POST https://us-central1-kiosco-stock-493c6.cloudfunctions.net/getRecentCashClosures 500 (Internal Server Error)
+postJSON @ service.ts:225
+callAtURL @ service.ts:301
+await in callAtURL
+call @ service.ts:212
+(anonymous) @ service.ts:216
+syncRecentClosuresFromCloud @ cash.js:200
+await in syncRecentClosuresFromCloud
+listRecentClosures @ cash.js:180
+getCashSnapshotForToday @ cash.js:32
+await in getCashSnapshotForToday
+refreshCashPanel @ panel.js:791
+await in refreshCashPanel
+(anonymous) @ panel.js:138Understand this error
+cash.js:212 No se pudo sincronizar cierres de caja desde backend: INTERNAL
+syncRecentClosuresFromCloud @ cash.js:212
+await in syncRecentClosuresFromCloud
+listRecentClosures @ cash.js:180
+getCashSnapshotForToday @ cash.js:32
+await in getCashSnapshotForToday
+refreshCashPanel @ panel.js:791
+await in refreshCashPanel
+(anonymous) @ panel.js:138Understand this warning
+service.ts:225  POST https://us-central1-kiosco-stock-493c6.cloudfunctions.net/getRecentCashClosures 500 (Internal Server Error)
+postJSON @ service.ts:225
+callAtURL @ service.ts:301
+await in callAtURL
+call @ service.ts:212
+(anonymous) @ service.ts:216
+syncRecentClosuresFromCloud @ cash.js:200
+await in syncRecentClosuresFromCloud
+listRecentClosures @ cash.js:180
+getCashSnapshotForToday @ cash.js:32
+await in getCashSnapshotForToday
+refreshCashPanel @ panel.js:791
+await in refreshCashPanel
+handleCloseShift @ panel.js:906Understand this error
+cash.js:212 No se pudo sincronizar cierres de caja desde backend: INTERNAL
