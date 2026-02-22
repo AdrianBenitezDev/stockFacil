@@ -81,6 +81,7 @@ let latestCashSnapshot = null;
 let offlineSyncInProgress = false;
 let cashSalesSectionVisible = true;
 let cashClosuresSectionVisible = true;
+let startupOverlayHidden = false;
 
 init()
   .catch((error) => {
@@ -121,20 +122,41 @@ async function init() {
   initSaleModeSwitch();
   focusBarcodeInputIfDesktop();
   renderCurrentSale(currentSaleItems);
-  await ensureInitialProductsConsistency();
-  await refreshStock();
-  await refreshCashPanel();
-  await refreshEmployeesPanel();
+  scheduleStartupOverlayFallback();
+  hideStartupOverlay();
+  await runPostStartupRefreshes();
   wireEvents();
   initializeOfflineSyncBanner();
 }
 
 function hideStartupOverlay() {
+  if (startupOverlayHidden) return;
+  startupOverlayHidden = true;
   if (!dom.appLoadingOverlay) return;
   dom.appLoadingOverlay.classList.add("is-hidden");
   window.setTimeout(() => {
     dom.appLoadingOverlay?.classList.add("hidden");
   }, 260);
+}
+
+function scheduleStartupOverlayFallback() {
+  window.setTimeout(() => {
+    hideStartupOverlay();
+  }, 4500);
+}
+
+async function runPostStartupRefreshes() {
+  const tasks = [
+    ensureInitialProductsConsistency(),
+    refreshStock(),
+    refreshCashPanel(),
+    refreshEmployeesPanel()
+  ];
+  const results = await Promise.allSettled(tasks);
+  const firstError = results.find((entry) => entry.status === "rejected");
+  if (firstError?.status === "rejected") {
+    console.error("Error en tareas post-inicio:", firstError.reason);
+  }
 }
 
 function wireEvents() {
