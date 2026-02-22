@@ -19,7 +19,7 @@ export function showAppShell(user) {
   const planLabel = String(user.planActual || "prueba").toUpperCase();
   dom.sessionInfo.textContent = `${user.displayName} (${user.role})`;
   dom.sessionEmail.textContent = user.email ? `${user.email}` : "****";
-  dom.sessionPlan.textContent = `Plan ${planLabel}`;
+  dom.sessionPlan.textContent = planLabel;
   const canCreateProducts = isOwner || user?.canCreateProducts === true || user?.puedeCrearProductos === true;
   dom.providerCostGroup.classList.toggle("hidden", !canCreateProducts);
   dom.providerCostInput.required = canCreateProducts;

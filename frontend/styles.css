@@ -85,7 +85,7 @@ body {
 .top-banner-userbadge {
   display: inline-flex;
   align-items: center;
-  justify-content: center;
+  justify-content: flex-start;
   gap: 0.45rem;
   margin-top: 0;
   padding: 0.45rem 0.7rem;
@@ -94,6 +94,32 @@ body {
   border: 1px solid rgba(255, 255, 255, 0.45);
   color: #ffffff;
   min-width: 200px;
+}
+
+.top-banner-planbadge {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.12rem;
+  text-decoration: none;
+  color: inherit;
+  border-radius: 8px;
+  padding: 0.2rem 0.28rem;
+  border: 1px solid transparent;
+}
+
+.top-banner-planbadge:focus-visible {
+  outline: none;
+  border-color: rgba(153, 246, 228, 0.9);
+  box-shadow: 0 0 0 2px rgba(153, 246, 228, 0.35);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .top-banner-planbadge:hover {
+    background: rgba(255, 255, 255, 0.12);
+    border-color: rgba(255, 255, 255, 0.28);
+  }
 }
 
 .top-banner-usertext {
@@ -119,6 +145,8 @@ body {
   opacity: 0.96;
   font-size: 0.69rem;
   letter-spacing: 0.01em;
+  max-width: 66px;
+  text-align: center;
 }
 
 .top-banner-mode-toggle {
@@ -920,6 +948,10 @@ button:disabled {
     padding: 0.42rem 0.55rem;
   }
 
+  .top-banner-planbadge {
+    padding: 0.14rem 0.2rem;
+  }
+
   .top-banner-userline {
     max-width: 128px;
     font-size: 0.7rem;
@@ -931,6 +963,7 @@ button:disabled {
 
   .top-banner-userplan {
     font-size: 0.64rem;
+    max-width: 54px;
   }
 
   .top-banner-mode-toggle {
