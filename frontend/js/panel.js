@@ -792,7 +792,7 @@ function renderCashSnapshot(snapshot) {
   if (canViewProfit) {
     renderCashClosuresTable(snapshot.recentClosures, { maskProfit });
   }
-  dom.closeShiftBtn.disabled = false;
+  dom.closeShiftBtn.disabled = Number(snapshot.summary?.salesCount || 0) === 0;
 }
 
 function handleToggleCashPrivacy() {
@@ -818,6 +818,17 @@ function renderCashPrivacyToggle() {
 }
 
 async function handleCloseShift() {
+  const pendingSales = Number(latestCashSnapshot?.summary?.salesCount || 0);
+  const pendingTotal = Number(latestCashSnapshot?.summary?.totalAmount || 0);
+  const confirmed = window.confirm(
+    pendingSales > 0
+      ? `Vas a cerrar caja con ${pendingSales} venta(s) pendiente(s) por $${pendingTotal.toFixed(
+          2
+        )}. Esta accion marcara esas ventas como cerradas. Continuar?`
+      : "No hay ventas pendientes para cerrar caja. Continuar?"
+  );
+  if (!confirmed) return;
+
   const result = await closeTodayShift();
   if (!result.ok) {
     if (result.requiresLogin) {
