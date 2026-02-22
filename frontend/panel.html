@@ -247,29 +247,11 @@
         </div>
         <p id="cash-feedback" class="feedback" aria-live="polite"></p>
 
-        <h4>Ventas del dia</h4>
-        <div class="table-wrap">
-          <table>
-            <thead>
-              <tr>
-                <th>Hora</th>
-                <th>Usuario</th>
-                <th>Items</th>
-                <th>Total</th>
-                <th id="cash-sales-profit-col">Ganancia</th>
-              </tr>
-            </thead>
-            <tbody id="cash-sales-table-body">
-              <tr>
-                <td colspan="5">No hay ventas registradas hoy.</td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-
         <div id="cash-closures-section">
-          <h4>Historial de cierres</h4>
-          <div class="table-wrap">
+          <h4 class="cash-section-title">
+            <button id="cash-closures-toggle-btn" type="button" class="cash-section-toggle mode-btn-secondary"></button>
+          </h4>
+          <div id="cash-closures-table-wrap" class="table-wrap">
             <table>
               <thead>
                 <tr>
@@ -288,6 +270,30 @@
             </table>
           </div>
         </div>
+
+        <section id="cash-sales-section">
+          <h4 class="cash-section-title">
+            <button id="cash-sales-toggle-btn" type="button" class="cash-section-toggle mode-btn-secondary"></button>
+          </h4>
+          <div id="cash-sales-table-wrap" class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Hora</th>
+                  <th>Usuario</th>
+                  <th>Items</th>
+                  <th>Total</th>
+                  <th id="cash-sales-profit-col">Ganancia</th>
+                </tr>
+              </thead>
+              <tbody id="cash-sales-table-body">
+                <tr>
+                  <td colspan="5">No hay ventas registradas hoy.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
       </section>
 
       <section id="config-panel" class="panel hidden">
@@ -345,4 +351,3 @@
   <script type="module" src="js/panel.js"></script>
 </body>
 </html>
-

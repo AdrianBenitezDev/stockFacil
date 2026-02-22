@@ -79,6 +79,8 @@ const ICON_EYE_OFF_SVG =
 let cashSensitiveMasked = true;
 let latestCashSnapshot = null;
 let offlineSyncInProgress = false;
+let cashSalesSectionVisible = true;
+let cashClosuresSectionVisible = true;
 
 init().catch((error) => {
   console.error(error);
@@ -165,6 +167,8 @@ function wireEvents() {
   dom.closeShiftBtn.addEventListener("click", handleCloseShift);
   dom.refreshCashBtn.addEventListener("click", refreshCashPanel);
   dom.cashPrivacyToggle?.addEventListener("click", handleToggleCashPrivacy);
+  dom.cashSalesToggleBtn?.addEventListener("click", handleToggleCashSalesSection);
+  dom.cashClosuresToggleBtn?.addEventListener("click", handleToggleCashClosuresSection);
   dom.floatingSyncBtn?.addEventListener("click", handleFloatingSyncClick);
   dom.employeeListTableBody?.addEventListener("click", handleDeleteEmployeeClick);
   dom.employeeListTableBody?.addEventListener("change", handleToggleEmployeeCreateProducts);
@@ -803,11 +807,13 @@ function renderCashSnapshot(snapshot) {
   const canViewProfit = isEmployerRole(currentUser?.role);
   const maskProfit = canViewProfit && cashSensitiveMasked;
   renderCashSummary(snapshot.summary, { maskProfit });
+  renderCashSensitiveCards({ canViewProfit, maskProfit });
   renderCashSalesTable(snapshot.sales, { canViewProfit, maskProfit });
   renderCashClosureStatus(snapshot.todayClosure);
   if (canViewProfit) {
     renderCashClosuresTable(snapshot.recentClosures, { maskProfit });
   }
+  renderCashSectionToggles();
   dom.closeShiftBtn.disabled = Number(snapshot.summary?.salesCount || 0) === 0;
 }
 
@@ -831,6 +837,46 @@ function renderCashPrivacyToggle() {
   dom.cashPrivacyToggle.setAttribute("title", label);
   dom.cashPrivacyToggle.setAttribute("aria-label", label);
   dom.cashPrivacyToggle.setAttribute("aria-pressed", String(!cashSensitiveMasked));
+}
+
+function renderCashSensitiveCards({ canViewProfit, maskProfit }) {
+  const hideCostCard = !canViewProfit || maskProfit;
+  dom.cashCardCost?.classList.toggle("hidden", hideCostCard);
+}
+
+function handleToggleCashSalesSection() {
+  cashSalesSectionVisible = !cashSalesSectionVisible;
+  renderCashSectionToggles();
+}
+
+function handleToggleCashClosuresSection() {
+  cashClosuresSectionVisible = !cashClosuresSectionVisible;
+  renderCashSectionToggles();
+}
+
+function renderCashSectionToggles() {
+  renderCashSectionToggleButton(dom.cashSalesToggleBtn, {
+    sectionVisible: cashSalesSectionVisible,
+    sectionLabel: "Ventas del dia"
+  });
+  dom.cashSalesTableWrap?.classList.toggle("hidden", !cashSalesSectionVisible);
+
+  const canViewProfit = isEmployerRole(currentUser?.role);
+  renderCashSectionToggleButton(dom.cashClosuresToggleBtn, {
+    sectionVisible: cashClosuresSectionVisible,
+    sectionLabel: "Historial de cierres"
+  });
+  dom.cashClosuresTableWrap?.classList.toggle("hidden", !canViewProfit || !cashClosuresSectionVisible);
+}
+
+function renderCashSectionToggleButton(button, { sectionVisible, sectionLabel }) {
+  if (!button) return;
+  const icon = sectionVisible ? ICON_EYE_SVG : ICON_EYE_OFF_SVG;
+  const actionLabel = `${sectionVisible ? "Ocultar" : "Mostrar"} ${sectionLabel.toLowerCase()}`;
+  button.innerHTML = iconWithLabel(icon, sectionLabel);
+  button.setAttribute("title", actionLabel);
+  button.setAttribute("aria-label", actionLabel);
+  button.setAttribute("aria-pressed", String(sectionVisible));
 }
 
 async function handleCloseShift() {

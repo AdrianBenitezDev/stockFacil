@@ -3,6 +3,15 @@ const ICON_TRASH_SVG =
   '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/></svg>';
 const ICON_REMOVE_SVG =
   '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M18 6L6 18"/><path d="M6 6l12 12"/></svg>';
+const EMPLOYEE_TONE_CLASSES = [
+  "employee-tone-1",
+  "employee-tone-2",
+  "employee-tone-3",
+  "employee-tone-4",
+  "employee-tone-5"
+];
+const employeeToneByKey = new Map();
+let nextEmployeeToneIndex = 0;
 
 export function showAppShell(user) {
   const role = String(user.role || "").trim().toLowerCase();
@@ -205,8 +214,9 @@ export function renderCashSalesTable(sales, { canViewProfit = true, maskProfit =
     .map((sale) => {
       const time = formatTime(sale.createdAt);
       const username = escapeHtml(sale.username || "-");
+      const rowToneClass = getEmployeeToneClass(sale.username);
       return [
-        "<tr>",
+        `<tr class="${rowToneClass}">`,
         `<td>${time}</td>`,
         `<td>${username}</td>`,
         `<td>${Number(sale.itemsCount || 0)}</td>`,
@@ -273,8 +283,9 @@ export function renderCashClosuresTable(closures, { maskProfit = false } = {}) {
 
   dom.cashClosuresTableBody.innerHTML = closures
     .map((closure) => {
+      const rowToneClass = getEmployeeToneClass(closure.username);
       return [
-        "<tr>",
+        `<tr class="${rowToneClass}">`,
         `<td>${escapeHtml(closure.dateKey || "-")}</td>`,
         `<td>${escapeHtml(closure.username || "-")}</td>`,
         `<td>${Number(closure.salesCount || 0)}</td>`,
@@ -284,6 +295,17 @@ export function renderCashClosuresTable(closures, { maskProfit = false } = {}) {
       ].join("");
     })
     .join("");
+}
+
+function getEmployeeToneClass(username) {
+  const key = String(username || "").trim().toLowerCase();
+  if (!key) return "";
+  const existing = employeeToneByKey.get(key);
+  if (existing) return existing;
+  const tone = EMPLOYEE_TONE_CLASSES[nextEmployeeToneIndex % EMPLOYEE_TONE_CLASSES.length];
+  nextEmployeeToneIndex += 1;
+  employeeToneByKey.set(key, tone);
+  return tone;
 }
 
 

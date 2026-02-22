@@ -710,6 +710,34 @@ thead th {
   margin: 0;
 }
 
+.cash-section-title {
+  margin: 1rem 0 0.6rem;
+}
+
+.cash-section-toggle {
+  margin-top: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 0.4rem;
+  width: 100%;
+  background: #f8fafc;
+  color: #334155;
+  border: 1px solid var(--line);
+  font-size: 0.95rem;
+}
+
+.cash-section-toggle .btn-icon {
+  color: #0f766e;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .cash-section-toggle:hover {
+    background: #ecfeff;
+    color: #0f766e;
+  }
+}
+
 .cash-privacy-toggle {
   margin-top: 0;
   display: inline-flex;
@@ -736,6 +764,31 @@ thead th {
   margin: 0;
   font-size: 1.25rem;
   font-weight: 700;
+}
+
+#cash-sales-table-body tr.employee-tone-1 td,
+#cash-closures-table-body tr.employee-tone-1 td {
+  background: #ecfeff;
+}
+
+#cash-sales-table-body tr.employee-tone-2 td,
+#cash-closures-table-body tr.employee-tone-2 td {
+  background: #eff6ff;
+}
+
+#cash-sales-table-body tr.employee-tone-3 td,
+#cash-closures-table-body tr.employee-tone-3 td {
+  background: #f0fdf4;
+}
+
+#cash-sales-table-body tr.employee-tone-4 td,
+#cash-closures-table-body tr.employee-tone-4 td {
+  background: #fff7ed;
+}
+
+#cash-sales-table-body tr.employee-tone-5 td,
+#cash-closures-table-body tr.employee-tone-5 td {
+  background: #fdf2f8;
 }
 
 button:disabled {
