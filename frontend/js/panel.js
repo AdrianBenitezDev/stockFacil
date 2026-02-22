@@ -683,8 +683,12 @@ async function handleCheckoutSale() {
 
   currentSaleItems.length = 0;
   renderCurrentSale(currentSaleItems);
+  const canViewSaleProfit = isEmployerRole(currentUser?.role);
+  const checkoutMessage = canViewSaleProfit
+    ? `Venta cobrada. Items: ${result.itemsCount}. Total: $${result.total.toFixed(2)}. Ganancia: $${result.profit.toFixed(2)}.`
+    : `Venta cobrada. Items: ${result.itemsCount}. Total: $${result.total.toFixed(2)}.`;
   setScanFeedback(
-    `Venta cobrada. Items: ${result.itemsCount}. Total: $${result.total.toFixed(2)}. Ganancia: $${result.profit.toFixed(2)}.`,
+    checkoutMessage,
     "success"
   );
   await refreshStock();
@@ -840,14 +844,12 @@ async function handleCloseShift() {
   }
 
   const canViewProfit = isEmployerRole(currentUser?.role);
-  const profitText =
-    canViewProfit && cashSensitiveMasked
-      ? "****"
-      : `$${result.summary.profitAmount.toFixed(2)}`;
-  setCashFeedback(
-    `Turno cerrado. Debes entregar $${result.summary.totalAmount.toFixed(2)}. Ganancia del dia: ${profitText}.`,
-    "success"
-  );
+  const closeMessage = canViewProfit
+    ? `Turno cerrado. Debes entregar $${result.summary.totalAmount.toFixed(2)}. Ganancia del dia: ${
+        cashSensitiveMasked ? "****" : `$${result.summary.profitAmount.toFixed(2)}`
+      }.`
+    : `Turno cerrado. Debes entregar $${result.summary.totalAmount.toFixed(2)}.`;
+  setCashFeedback(closeMessage, "success");
   await refreshCashPanel();
 }
 

@@ -113,7 +113,8 @@ export async function closeTodayShift() {
       summary: authoritativeSummary,
       synced: true,
       id: String(data.idCaja),
-      ventasIncluidas: Array.isArray(data.ventasIncluidas) ? data.ventasIncluidas : []
+      ventasIncluidas: Array.isArray(data.ventasIncluidas) ? data.ventasIncluidas : [],
+      productosIncluidos: Array.isArray(data.productosIncluidos) ? data.productosIncluidos : []
     });
     closure.GanaciaRealCaja = Number(data.totalGananciaRealCaja || 0);
 
@@ -128,7 +129,16 @@ export async function closeTodayShift() {
   }
 }
 
-function buildLocalClosure({ session, dateKey, closureKey, summary, synced, id = null, ventasIncluidas = [] }) {
+function buildLocalClosure({
+  session,
+  dateKey,
+  closureKey,
+  summary,
+  synced,
+  id = null,
+  ventasIncluidas = [],
+  productosIncluidos = []
+}) {
   return {
     id: id || `LOCAL-CAJA-${Date.now()}`,
     closureKey: `${closureKey}::${Date.now()}`,
@@ -145,6 +155,7 @@ function buildLocalClosure({ session, dateKey, closureKey, summary, synced, id =
     salesCount: Number(summary.salesCount || 0),
     itemsCount: Number(summary.itemsCount || 0),
     ventasIncluidas,
+    productosIncluidos,
     synced,
     createdAt: new Date().toISOString()
   };

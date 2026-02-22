@@ -20,6 +20,7 @@ const closeCashbox = onCall(async (request) => {
   }
 
   const ventasIncluidas = [];
+  const productosIncluidosMap = new Map();
   let totalCaja = 0;
   let totalGananciaRealCaja = 0;
   let fechaApertura = null;
@@ -30,6 +31,7 @@ const closeCashbox = onCall(async (request) => {
     ventasIncluidas.push(docSnap.id);
     totalCaja += Number(sale.total || 0);
     totalGananciaRealCaja += Number(sale.gananciaReal ?? sale.ganaciaReal ?? sale.profit ?? 0);
+    collectSaleProducts(sale, productosIncluidosMap);
 
     const saleCreatedAt = normalizeToDate(sale.createdAt);
     if (saleCreatedAt && (!fechaApertura || saleCreatedAt < fechaApertura)) {
@@ -39,6 +41,9 @@ const closeCashbox = onCall(async (request) => {
 
   totalCaja = round2(totalCaja);
   totalGananciaRealCaja = round2(totalGananciaRealCaja);
+  const productosIncluidos = Array.from(productosIncluidosMap.values()).sort((a, b) =>
+    String(a.idProducto || "").localeCompare(String(b.idProducto || ""))
+  );
 
   const cajaRef = db.collection("tenants").doc(tenantId).collection("cajas").doc(idCaja);
   const batch = db.batch();
@@ -53,6 +58,7 @@ const closeCashbox = onCall(async (request) => {
     fechaApertura: fechaApertura ? Timestamp.fromDate(fechaApertura) : fechaCierre,
     fechaCierre,
     ventasIncluidas,
+    productosIncluidos,
     createdAt: Timestamp.now()
   });
 
@@ -71,9 +77,40 @@ const closeCashbox = onCall(async (request) => {
     idCaja,
     totalCaja,
     totalGananciaRealCaja,
-    ventasIncluidas
+    ventasIncluidas,
+    productosIncluidos
   };
 });
+
+function collectSaleProducts(sale, targetMap) {
+  const items = Array.isArray(sale?.productos) ? sale.productos : [];
+  items.forEach((item) => {
+    const idProducto = String(
+      item?.idProducto || item?.codigo || item?.productId || item?.barcode || ""
+    ).trim();
+    if (!idProducto) return;
+
+    const cantidad = Number(item?.cantidad ?? item?.quantity ?? 0);
+    if (!Number.isFinite(cantidad) || cantidad <= 0) return;
+
+    const precioVenta = round2(Number(item?.precioUnitario ?? item?.unitPrice ?? 0));
+    const precioCompra = round2(Number(item?.precioCompraUnitario ?? item?.unitProviderCost ?? 0));
+
+    const key = `${idProducto}::${precioVenta}::${precioCompra}`;
+    const current = targetMap.get(key);
+    if (!current) {
+      targetMap.set(key, {
+        idProducto,
+        cantidadVendido: round2(cantidad),
+        precioVenta,
+        precioCompra
+      });
+      return;
+    }
+
+    current.cantidadVendido = round2(Number(current.cantidadVendido || 0) + cantidad);
+  });
+}
 
 function normalizeToDate(value) {
   if (!value) return null;
