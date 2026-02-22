@@ -2,10 +2,11 @@ const { HttpsError, onCall, Timestamp, db } = require("./shared/context");
 const { requireTenantMemberContext } = require("./shared/authz");
 
 const closeCashbox = onCall(async (request) => {
-  const { uid, tenantId } = await requireTenantMemberContext(request);
+  const { uid, tenantId, role, caller } = await requireTenantMemberContext(request);
 
   const turnoId = String(request.data?.turnoId || "").trim();
   const idCaja = turnoId ? `CAJA-${turnoId}-${Date.now()}` : `CAJA-${Date.now()}`;
+  const usuarioNombre = String(caller?.displayName || caller?.username || caller?.email || uid).trim();
 
   const salesSnap = await db
     .collection("tenants")
@@ -51,10 +52,14 @@ const closeCashbox = onCall(async (request) => {
   batch.set(cajaRef, {
     idCaja,
     tenantId,
+    dateKey: turnoId || null,
+    scopeKey: String(uid),
     total: totalCaja,
     GanaciaRealCaja: totalGananciaRealCaja,
     totalGananciaRealCaja,
     usuarioUid: uid,
+    usuarioNombre,
+    role: String(role || "empleado"),
     fechaApertura: fechaApertura ? Timestamp.fromDate(fechaApertura) : fechaCierre,
     fechaCierre,
     ventasIncluidas,

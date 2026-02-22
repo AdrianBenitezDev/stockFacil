@@ -12,6 +12,7 @@ import { syncPendingSales } from "./sales.js";
 const functions = getFunctions(firebaseApp);
 const closeCashboxCallable = httpsCallable(functions, "closeCashbox");
 const getOpenCashSalesCallable = httpsCallable(functions, "getOpenCashSales");
+const getRecentCashClosuresCallable = httpsCallable(functions, "getRecentCashClosures");
 
 export async function getCashSnapshotForToday() {
   const session = getCurrentSession();
@@ -176,16 +177,40 @@ function summarizeSales(sales) {
 }
 
 async function listRecentClosures(session, scopeKey) {
+  await syncRecentClosuresFromCloud(session);
   const { startIso, endIso } = getRecentDaysRangeIso(30);
   const closures = await getCashClosuresByKioscoAndDateRange(session.tenantId, startIso, endIso);
+  const isOwner = String(session?.role || "").trim().toLowerCase() === "empleador";
   return closures
     .filter((closure) => {
+      if (isOwner) return true;
       const closureScope = String(closure.scopeKey || "").trim();
       if (closureScope) return closureScope === scopeKey;
       return String(closure.closureKey || "").includes(`::${scopeKey}`);
     })
     .sort((a, b) => String(b.createdAt || "").localeCompare(String(a.createdAt || "")))
     .slice(0, 10);
+}
+
+async function syncRecentClosuresFromCloud(session) {
+  const canUseCloud = navigator.onLine && (await hasFirebaseSession());
+  if (!canUseCloud) return;
+
+  try {
+    const response = await getRecentCashClosuresCallable({ daysBack: 30, limit: 80 });
+    const data = response?.data || {};
+    const rows = Array.isArray(data.closures) ? data.closures : [];
+    if (rows.length === 0) return;
+
+    const normalized = rows
+      .map((closure) => normalizeCallableClosure(session, closure))
+      .filter(Boolean);
+    for (const closure of normalized) {
+      await putCashClosure(closure);
+    }
+  } catch (error) {
+    console.warn("No se pudo sincronizar cierres de caja desde backend:", error?.message || error);
+  }
 }
 
 async function loadScopedOpenSales(session) {
@@ -234,6 +259,40 @@ function normalizeCallableSale(sale) {
     profit: Number(sale.gananciaReal ?? sale.ganaciaReal ?? sale.profit ?? 0),
     cajaCerrada: sale.cajaCerrada === true,
     createdAt: normalizeDateToIso(sale.createdAt)
+  };
+}
+
+function normalizeCallableClosure(session, closure) {
+  const id = String(closure?.id || "").trim();
+  if (!id) return null;
+
+  const createdAt = normalizeDateToIso(closure?.createdAt);
+  const dateKey = String(closure?.dateKey || "").trim() || isoToDateKey(createdAt);
+  const userId = String(closure?.userId || "").trim();
+  const scopeKey = String(closure?.scopeKey || "").trim() || userId || "all";
+  const closureKey =
+    String(closure?.closureKey || "").trim() ||
+    buildClosureKey(session.tenantId, dateKey || isoToDateKey(new Date().toISOString()), scopeKey);
+
+  return {
+    id,
+    closureKey,
+    scopeKey,
+    kioscoId: session.tenantId,
+    userId,
+    role: String(closure?.role || "").trim() || "empleado",
+    username: String(closure?.username || "-"),
+    dateKey,
+    totalAmount: Number(closure?.totalAmount || 0),
+    totalCost: Number(closure?.totalCost || 0),
+    profitAmount: Number(closure?.profitAmount || 0),
+    GanaciaRealCaja: Number(closure?.profitAmount || 0),
+    salesCount: Number(closure?.salesCount || 0),
+    itemsCount: Number(closure?.itemsCount || 0),
+    ventasIncluidas: Array.isArray(closure?.ventasIncluidas) ? closure.ventasIncluidas : [],
+    productosIncluidos: Array.isArray(closure?.productosIncluidos) ? closure.productosIncluidos : [],
+    synced: true,
+    createdAt
   };
 }
 
@@ -308,4 +367,12 @@ function getScopeKey(session) {
 
 function buildClosureKey(kioscoId, dateKey, scopeKey) {
   return `${kioscoId}::${dateKey}::${scopeKey}`;
+}
+
+function isoToDateKey(isoDate) {
+  const date = new Date(isoDate);
+  if (Number.isNaN(date.getTime())) return "";
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(
+    date.getDate()
+  ).padStart(2, "0")}`;
 }
