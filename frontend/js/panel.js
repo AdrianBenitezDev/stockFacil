@@ -82,7 +82,19 @@ let offlineSyncInProgress = false;
 
 init().catch((error) => {
   console.error(error);
-  redirectToLogin();
+  const msg = String(error?.message || "").toLowerCase();
+  const looksLikeAuthError =
+    msg.includes("sesion") ||
+    msg.includes("auth") ||
+    msg.includes("permission-denied") ||
+    msg.includes("unauthenticated");
+  if (looksLikeAuthError) {
+    redirectToLogin();
+    return;
+  }
+  if (dom.sessionInfo) {
+    dom.sessionInfo.textContent = "No se pudo cargar el panel. Revisa consola y recarga la pagina.";
+  }
 });
 
 async function init() {
