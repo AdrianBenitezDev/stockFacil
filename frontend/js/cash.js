@@ -47,19 +47,20 @@ export async function getCashSnapshotForToday() {
   };
 }
 
-export async function closeTodayShift() {
+export async function closeTodayShift({ scope = "all" } = {}) {
   const session = getCurrentSession();
   if (!session) {
     return { ok: false, error: "Sesion expirada. Inicia sesion nuevamente.", requiresLogin: true };
   }
 
+  const effectiveScope = resolveEffectiveCloseScope(session, scope);
   const { dateKey } = getTodayRangeIso();
-  const scopeKey = getScopeKey(session);
+  const scopeKey = getScopeKey(session, effectiveScope);
   const closureKey = buildClosureKey(session.tenantId, dateKey, scopeKey);
   const canUseBackend = navigator.onLine && (await hasFirebaseSession());
 
   if (!canUseBackend) {
-    const localResult = await loadScopedOpenSales(session);
+    const localResult = await loadScopedOpenSales(session, { scope: effectiveScope });
     if (localResult.loadError) {
       return { ok: false, error: localResult.loadError };
     }
@@ -80,7 +81,7 @@ export async function closeTodayShift() {
     return { ok: true, summary: localSummary, provisional: true };
   }
 
-  const localSales = await loadScopedOpenSalesFromLocal(session);
+  const localSales = await loadScopedOpenSalesFromLocal(session, { scope: effectiveScope });
   const localSummary = summarizeSales(localSales);
 
   const syncResult = await syncPendingSales();
@@ -92,7 +93,8 @@ export async function closeTodayShift() {
     const response = await closeCashboxCallable({
       tenantId: session.tenantId,
       usuarioUid: session.userId,
-      turnoId: dateKey
+      turnoId: dateKey,
+      scope: effectiveScope
     });
     const data = response?.data || {};
     if (!data.success || !data.idCaja) {
@@ -213,36 +215,43 @@ async function syncRecentClosuresFromCloud(session) {
   }
 }
 
-async function loadScopedOpenSales(session) {
+async function loadScopedOpenSales(session, { scope = "all" } = {}) {
   const canUseCloud = navigator.onLine && (await hasFirebaseSession());
   let cloudError = null;
+  const effectiveScope = resolveEffectiveCloseScope(session, scope);
   if (canUseCloud) {
     try {
-      const cloudSales = await loadScopedOpenSalesFromCallable();
+      const cloudSales = await loadScopedOpenSalesFromCallable({
+        scope: effectiveScope,
+        sessionRole: session?.role
+      });
       if (cloudSales.length > 0) return { sales: cloudSales };
     } catch (error) {
       cloudError = error;
     }
   }
-  const localSales = await loadScopedOpenSalesFromLocal(session);
+  const localSales = await loadScopedOpenSalesFromLocal(session, { scope: effectiveScope });
   if (localSales.length === 0 && cloudError) {
     return { sales: [], loadError: mapOpenCashSalesError(cloudError) };
   }
   return { sales: localSales };
 }
 
-async function loadScopedOpenSalesFromCallable() {
-  const response = await getOpenCashSalesCallable();
+async function loadScopedOpenSalesFromCallable({ scope = "all", sessionRole = "" } = {}) {
+  const response = await getOpenCashSalesCallable({
+    scope: String(sessionRole || "").trim().toLowerCase() === "empleador" ? scope : "mine"
+  });
   const data = response?.data || {};
   const rows = Array.isArray(data.sales) ? data.sales : [];
   return rows.map((sale) => normalizeCallableSale(sale));
 }
 
-async function loadScopedOpenSalesFromLocal(session) {
+async function loadScopedOpenSalesFromLocal(session, { scope = "all" } = {}) {
+  const effectiveScope = resolveEffectiveCloseScope(session, scope);
   const rows = await getSalesByKiosco(session.tenantId);
   return rows.filter((sale) => {
     if (sale?.cajaCerrada === true) return false;
-    if (session.role === "empleador") return true;
+    if (effectiveScope === "all") return true;
     return String(sale.userId || sale.usuarioUid || "") === String(session.userId || "");
   });
 }
@@ -361,8 +370,15 @@ function getRecentDaysRangeIso(daysBack) {
   return { startIso: start.toISOString(), endIso: end.toISOString() };
 }
 
-function getScopeKey(session) {
-  return session.role === "empleador" ? "all" : session.userId;
+function getScopeKey(session, scope = "all") {
+  const effectiveScope = resolveEffectiveCloseScope(session, scope);
+  return effectiveScope === "all" ? "all" : session.userId;
+}
+
+function resolveEffectiveCloseScope(session, scope) {
+  const isOwner = String(session?.role || "").trim().toLowerCase() === "empleador";
+  if (!isOwner) return "mine";
+  return scope === "mine" ? "mine" : "all";
 }
 
 function buildClosureKey(kioscoId, dateKey, scopeKey) {

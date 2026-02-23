@@ -80,6 +80,7 @@ export const dom = {
   cashClosuresSection: document.getElementById("cash-closures-section"),
   cashClosuresToggleBtn: document.getElementById("cash-closures-toggle-btn"),
   cashClosuresTableWrap: document.getElementById("cash-closures-table-wrap"),
+  closeMySalesBtn: document.getElementById("close-my-sales-btn"),
   closeShiftBtn: document.getElementById("close-shift-btn"),
   refreshCashBtn: document.getElementById("refresh-cash-btn"),
   cashFeedback: document.getElementById("cash-feedback"),

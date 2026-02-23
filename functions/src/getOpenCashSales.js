@@ -3,6 +3,8 @@ const { requireTenantMemberContext } = require("./shared/authz");
 
 const getOpenCashSales = onCall(async (request) => {
   const { uid, tenantId, role } = await requireTenantMemberContext(request);
+  const requestedScope = String(request.data?.scope || "").trim().toLowerCase();
+  const isOwner = String(role || "").trim().toLowerCase() === "empleador";
 
   let salesQuery = db
     .collection("tenants")
@@ -10,7 +12,7 @@ const getOpenCashSales = onCall(async (request) => {
     .collection("ventas")
     .where("cajaCerrada", "==", false);
 
-  if (String(role || "").trim().toLowerCase() !== "empleador") {
+  if (!isOwner || requestedScope === "mine") {
     salesQuery = salesQuery.where("usuarioUid", "==", uid);
   }
 

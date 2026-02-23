@@ -203,7 +203,8 @@ function wireEvents() {
   dom.saleSearchSuggestions?.addEventListener("keydown", handleSaleSuggestionKeydown);
   dom.saleTableBody.addEventListener("click", handleRemoveCurrentSaleItem);
   dom.closeShiftBtn.addEventListener("click", handleCloseShift);
-  dom.refreshCashBtn.addEventListener("click", refreshCashPanel);
+  dom.closeMySalesBtn?.addEventListener("click", handleCloseMySales);
+  dom.refreshCashBtn.addEventListener("click", handleRefreshCashClick);
   dom.cashPrivacyToggle?.addEventListener("click", handleToggleCashPrivacy);
   dom.cashSalesToggleBtn?.addEventListener("click", handleToggleCashSalesSection);
   dom.cashClosuresToggleBtn?.addEventListener("click", handleToggleCashClosuresSection);
@@ -922,14 +923,14 @@ async function handleCloseShift() {
   const pendingTotal = Number(latestCashSnapshot?.summary?.totalAmount || 0);
   const confirmed = window.confirm(
     pendingSales > 0
-      ? `Vas a cerrar caja con ${pendingSales} venta(s) pendiente(s) por $${pendingTotal.toFixed(
+      ? `Esto obligara a cerrar el turno actual del kiosco. Se cerraran ${pendingSales} venta(s) pendiente(s) por $${pendingTotal.toFixed(
           2
-        )}. Esta accion marcara esas ventas como cerradas. Continuar?`
-      : "No hay ventas pendientes para cerrar caja. Continuar?"
+        )}. Continuar?`
+      : "Esto obligara a cerrar el turno actual, pero no hay ventas pendientes. Continuar?"
   );
   if (!confirmed) return;
 
-  const result = await closeTodayShift();
+  const result = await closeTodayShift({ scope: "all" });
   if (!result.ok) {
     if (result.requiresLogin) {
       redirectToLogin();
@@ -947,6 +948,54 @@ async function handleCloseShift() {
     : `Turno cerrado. Debes entregar $${result.summary.totalAmount.toFixed(2)}.`;
   setCashFeedback(closeMessage, "success");
   await refreshCashPanel();
+}
+
+async function handleCloseMySales() {
+  if (!isEmployerRole(currentUser?.role)) return;
+  const myPendingSales = (latestCashSnapshot?.sales || []).filter(
+    (sale) => String(sale.userId || sale.usuarioUid || "") === String(currentUser?.userId || "")
+  );
+  const mySalesCount = myPendingSales.length;
+  const myTotal = myPendingSales.reduce((acc, sale) => acc + Number(sale.total || 0), 0);
+
+  const confirmed = window.confirm(
+    mySalesCount > 0
+      ? `Se cerraran solo tus ventas (${mySalesCount}) por $${myTotal.toFixed(2)}. Continuar?`
+      : "No tienes ventas pendientes para cerrar. Continuar?"
+  );
+  if (!confirmed) return;
+
+  const result = await closeTodayShift({ scope: "mine" });
+  if (!result.ok) {
+    if (result.requiresLogin) {
+      redirectToLogin();
+      return;
+    }
+    setCashFeedback(result.error);
+    return;
+  }
+
+  setCashFeedback(
+    `Tus ventas fueron cerradas. Total: $${Number(result.summary?.totalAmount || 0).toFixed(2)}.`,
+    "success"
+  );
+  await refreshCashPanel();
+}
+
+async function handleRefreshCashClick() {
+  if (!dom.refreshCashBtn) {
+    await refreshCashPanel();
+    return;
+  }
+
+  dom.refreshCashBtn.disabled = true;
+  dom.refreshCashBtn.classList.add("btn-loading");
+  try {
+    await refreshCashPanel();
+  } finally {
+    dom.refreshCashBtn.disabled = false;
+    dom.refreshCashBtn.classList.remove("btn-loading");
+  }
 }
 
 function wireStockRowEvents() {

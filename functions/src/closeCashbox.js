@@ -5,16 +5,24 @@ const closeCashbox = onCall(async (request) => {
   const { uid, tenantId, role, caller } = await requireTenantMemberContext(request);
 
   const turnoId = String(request.data?.turnoId || "").trim();
+  const requestedScope = String(request.data?.scope || "").trim().toLowerCase();
+  const normalizedRole = String(role || "").trim().toLowerCase();
+  const closeAll = normalizedRole === "empleador" && requestedScope === "all";
+  const scopeKey = closeAll ? "all" : String(uid);
   const idCaja = turnoId ? `CAJA-${turnoId}-${Date.now()}` : `CAJA-${Date.now()}`;
   const usuarioNombre = String(caller?.displayName || caller?.username || caller?.email || uid).trim();
 
-  const salesSnap = await db
+  let salesQuery = db
     .collection("tenants")
     .doc(tenantId)
     .collection("ventas")
-    .where("cajaCerrada", "==", false)
-    .where("usuarioUid", "==", uid)
-    .get();
+    .where("cajaCerrada", "==", false);
+
+  if (!closeAll) {
+    salesQuery = salesQuery.where("usuarioUid", "==", uid);
+  }
+
+  const salesSnap = await salesQuery.get();
 
   if (salesSnap.empty) {
     throw new HttpsError("failed-precondition", "No hay ventas pendientes para cerrar caja.");
@@ -53,7 +61,7 @@ const closeCashbox = onCall(async (request) => {
     idCaja,
     tenantId,
     dateKey: turnoId || null,
-    scopeKey: String(uid),
+    scopeKey,
     total: totalCaja,
     GanaciaRealCaja: totalGananciaRealCaja,
     totalGananciaRealCaja,
