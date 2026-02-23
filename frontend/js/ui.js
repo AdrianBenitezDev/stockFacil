@@ -29,7 +29,6 @@ export function showAppShell(user) {
   dom.cashCardProfit?.classList.toggle("hidden", !isOwner);
   dom.cashSummary?.classList.toggle("cash-summary-limited", !isOwner);
   dom.cashSalesProfitCol?.classList.toggle("hidden", !isOwner);
-  dom.cashClosuresSection?.classList.toggle("hidden", !isOwner);
   dom.closeMySalesBtn?.classList.toggle("hidden", !isOwner);
   dom.addModeBtn.disabled = !canCreateProducts;
   applyAddProductAvailability(canCreateProducts);

@@ -854,9 +854,7 @@ function renderCashSnapshot(snapshot) {
   renderCashSummary(snapshot.summary, { maskProfit, maskCost });
   renderCashSalesTable(snapshot.sales, { canViewProfit, maskProfit });
   renderCashClosureStatus(snapshot.todayClosure);
-  if (canViewProfit) {
-    renderCashClosuresTable(snapshot.recentClosures, { maskProfit });
-  }
+  renderCashClosuresTable(snapshot.recentClosures, { maskProfit: !canViewProfit || maskProfit });
   renderCashSectionToggles();
   dom.closeShiftBtn.disabled = Number(snapshot.summary?.salesCount || 0) === 0;
 }
@@ -900,12 +898,11 @@ function renderCashSectionToggles() {
   });
   dom.cashSalesTableWrap?.classList.toggle("hidden", !cashSalesSectionVisible);
 
-  const canViewProfit = isEmployerRole(currentUser?.role);
   renderCashSectionToggleButton(dom.cashClosuresToggleBtn, {
     sectionVisible: cashClosuresSectionVisible,
     sectionLabel: "Historial de cierres"
   });
-  dom.cashClosuresTableWrap?.classList.toggle("hidden", !canViewProfit || !cashClosuresSectionVisible);
+  dom.cashClosuresTableWrap?.classList.toggle("hidden", !cashClosuresSectionVisible);
 }
 
 function renderCashSectionToggleButton(button, { sectionVisible, sectionLabel }) {
