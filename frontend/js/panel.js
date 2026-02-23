@@ -919,6 +919,11 @@ function renderCashSectionToggleButton(button, { sectionVisible, sectionLabel })
 }
 
 async function handleCloseShift() {
+  if (dom.closeShiftBtn) {
+    dom.closeShiftBtn.disabled = true;
+    dom.closeShiftBtn.classList.add("btn-loading");
+  }
+  try {
   const ownerId = String(currentUser?.userId || "");
   const pendingOthers = (latestCashSnapshot?.sales || []).filter(
     (sale) => String(sale.userId || sale.usuarioUid || "") !== ownerId
@@ -952,9 +957,20 @@ async function handleCloseShift() {
     : `Turno cerrado. Debes entregar $${result.summary.totalAmount.toFixed(2)}.`;
   setCashFeedback(closeMessage, "success");
   await refreshCashPanel();
+  } finally {
+    if (dom.closeShiftBtn) {
+      dom.closeShiftBtn.disabled = false;
+      dom.closeShiftBtn.classList.remove("btn-loading");
+    }
+  }
 }
 
 async function handleCloseMySales() {
+  if (dom.closeMySalesBtn) {
+    dom.closeMySalesBtn.disabled = true;
+    dom.closeMySalesBtn.classList.add("btn-loading");
+  }
+  try {
   if (!isEmployerRole(currentUser?.role)) return;
   const myPendingSales = (latestCashSnapshot?.sales || []).filter(
     (sale) => String(sale.userId || sale.usuarioUid || "") === String(currentUser?.userId || "")
@@ -984,6 +1000,12 @@ async function handleCloseMySales() {
     "success"
   );
   await refreshCashPanel();
+  } finally {
+    if (dom.closeMySalesBtn) {
+      dom.closeMySalesBtn.disabled = false;
+      dom.closeMySalesBtn.classList.remove("btn-loading");
+    }
+  }
 }
 
 async function handleRefreshCashClick() {
