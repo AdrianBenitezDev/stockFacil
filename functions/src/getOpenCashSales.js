@@ -5,6 +5,7 @@ const getOpenCashSales = onCall(async (request) => {
   const { uid, tenantId, role } = await requireTenantMemberContext(request);
   const requestedScope = String(request.data?.scope || "").trim().toLowerCase();
   const isOwner = String(role || "").trim().toLowerCase() === "empleador";
+  const effectiveScope = !isOwner ? "mine" : requestedScope === "others" ? "others" : requestedScope === "mine" ? "mine" : "all";
 
   let salesQuery = db
     .collection("tenants")
@@ -12,16 +13,26 @@ const getOpenCashSales = onCall(async (request) => {
     .collection("ventas")
     .where("cajaCerrada", "==", false);
 
-  if (!isOwner || requestedScope === "mine") {
+  if (effectiveScope === "mine") {
     salesQuery = salesQuery.where("usuarioUid", "==", uid);
   }
 
   const salesSnap = await salesQuery.get();
-  const sales = salesSnap.docs
+  const rows = salesSnap.docs
     .map((docSnap) => {
       const sale = docSnap.data() || {};
+      return { docId: docSnap.id, sale };
+    })
+    .filter(({ sale }) => {
+      if (effectiveScope !== "others") return true;
+      return String(sale.usuarioUid || "") !== String(uid);
+    });
+
+  const sales = rows
+    .map((row) => {
+      const sale = row.sale || {};
       return {
-        idVenta: String(sale.idVenta || docSnap.id),
+        idVenta: String(sale.idVenta || row.docId || ""),
         usuarioUid: String(sale.usuarioUid || ""),
         usuarioNombre: String(sale.usuarioNombre || sale.username || "-"),
         total: Number(sale.total || 0),

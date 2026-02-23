@@ -252,7 +252,10 @@ async function loadScopedOpenSalesFromLocal(session, { scope = "all" } = {}) {
   return rows.filter((sale) => {
     if (sale?.cajaCerrada === true) return false;
     if (effectiveScope === "all") return true;
-    return String(sale.userId || sale.usuarioUid || "") === String(session.userId || "");
+    const saleUserId = String(sale.userId || sale.usuarioUid || "");
+    const sessionUserId = String(session.userId || "");
+    if (effectiveScope === "others") return saleUserId !== sessionUserId;
+    return saleUserId === sessionUserId;
   });
 }
 
@@ -372,12 +375,15 @@ function getRecentDaysRangeIso(daysBack) {
 
 function getScopeKey(session, scope = "all") {
   const effectiveScope = resolveEffectiveCloseScope(session, scope);
-  return effectiveScope === "all" ? "all" : session.userId;
+  if (effectiveScope === "all") return "all";
+  if (effectiveScope === "others") return "others";
+  return session.userId;
 }
 
 function resolveEffectiveCloseScope(session, scope) {
   const isOwner = String(session?.role || "").trim().toLowerCase() === "empleador";
   if (!isOwner) return "mine";
+  if (scope === "others") return "others";
   return scope === "mine" ? "mine" : "all";
 }
 

@@ -7,8 +7,9 @@ const closeCashbox = onCall(async (request) => {
   const turnoId = String(request.data?.turnoId || "").trim();
   const requestedScope = String(request.data?.scope || "").trim().toLowerCase();
   const normalizedRole = String(role || "").trim().toLowerCase();
-  const closeAll = normalizedRole === "empleador" && requestedScope === "all";
-  const scopeKey = closeAll ? "all" : String(uid);
+  const isOwner = normalizedRole === "empleador";
+  const effectiveScope = !isOwner ? "mine" : requestedScope === "others" ? "others" : requestedScope === "mine" ? "mine" : "all";
+  const scopeKey = effectiveScope === "all" ? "all" : effectiveScope === "others" ? "others" : String(uid);
   const idCaja = turnoId ? `CAJA-${turnoId}-${Date.now()}` : `CAJA-${Date.now()}`;
   const usuarioNombre = String(caller?.displayName || caller?.username || caller?.email || uid).trim();
 
@@ -18,13 +19,18 @@ const closeCashbox = onCall(async (request) => {
     .collection("ventas")
     .where("cajaCerrada", "==", false);
 
-  if (!closeAll) {
+  if (effectiveScope === "mine") {
     salesQuery = salesQuery.where("usuarioUid", "==", uid);
   }
 
   const salesSnap = await salesQuery.get();
+  const targetSalesDocs = salesSnap.docs.filter((docSnap) => {
+    if (effectiveScope !== "others") return true;
+    const sale = docSnap.data() || {};
+    return String(sale.usuarioUid || "") !== String(uid);
+  });
 
-  if (salesSnap.empty) {
+  if (targetSalesDocs.length === 0) {
     throw new HttpsError("failed-precondition", "No hay ventas pendientes para cerrar caja.");
   }
 
@@ -35,7 +41,7 @@ const closeCashbox = onCall(async (request) => {
   let fechaApertura = null;
   const fechaCierre = Timestamp.now();
 
-  salesSnap.docs.forEach((docSnap) => {
+  targetSalesDocs.forEach((docSnap) => {
     const sale = docSnap.data() || {};
     ventasIncluidas.push(docSnap.id);
     totalCaja += Number(sale.total || 0);
@@ -75,7 +81,7 @@ const closeCashbox = onCall(async (request) => {
     createdAt: Timestamp.now()
   });
 
-  salesSnap.docs.forEach((docSnap) => {
+  targetSalesDocs.forEach((docSnap) => {
     batch.update(docSnap.ref, {
       cajaId: idCaja,
       cajaCerrada: true,

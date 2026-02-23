@@ -919,18 +919,22 @@ function renderCashSectionToggleButton(button, { sectionVisible, sectionLabel })
 }
 
 async function handleCloseShift() {
-  const pendingSales = Number(latestCashSnapshot?.summary?.salesCount || 0);
-  const pendingTotal = Number(latestCashSnapshot?.summary?.totalAmount || 0);
+  const ownerId = String(currentUser?.userId || "");
+  const pendingOthers = (latestCashSnapshot?.sales || []).filter(
+    (sale) => String(sale.userId || sale.usuarioUid || "") !== ownerId
+  );
+  const pendingSales = pendingOthers.length;
+  const pendingTotal = pendingOthers.reduce((acc, sale) => acc + Number(sale.total || 0), 0);
   const confirmed = window.confirm(
     pendingSales > 0
-      ? `Esto obligara a cerrar el turno actual del kiosco. Se cerraran ${pendingSales} venta(s) pendiente(s) por $${pendingTotal.toFixed(
+      ? `Esto obligara a cerrar el turno actual del kiosco para todos los usuarios excepto tu usuario empleador. Se cerraran ${pendingSales} venta(s) pendiente(s) por $${pendingTotal.toFixed(
           2
         )}. Continuar?`
-      : "Esto obligara a cerrar el turno actual, pero no hay ventas pendientes. Continuar?"
+      : "No hay ventas pendientes de otros usuarios para cerrar turno. Continuar?"
   );
   if (!confirmed) return;
 
-  const result = await closeTodayShift({ scope: "all" });
+  const result = await closeTodayShift({ scope: "others" });
   if (!result.ok) {
     if (result.requiresLogin) {
       redirectToLogin();
