@@ -97,33 +97,52 @@ export async function closeTodayShift({ scope = "all" } = {}) {
       scope: effectiveScope
     });
     const data = response?.data || {};
-    if (!data.success || !data.idCaja) {
+    if (!data.success) {
+      return { ok: false, error: "Respuesta invalida al cerrar caja." };
+    }
+    const serverClosures = normalizeServerClosures(data);
+    if (serverClosures.length === 0) {
       return { ok: false, error: "Respuesta invalida al cerrar caja." };
     }
 
     const authoritativeSummary = {
-      salesCount: Array.isArray(data.ventasIncluidas) ? data.ventasIncluidas.length : localSummary.salesCount,
+      salesCount: Array.isArray(data.ventasIncluidas)
+        ? data.ventasIncluidas.length
+        : serverClosures.reduce((acc, row) => acc + Number((row.ventasIncluidas || []).length || 0), 0),
       itemsCount: localSummary.itemsCount,
       totalAmount: Number(data.totalCaja || 0),
       totalCost: localSummary.totalCost,
       profitAmount: Number(data.totalGananciaRealCaja || 0)
     };
 
-    const closure = buildLocalClosure({
-      session,
-      dateKey,
-      closureKey,
-      summary: authoritativeSummary,
-      synced: true,
-      id: String(data.idCaja),
-      ventasIncluidas: Array.isArray(data.ventasIncluidas) ? data.ventasIncluidas : [],
-      productosIncluidos: Array.isArray(data.productosIncluidos) ? data.productosIncluidos : []
-    });
-    closure.GanaciaRealCaja = Number(data.totalGananciaRealCaja || 0);
-
-    await putCashClosure(closure);
-    if (Array.isArray(data.ventasIncluidas) && data.ventasIncluidas.length > 0) {
-      await assignCashboxToSalesByIds(data.ventasIncluidas, String(data.idCaja));
+    for (const row of serverClosures) {
+      const rowSales = Array.isArray(row.ventasIncluidas) ? row.ventasIncluidas : [];
+      const rowSummary = summarizeSalesByIds(localSales, rowSales);
+      const closure = buildLocalClosure({
+        session,
+        dateKey,
+        closureKey,
+        summary: {
+          salesCount: rowSales.length,
+          itemsCount: rowSummary.itemsCount,
+          totalAmount: Number(row.totalCaja || 0),
+          totalCost: rowSummary.totalCost,
+          profitAmount: Number(row.totalGananciaRealCaja || 0)
+        },
+        synced: true,
+        id: String(row.idCaja || ""),
+        scopeKey: String(row.scopeKey || ""),
+        userId: String(row.usuarioUid || ""),
+        username: String(row.usuarioNombre || ""),
+        role: String(row.role || ""),
+        ventasIncluidas: rowSales,
+        productosIncluidos: Array.isArray(row.productosIncluidos) ? row.productosIncluidos : []
+      });
+      closure.GanaciaRealCaja = Number(row.totalGananciaRealCaja || 0);
+      await putCashClosure(closure);
+      if (rowSales.length > 0 && row.idCaja) {
+        await assignCashboxToSalesByIds(rowSales, String(row.idCaja));
+      }
     }
 
     return { ok: true, summary: authoritativeSummary, provisional: false };
@@ -139,17 +158,25 @@ function buildLocalClosure({
   summary,
   synced,
   id = null,
+  scopeKey = "",
+  userId = "",
+  username = "",
+  role = "",
   ventasIncluidas = [],
   productosIncluidos = []
 }) {
+  const resolvedScopeKey = String(scopeKey || "").trim() || getScopeKey(session);
+  const resolvedUserId = String(userId || "").trim() || session.userId;
+  const resolvedUsername = String(username || "").trim() || session.username;
+  const resolvedRole = String(role || "").trim() || session.role;
   return {
     id: id || `LOCAL-CAJA-${Date.now()}`,
     closureKey: `${closureKey}::${Date.now()}`,
-    scopeKey: getScopeKey(session),
+    scopeKey: resolvedScopeKey,
     kioscoId: session.tenantId,
-    userId: session.userId,
-    role: session.role,
-    username: session.username,
+    userId: resolvedUserId,
+    role: resolvedRole,
+    username: resolvedUsername,
     dateKey,
     totalAmount: Number(summary.totalAmount || 0),
     totalCost: Number(summary.totalCost || 0),
@@ -176,6 +203,50 @@ function summarizeSales(sales) {
   );
 
   return { salesCount, itemsCount, totalAmount, totalCost, profitAmount };
+}
+
+function summarizeSalesByIds(sales, saleIds) {
+  if (!Array.isArray(sales) || !Array.isArray(saleIds) || saleIds.length === 0) {
+    return { itemsCount: 0, totalCost: 0 };
+  }
+  const idSet = new Set(saleIds.map((id) => String(id || "").trim()).filter(Boolean));
+  const selected = sales.filter((sale) => idSet.has(String(sale.id || sale.idVenta || "").trim()));
+  return {
+    itemsCount: selected.reduce((acc, sale) => acc + Number(sale.itemsCount || 0), 0),
+    totalCost: Number(selected.reduce((acc, sale) => acc + Number(sale.totalCost || 0), 0).toFixed(2))
+  };
+}
+
+function normalizeServerClosures(data) {
+  if (Array.isArray(data?.cierres) && data.cierres.length > 0) {
+    return data.cierres.map((row) => ({
+      idCaja: String(row?.idCaja || "").trim(),
+      scopeKey: String(row?.scopeKey || "").trim(),
+      usuarioUid: String(row?.usuarioUid || "").trim(),
+      usuarioNombre: String(row?.usuarioNombre || "").trim(),
+      role: String(row?.role || "").trim(),
+      totalCaja: Number(row?.totalCaja || 0),
+      totalGananciaRealCaja: Number(row?.totalGananciaRealCaja || 0),
+      ventasIncluidas: Array.isArray(row?.ventasIncluidas) ? row.ventasIncluidas : [],
+      productosIncluidos: Array.isArray(row?.productosIncluidos) ? row.productosIncluidos : []
+    }));
+  }
+
+  const fallbackId = String(data?.idCaja || "").trim();
+  if (!fallbackId) return [];
+  return [
+    {
+      idCaja: fallbackId,
+      scopeKey: "",
+      usuarioUid: "",
+      usuarioNombre: "",
+      role: "",
+      totalCaja: Number(data?.totalCaja || 0),
+      totalGananciaRealCaja: Number(data?.totalGananciaRealCaja || 0),
+      ventasIncluidas: Array.isArray(data?.ventasIncluidas) ? data.ventasIncluidas : [],
+      productosIncluidos: Array.isArray(data?.productosIncluidos) ? data.productosIncluidos : []
+    }
+  ];
 }
 
 async function listRecentClosures(session, scopeKey) {

@@ -9,9 +9,9 @@ const closeCashbox = onCall(async (request) => {
   const normalizedRole = String(role || "").trim().toLowerCase();
   const isOwner = normalizedRole === "empleador";
   const effectiveScope = !isOwner ? "mine" : requestedScope === "others" ? "others" : requestedScope === "mine" ? "mine" : "all";
-  const scopeKey = effectiveScope === "all" ? "all" : effectiveScope === "others" ? "others" : String(uid);
-  const idCaja = turnoId ? `CAJA-${turnoId}-${Date.now()}` : `CAJA-${Date.now()}`;
-  const usuarioNombre = String(caller?.displayName || caller?.username || caller?.email || uid).trim();
+  const closeTimestampMs = Date.now();
+  const closedByUid = String(uid || "").trim();
+  const closedByName = String(caller?.displayName || caller?.username || caller?.email || uid).trim();
 
   let salesQuery = db
     .collection("tenants")
@@ -34,72 +34,155 @@ const closeCashbox = onCall(async (request) => {
     throw new HttpsError("failed-precondition", "No hay ventas pendientes para cerrar caja.");
   }
 
-  const ventasIncluidas = [];
-  const productosIncluidosMap = new Map();
-  let totalCaja = 0;
-  let totalGananciaRealCaja = 0;
-  let fechaApertura = null;
+  const groupedBySeller = buildSellerGroups(targetSalesDocs);
+  const groupEntries = Array.from(groupedBySeller.values());
   const fechaCierre = Timestamp.now();
-
-  targetSalesDocs.forEach((docSnap) => {
-    const sale = docSnap.data() || {};
-    ventasIncluidas.push(docSnap.id);
-    totalCaja += Number(sale.total || 0);
-    totalGananciaRealCaja += Number(sale.gananciaReal ?? sale.ganaciaReal ?? sale.profit ?? 0);
-    collectSaleProducts(sale, productosIncluidosMap);
-
-    const saleCreatedAt = normalizeToDate(sale.createdAt);
-    if (saleCreatedAt && (!fechaApertura || saleCreatedAt < fechaApertura)) {
-      fechaApertura = saleCreatedAt;
-    }
-  });
-
-  totalCaja = round2(totalCaja);
-  totalGananciaRealCaja = round2(totalGananciaRealCaja);
-  const productosIncluidos = Array.from(productosIncluidosMap.values()).sort((a, b) =>
-    String(a.idProducto || "").localeCompare(String(b.idProducto || ""))
-  );
-
-  const cajaRef = db.collection("tenants").doc(tenantId).collection("cajas").doc(idCaja);
   const batch = db.batch();
 
-  batch.set(cajaRef, {
-    idCaja,
-    tenantId,
-    dateKey: turnoId || null,
-    scopeKey,
-    total: totalCaja,
-    GanaciaRealCaja: totalGananciaRealCaja,
-    totalGananciaRealCaja,
-    usuarioUid: uid,
-    usuarioNombre,
-    role: String(role || "empleado"),
-    fechaApertura: fechaApertura ? Timestamp.fromDate(fechaApertura) : fechaCierre,
-    fechaCierre,
-    ventasIncluidas,
-    productosIncluidos,
-    createdAt: Timestamp.now()
-  });
+  const closures = groupEntries.map((group, index) => {
+    const safeUserId = sanitizeIdPart(group.usuarioUid || "sin-usuario");
+    const idCaja = turnoId
+      ? `CAJA-${turnoId}-${safeUserId}-${closeTimestampMs}-${index + 1}`
+      : `CAJA-${safeUserId}-${closeTimestampMs}-${index + 1}`;
+    const productosIncluidos = Array.from(group.productosIncluidosMap.values()).sort((a, b) =>
+      String(a.idProducto || "").localeCompare(String(b.idProducto || ""))
+    );
+    const roleForClosure = String(group.role || (group.usuarioUid === closedByUid ? role : "empleado"));
+    const scopeKey = String(group.usuarioUid || "sin-usuario");
 
-  targetSalesDocs.forEach((docSnap) => {
-    batch.update(docSnap.ref, {
-      cajaId: idCaja,
-      cajaCerrada: true,
-      updatedAt: fechaCierre
+    const cajaRef = db.collection("tenants").doc(tenantId).collection("cajas").doc(idCaja);
+    batch.set(cajaRef, {
+      idCaja,
+      tenantId,
+      dateKey: turnoId || null,
+      scopeKey,
+      total: group.totalCaja,
+      GanaciaRealCaja: group.totalGananciaRealCaja,
+      totalGananciaRealCaja: group.totalGananciaRealCaja,
+      usuarioUid: group.usuarioUid,
+      usuarioNombre: group.usuarioNombre,
+      role: roleForClosure,
+      fechaApertura: group.fechaApertura ? Timestamp.fromDate(group.fechaApertura) : fechaCierre,
+      fechaCierre,
+      ventasIncluidas: group.ventasIncluidas,
+      productosIncluidos,
+      closedByUid,
+      closedByName,
+      createdAt: Timestamp.now()
     });
+    group.docs.forEach((docSnap) => {
+      batch.update(docSnap.ref, {
+        cajaId: idCaja,
+        cajaCerrada: true,
+        updatedAt: fechaCierre
+      });
+    });
+
+    return {
+      idCaja,
+      scopeKey,
+      usuarioUid: group.usuarioUid,
+      usuarioNombre: group.usuarioNombre,
+      role: roleForClosure,
+      totalCaja: group.totalCaja,
+      totalGananciaRealCaja: group.totalGananciaRealCaja,
+      ventasIncluidas: group.ventasIncluidas,
+      productosIncluidos
+    };
   });
 
   await batch.commit();
 
+  const ventasIncluidas = closures.flatMap((closure) =>
+    Array.isArray(closure.ventasIncluidas) ? closure.ventasIncluidas : []
+  );
+  const totalCaja = round2(closures.reduce((acc, closure) => acc + Number(closure.totalCaja || 0), 0));
+  const totalGananciaRealCaja = round2(
+    closures.reduce((acc, closure) => acc + Number(closure.totalGananciaRealCaja || 0), 0)
+  );
+  const productosIncluidos = mergeClosureProducts(closures);
+
   return {
     success: true,
-    idCaja,
+    idCaja: closures.length === 1 ? String(closures[0].idCaja || "") : "",
     totalCaja,
     totalGananciaRealCaja,
     ventasIncluidas,
-    productosIncluidos
+    productosIncluidos,
+    cierres: closures
   };
 });
+
+function buildSellerGroups(salesDocs) {
+  const bySeller = new Map();
+  salesDocs.forEach((docSnap) => {
+    const sale = docSnap.data() || {};
+    const usuarioUid = String(sale.usuarioUid || "sin-usuario").trim() || "sin-usuario";
+    const usuarioNombre = String(sale.usuarioNombre || sale.username || usuarioUid).trim() || usuarioUid;
+    const groupKey = usuarioUid;
+    const existing = bySeller.get(groupKey);
+    const createdAt = normalizeToDate(sale.createdAt);
+    if (!existing) {
+      const created = {
+        usuarioUid,
+        usuarioNombre,
+        role: String(sale.role || "").trim().toLowerCase() || "",
+        totalCaja: 0,
+        totalGananciaRealCaja: 0,
+        fechaApertura: null,
+        ventasIncluidas: [],
+        productosIncluidosMap: new Map(),
+        docs: []
+      };
+      bySeller.set(groupKey, created);
+    }
+
+    const group = bySeller.get(groupKey);
+    group.docs.push(docSnap);
+    group.ventasIncluidas.push(docSnap.id);
+    group.totalCaja = round2(Number(group.totalCaja || 0) + Number(sale.total || 0));
+    group.totalGananciaRealCaja = round2(
+      Number(group.totalGananciaRealCaja || 0) + Number(sale.gananciaReal ?? sale.ganaciaReal ?? sale.profit ?? 0)
+    );
+    collectSaleProducts(sale, group.productosIncluidosMap);
+    if (createdAt && (!group.fechaApertura || createdAt < group.fechaApertura)) {
+      group.fechaApertura = createdAt;
+    }
+  });
+  return bySeller;
+}
+
+function mergeClosureProducts(closures) {
+  const map = new Map();
+  closures.forEach((closure) => {
+    const items = Array.isArray(closure?.productosIncluidos) ? closure.productosIncluidos : [];
+    items.forEach((item) => {
+      const key = `${String(item?.idProducto || "").trim()}::${Number(item?.precioVenta || 0)}::${Number(
+        item?.precioCompra || 0
+      )}`;
+      const current = map.get(key);
+      if (!current) {
+        map.set(key, {
+          idProducto: String(item?.idProducto || "").trim(),
+          cantidadVendido: round2(Number(item?.cantidadVendido || 0)),
+          precioVenta: round2(Number(item?.precioVenta || 0)),
+          precioCompra: round2(Number(item?.precioCompra || 0))
+        });
+        return;
+      }
+      current.cantidadVendido = round2(Number(current.cantidadVendido || 0) + Number(item?.cantidadVendido || 0));
+    });
+  });
+  return Array.from(map.values()).sort((a, b) => String(a.idProducto || "").localeCompare(String(b.idProducto || "")));
+}
+
+function sanitizeIdPart(value) {
+  return String(value || "")
+    .trim()
+    .replace(/[^a-zA-Z0-9_-]/g, "-")
+    .replace(/-+/g, "-")
+    .slice(0, 48) || "sin-usuario";
+}
 
 function collectSaleProducts(sale, targetMap) {
   const items = Array.isArray(sale?.productos) ? sale.productos : [];
