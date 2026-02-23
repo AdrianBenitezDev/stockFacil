@@ -4,7 +4,7 @@ import {
   getAuth,
   setPersistence
 } from "https://www.gstatic.com/firebasejs/10.13.2/firebase-auth.js";
-import { getFirestore } from "https://www.gstatic.com/firebasejs/10.13.2/firebase-firestore.js";
+import { initializeFirestore } from "https://www.gstatic.com/firebasejs/10.13.2/firebase-firestore.js";
 
 export const firebaseConfig = {
   apiKey: "AIzaSyDyYK9NtitNWkIiK-UIPUKCZ3PwJ1a10t0",
@@ -17,7 +17,10 @@ export const firebaseConfig = {
 
 export const firebaseApp = initializeApp(firebaseConfig);
 export const firebaseAuth = getAuth(firebaseApp);
-export const firestoreDb = getFirestore(firebaseApp);
+export const firestoreDb = initializeFirestore(firebaseApp, {
+  experimentalAutoDetectLongPolling: true,
+  useFetchStreams: false
+});
 
 let authReadyPromise = null;
 
