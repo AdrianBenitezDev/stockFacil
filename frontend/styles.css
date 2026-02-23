@@ -403,12 +403,6 @@ body.ui-mode-pc #scanner-reader {
   display: none !important;
 }
 
-body.ui-mode-pc.sell-manual-mode #start-scan-btn,
-body.ui-mode-pc.sell-manual-mode #stop-scan-btn,
-body.ui-mode-pc.sell-manual-mode #scanner-reader {
-  display: initial !important;
-}
-
 .app-header {
   display: flex;
   justify-content: space-between;

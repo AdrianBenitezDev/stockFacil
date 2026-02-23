@@ -1268,10 +1268,6 @@ function updateStockBulkSaveButtonState(explicitMode = "") {
 
 function setupDeviceSpecificUI() {
   const showCameraControls = isMobileMode();
-  if (showCameraControls && saleUseScannerMode) {
-    saleUseScannerMode = false;
-    if (dom.saleModeScannerSwitch) dom.saleModeScannerSwitch.checked = false;
-  }
   document.body.classList.toggle("ui-mode-mobile", showCameraControls);
   document.body.classList.toggle("ui-mode-pc", !showCameraControls);
   dom.addCameraControls.classList.toggle("hidden", !showCameraControls);
@@ -1400,11 +1396,6 @@ function initSaleModeSwitch() {
 
 async function handleSaleModeSwitchChange() {
   saleUseScannerMode = Boolean(dom.saleModeScannerSwitch?.checked);
-  if (isMobileMode() && saleUseScannerMode) {
-    saleUseScannerMode = false;
-    if (dom.saleModeScannerSwitch) dom.saleModeScannerSwitch.checked = false;
-    setScanFeedback("En celular usa modo ingreso/busqueda manual.", "success");
-  }
   applySellModeUI();
   keyboardScanner.setEnabled(shouldEnableKeyboardScanner(getCurrentMode()));
 
@@ -1429,10 +1420,14 @@ function applySellModeUI() {
       : "Escribe codigo o nombre de producto";
   }
   if (dom.saleModeScannerSwitch) {
-    dom.saleModeScannerSwitch.disabled = isMobileMode();
+    dom.saleModeScannerSwitch.disabled = false;
   }
   document.body.classList.toggle("sell-manual-mode", !saleUseScannerMode);
   document.body.classList.toggle("sell-scanner-mode", saleUseScannerMode);
+  const showSellCameraControls = isMobileMode() && saleUseScannerMode;
+  dom.startScanBtn?.classList.toggle("hidden", !showSellCameraControls);
+  dom.stopScanBtn?.classList.toggle("hidden", !showSellCameraControls);
+  dom.saleScannerReader?.classList.toggle("hidden", !showSellCameraControls);
   dom.saleDeviceHint.classList.toggle("hidden", isMobileMode() || !saleUseScannerMode);
 }
 
