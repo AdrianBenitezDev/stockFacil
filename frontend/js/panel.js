@@ -854,7 +854,7 @@ function renderCashSnapshot(snapshot) {
   renderCashSummary(snapshot.summary, { maskProfit, maskCost });
   renderCashSalesTable(snapshot.sales, { canViewProfit, maskProfit });
   renderCashClosureStatus(snapshot.todayClosure);
-  renderCashClosuresTable(snapshot.recentClosures, { maskProfit: !canViewProfit || maskProfit });
+  renderCashClosuresTable(snapshot.recentClosures, { canViewProfit, maskProfit: !canViewProfit || maskProfit });
   renderCashSectionToggles();
   dom.closeShiftBtn.disabled = Number(snapshot.summary?.salesCount || 0) === 0;
 }

@@ -29,6 +29,7 @@ export function showAppShell(user) {
   dom.cashCardProfit?.classList.toggle("hidden", !isOwner);
   dom.cashSummary?.classList.toggle("cash-summary-limited", !isOwner);
   dom.cashSalesProfitCol?.classList.toggle("hidden", !isOwner);
+  dom.cashClosuresProfitCol?.classList.toggle("hidden", !isOwner);
   dom.closeMySalesBtn?.classList.toggle("hidden", !isOwner);
   dom.addModeBtn.disabled = !canCreateProducts;
   applyAddProductAvailability(canCreateProducts);
@@ -270,9 +271,10 @@ export function renderCashClosureStatus(todayClosure) {
     `Turno cerrado hoy a las ${time}. Monto: $${Number(todayClosure.totalAmount || 0).toFixed(2)}.`;
 }
 
-export function renderCashClosuresTable(closures, { maskProfit = false } = {}) {
+export function renderCashClosuresTable(closures, { canViewProfit = true, maskProfit = false } = {}) {
+  const emptyColspan = canViewProfit ? 5 : 4;
   if (!closures || closures.length === 0) {
-    dom.cashClosuresTableBody.innerHTML = '<tr><td colspan="5">No hay cierres registrados.</td></tr>';
+    dom.cashClosuresTableBody.innerHTML = `<tr><td colspan="${emptyColspan}">No hay cierres registrados.</td></tr>`;
     return;
   }
 
@@ -285,7 +287,9 @@ export function renderCashClosuresTable(closures, { maskProfit = false } = {}) {
         `<td>${escapeHtml(closure.username || "-")}</td>`,
         `<td>${Number(closure.salesCount || 0)}</td>`,
         `<td>$${Number(closure.totalAmount || 0).toFixed(2)}</td>`,
-        `<td>${maskProfit ? "****" : `$${Number(closure.profitAmount || 0).toFixed(2)}`}</td>`,
+        ...(canViewProfit
+          ? [`<td>${maskProfit ? "****" : `$${Number(closure.profitAmount || 0).toFixed(2)}`}</td>`]
+          : []),
         "</tr>"
       ].join("");
     })
