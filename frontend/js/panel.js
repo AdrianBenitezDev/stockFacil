@@ -82,6 +82,9 @@ let offlineSyncInProgress = false;
 let cashSalesSectionVisible = true;
 let cashClosuresSectionVisible = true;
 let startupOverlayHidden = false;
+let stockBulkSaveInProgress = false;
+const pendingStockChanges = new Set();
+const pendingStockValues = new Map();
 
 init()
   .catch((error) => {
@@ -116,6 +119,7 @@ async function init() {
 
   showAppShell(currentUser);
   dom.syncProductsBtn?.classList.toggle("hidden", !canCurrentUserCreateProducts());
+  updateStockBulkSaveButtonState();
   renderCategoryOptions(PRODUCT_CATEGORIES);
   renderStockCategoryOptions(PRODUCT_CATEGORIES);
   setupDeviceSpecificUI();
@@ -204,6 +208,7 @@ function wireEvents() {
   dom.cashSalesToggleBtn?.addEventListener("click", handleToggleCashSalesSection);
   dom.cashClosuresToggleBtn?.addEventListener("click", handleToggleCashClosuresSection);
   dom.floatingSyncBtn?.addEventListener("click", handleFloatingSyncClick);
+  dom.floatingStockSaveBtn?.addEventListener("click", handleFloatingStockSaveClick);
   dom.employeeListTableBody?.addEventListener("click", handleDeleteEmployeeClick);
   dom.employeeListTableBody?.addEventListener("change", handleToggleEmployeeCreateProducts);
   window.addEventListener("online", handleOnlineReconnection);
@@ -533,6 +538,8 @@ async function handleBarcodeEnterOnAddProduct(event) {
 }
 
 async function refreshStock() {
+  pendingStockChanges.clear();
+  pendingStockValues.clear();
   if (!isEmployerRole(currentUser?.role)) {
     await syncProductsFromCloudForCurrentKiosco();
   }
@@ -553,6 +560,7 @@ function applyStockFilters() {
 
   renderStockTable(filtered, { canEditStock: isEmployerRole(currentUser?.role) });
   wireStockRowEvents();
+  updateStockBulkSaveButtonState();
 
   const selectedInFiltered = filtered.find((p) => p.id === selectedStockProductId);
   if (selectedInFiltered) {
@@ -590,6 +598,7 @@ async function switchMode(mode) {
     await stopAnyScanner();
   }
   setMode(mode);
+  updateStockBulkSaveButtonState(mode);
   keyboardScanner.setEnabled(shouldEnableKeyboardScanner(mode));
   if (mode === "add") {
     focusBarcodeInputIfDesktop();
@@ -958,18 +967,7 @@ function wireStockRowEvents() {
       const productId = button.getAttribute("data-save-stock-id");
       const input = document.querySelector(`[data-stock-input-id="${productId}"]`);
       if (!input) return;
-
-      const result = await updateProductStock(productId, input.value);
-      if (!result.ok) {
-        setStockFeedback(result.error);
-        if (result.requiresLogin) {
-          redirectToLogin();
-        }
-        return;
-      }
-
-      setStockFeedback(result.message, "success");
-      await refreshStock();
+      await saveSingleStockChange(productId, input.value, { button, refreshAfter: true, showSuccessFeedback: true });
     });
   });
 
@@ -1015,10 +1013,182 @@ function wireStockRowEvents() {
 
   const inputs = document.querySelectorAll("[data-stock-input-id]");
   inputs.forEach((input) => {
+    const productId = String(input.getAttribute("data-stock-input-id") || "").trim();
+    if (productId) {
+      syncPendingStockChangeState(productId, input.value);
+      input.addEventListener("input", () => {
+        syncPendingStockChangeState(productId, input.value);
+      });
+      input.addEventListener("change", () => {
+        syncPendingStockChangeState(productId, input.value);
+      });
+    }
     input.addEventListener("click", (event) => {
       event.stopPropagation();
     });
   });
+}
+
+async function handleFloatingStockSaveClick() {
+  if (stockBulkSaveInProgress) return;
+  if (!isEmployerRole(currentUser?.role)) return;
+
+  const pendingIds = [...pendingStockChanges];
+  if (pendingIds.length === 0) {
+    setStockFeedback("No hay cambios de stock pendientes.", "success");
+    updateStockBulkSaveButtonState();
+    return;
+  }
+
+  stockBulkSaveInProgress = true;
+  if (dom.floatingStockSaveBtn) {
+    dom.floatingStockSaveBtn.disabled = true;
+    dom.floatingStockSaveBtn.classList.add("btn-loading");
+  }
+
+  let savedCount = 0;
+  let failedCount = 0;
+  let firstError = "";
+
+  try {
+    for (const productId of pendingIds) {
+      const rowButton = document.querySelector(`[data-save-stock-id="${productId}"]`);
+      const rowInput = document.querySelector(`[data-stock-input-id="${productId}"]`);
+      const stockValue = rowInput ? rowInput.value : pendingStockValues.get(productId);
+      if (typeof stockValue === "undefined") {
+        failedCount += 1;
+        firstError = firstError || "No se encontro uno de los cambios pendientes.";
+        continue;
+      }
+
+      const result = await saveSingleStockChange(productId, stockValue, {
+        button: rowButton,
+        refreshAfter: false,
+        showSuccessFeedback: false
+      });
+
+      if (result.ok) {
+        savedCount += 1;
+        continue;
+      }
+
+      failedCount += 1;
+      firstError = firstError || result.error || "No se pudo guardar un cambio de stock.";
+    }
+
+    if (savedCount > 0) {
+      await refreshStock();
+    } else {
+      updateStockBulkSaveButtonState();
+    }
+
+    if (failedCount === 0) {
+      setStockFeedback(`Se guardaron ${savedCount} cambio(s) de stock.`, "success");
+      return;
+    }
+    if (savedCount > 0) {
+      setStockFeedback(
+        `Se guardaron ${savedCount} de ${savedCount + failedCount} cambio(s). ${firstError}`
+      );
+      return;
+    }
+    setStockFeedback(firstError || "No se pudieron guardar los cambios de stock.");
+  } finally {
+    stockBulkSaveInProgress = false;
+    if (dom.floatingStockSaveBtn) {
+      dom.floatingStockSaveBtn.classList.remove("btn-loading");
+    }
+    updateStockBulkSaveButtonState();
+  }
+}
+
+async function saveSingleStockChange(
+  productId,
+  stockValue,
+  { button = null, refreshAfter = true, showSuccessFeedback = true } = {}
+) {
+  const stopLoading = setStockSaveButtonLoading(button, true);
+  try {
+    const result = await updateProductStock(productId, stockValue);
+    if (!result.ok) {
+      if (showSuccessFeedback) {
+        setStockFeedback(result.error);
+      }
+      if (result.requiresLogin) {
+        redirectToLogin();
+      }
+      return result;
+    }
+
+    pendingStockChanges.delete(productId);
+    pendingStockValues.delete(productId);
+    if (showSuccessFeedback) {
+      setStockFeedback(result.message, "success");
+    }
+    if (refreshAfter) {
+      await refreshStock();
+    } else {
+      updateStockBulkSaveButtonState();
+    }
+    return result;
+  } finally {
+    stopLoading();
+  }
+}
+
+function setStockSaveButtonLoading(button, isLoading) {
+  if (!button) return () => {};
+  if (isLoading) {
+    button.disabled = true;
+    button.classList.add("btn-loading");
+    return () => {
+      button.disabled = false;
+      button.classList.remove("btn-loading");
+    };
+  }
+  button.disabled = false;
+  button.classList.remove("btn-loading");
+  return () => {};
+}
+
+function syncPendingStockChangeState(productId, rawStockValue) {
+  const source = allStockProducts.find((item) => item.id === productId);
+  if (!source) return;
+
+  const nextStock = Number(rawStockValue);
+  const isValid = Number.isFinite(nextStock) && nextStock >= 0;
+  const normalizedNextStock = isValid ? Math.trunc(nextStock) : NaN;
+  const currentStock = Math.trunc(Number(source.stock || 0));
+  const isDirty = !isValid || normalizedNextStock !== currentStock;
+
+  if (isDirty) {
+    pendingStockChanges.add(productId);
+    pendingStockValues.set(productId, String(rawStockValue ?? ""));
+  } else {
+    pendingStockChanges.delete(productId);
+    pendingStockValues.delete(productId);
+  }
+
+  const rowSaveBtn = document.querySelector(`[data-save-stock-id="${productId}"]`);
+  rowSaveBtn?.classList.toggle("is-dirty", isDirty);
+  updateStockBulkSaveButtonState();
+}
+
+function updateStockBulkSaveButtonState(explicitMode = "") {
+  if (!dom.floatingStockSaveBtn) return;
+  const currentMode = explicitMode || getCurrentMode();
+  const canShow = isEmployerRole(currentUser?.role) && currentMode === "stock";
+  dom.floatingStockSaveBtn.classList.toggle("hidden", !canShow);
+  if (!canShow) return;
+
+  const pendingCount = pendingStockChanges.size;
+  dom.floatingStockSaveBtn.disabled = stockBulkSaveInProgress || pendingCount === 0;
+  dom.floatingStockSaveBtn.setAttribute(
+    "title",
+    pendingCount > 0
+      ? `Guardar cambios de stock (${pendingCount} pendiente${pendingCount === 1 ? "" : "s"})`
+      : "Guardar cambios de stock"
+  );
 }
 
 function setupDeviceSpecificUI() {

@@ -61,6 +61,7 @@ export const dom = {
   saleTotal: document.getElementById("sale-total"),
   offlineSyncBanner: document.getElementById("offline-sync-banner"),
   floatingSyncBtn: document.getElementById("floating-sync-btn"),
+  floatingStockSaveBtn: document.getElementById("floating-stock-save-btn"),
   cashScopeLabel: document.getElementById("cash-scope-label"),
   cashPrivacyToggle: document.getElementById("cash-privacy-toggle"),
   cashSalesCount: document.getElementById("cash-sales-count"),
