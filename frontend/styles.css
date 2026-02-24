@@ -1095,6 +1095,10 @@ button:disabled {
     font-size: 0.84rem;
   }
 
+  body.ui-mode-mobile.mode-sell .floating-sync-btn {
+    bottom: calc(98px + env(safe-area-inset-bottom, 0px));
+  }
+
   .floating-stock-save-btn {
     left: 10px;
     bottom: 12px;

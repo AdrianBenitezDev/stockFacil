@@ -37,6 +37,8 @@ export function showAppShell(user) {
 }
 
 export function setMode(mode) {
+  document.body.classList.remove("mode-add", "mode-sell", "mode-stock", "mode-cash", "mode-config");
+  document.body.classList.add(`mode-${mode}`);
   dom.addProductPanel.classList.toggle("hidden", mode !== "add");
   dom.sellPanel.classList.toggle("hidden", mode !== "sell");
   dom.stockPanel.classList.toggle("hidden", mode !== "stock");
