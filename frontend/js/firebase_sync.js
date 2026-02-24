@@ -83,6 +83,9 @@ export async function syncSaleToFirestore(sale, items) {
         totalCost: Number(sale.totalCost || 0),
         gananciaReal: Number(sale.gananciaReal ?? sale.ganaciaReal ?? sale.profit ?? 0),
         profit: Number(sale.profit || 0),
+        tipoPago: String(sale.tipoPago || "efectivo"),
+        pagoEfectivo: Number(sale.pagoEfectivo || 0),
+        pagoVirtual: Number(sale.pagoVirtual || 0),
         itemsCount: Number(sale.itemsCount || 0),
         createdAt: sale.createdAt || null,
         syncedAt: serverTimestamp()

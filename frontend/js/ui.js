@@ -193,6 +193,12 @@ export function renderCashSummary(summary, { maskProfit = false, maskCost = fals
   dom.cashSalesCount.textContent = String(summary.salesCount || 0);
   dom.cashItemsCount.textContent = String(summary.itemsCount || 0);
   dom.cashTotalAmount.textContent = `$${Number(summary.totalAmount || 0).toFixed(2)}`;
+  if (dom.cashTotalCashAmount) {
+    dom.cashTotalCashAmount.textContent = `=> $${Number(summary.efectivoAmount || 0).toFixed(2)} efectivo`;
+  }
+  if (dom.cashTotalVirtualAmount) {
+    dom.cashTotalVirtualAmount.textContent = `=> $${Number(summary.virtualAmount || 0).toFixed(2)} virtual`;
+  }
   dom.cashTotalCost.textContent = maskCost ? "****" : `$${Number(summary.totalCost || 0).toFixed(2)}`;
   dom.cashProfitAmount.textContent = maskProfit
     ? "****"

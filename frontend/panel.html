@@ -16,6 +16,47 @@
       <p class="app-loading-text">bienvenido a StockFacil</p>
     </div>
   </div>
+  <div id="sale-payment-overlay" class="sale-payment-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="sale-payment-title">
+    <div class="sale-payment-panel">
+      <h4 id="sale-payment-title">Selecciona forma de pago</h4>
+      <p class="sale-payment-total-line">Total venta: <strong id="sale-payment-total">$0.00</strong></p>
+      <div class="sale-payment-methods" role="group" aria-label="Forma de pago">
+        <button id="sale-payment-cash-btn" type="button" class="sale-payment-method-btn is-selected">
+          <span class="btn-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="2"/><path d="M6 10h.01M18 14h.01"/></svg>
+          </span>
+          <span>Efectivo</span>
+        </button>
+        <button id="sale-payment-virtual-btn" type="button" class="sale-payment-method-btn">
+          <span class="btn-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7h18v10H3z"/><path d="M3 11h18"/><path d="M16 15h3"/></svg>
+          </span>
+          <span>Virtual</span>
+        </button>
+        <button id="sale-payment-mixed-btn" type="button" class="sale-payment-method-btn">
+          <span class="btn-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12h18"/><path d="M12 3v18"/><circle cx="7" cy="7" r="3"/><circle cx="17" cy="17" r="3"/></svg>
+          </span>
+          <span>Pago mixto</span>
+        </button>
+      </div>
+      <div id="sale-payment-mixed-fields" class="sale-payment-mixed-fields hidden">
+        <label for="sale-payment-cash-input">Pago efectivo</label>
+        <input id="sale-payment-cash-input" type="number" inputmode="decimal" min="0" step="0.01" placeholder="0.00">
+        <p class="sale-payment-mixed-preview">Pago virtual: <strong id="sale-payment-virtual-preview">$0.00</strong></p>
+      </div>
+      <p id="sale-payment-feedback" class="feedback" aria-live="polite"></p>
+      <div class="sale-payment-actions">
+        <button id="sale-payment-cancel-btn" type="button" class="mode-btn-secondary">Cancelar</button>
+        <button id="sale-payment-confirm-btn" type="button">Terminar venta</button>
+      </div>
+      <div id="sale-payment-processing" class="sale-payment-processing hidden" aria-live="polite">
+        <span class="app-loading-spinner" aria-hidden="true"></span>
+        <span>Procesando venta...</span>
+      </div>
+      <p id="sale-payment-toast" class="sale-payment-toast hidden">Venta procesada correctamente.</p>
+    </div>
+  </div>
   <button id="offline-sync-banner" type="button" class="offline-sync-banner hidden" aria-live="polite"></button>
   <button id="floating-sync-btn" type="button" class="floating-sync-btn" title="Sincronizar ahora" aria-label="Sincronizar ahora">
     <span class="btn-icon" aria-hidden="true">
@@ -250,6 +291,8 @@
           <article class="cash-card">
             <h4>Total a entregar</h4>
             <p id="cash-total-amount" class="cash-value">$0.00</p>
+            <p id="cash-total-cash-amount" class="cash-split-line cash-split-cash">=&gt; $0.00 efectivo</p>
+            <p id="cash-total-virtual-amount" class="cash-split-line cash-split-virtual">=&gt; $0.00 virtual</p>
           </article>
           <article id="cash-card-cost" class="cash-card">
             <h4>Costo del dia</h4>

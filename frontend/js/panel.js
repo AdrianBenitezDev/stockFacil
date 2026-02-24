@@ -65,6 +65,9 @@ const autoDetectedMobile = detectMobileDevice();
 let forcedUiMode = loadUiModePreference();
 let saleUseScannerMode = true;
 let saleSearchMatches = [];
+let salePaymentType = "efectivo";
+let salePaymentSubmitting = false;
+let salePaymentCurrentTotal = 0;
 const keyboardScanner = createKeyboardScanner(handleKeyboardBarcode);
 const ICON_TRASH_SVG =
   '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/></svg>';
@@ -196,6 +199,12 @@ function wireEvents() {
   dom.stopStockScanBtn.addEventListener("click", handleStopStockScanner);
   dom.clearSaleBtn.addEventListener("click", handleClearSale);
   dom.checkoutSaleBtn.addEventListener("click", handleCheckoutSale);
+  dom.salePaymentCashBtn?.addEventListener("click", () => selectSalePaymentType("efectivo"));
+  dom.salePaymentVirtualBtn?.addEventListener("click", () => selectSalePaymentType("virtual"));
+  dom.salePaymentMixedBtn?.addEventListener("click", () => selectSalePaymentType("mixto"));
+  dom.salePaymentCashInput?.addEventListener("input", handleMixedCashInputChange);
+  dom.salePaymentCancelBtn?.addEventListener("click", closeSalePaymentOverlay);
+  dom.salePaymentConfirmBtn?.addEventListener("click", handleConfirmSalePayment);
   dom.saleScanInput?.addEventListener("input", handleSaleScanInputChange);
   dom.saleScanInput?.addEventListener("keydown", handleSaleScanInputKeydown);
   dom.saleModeScannerSwitch?.addEventListener("change", handleSaleModeSwitchChange);
@@ -214,6 +223,7 @@ function wireEvents() {
   dom.employeeListTableBody?.addEventListener("change", handleToggleEmployeeCreateProducts);
   window.addEventListener("online", handleOnlineReconnection);
   window.addEventListener("offline", handleOfflineDetected);
+  window.addEventListener("keydown", handleSalePaymentOverlayKeydown);
   dom.offlineSyncBanner?.addEventListener("click", handleOfflineBannerClick);
 }
 
@@ -732,9 +742,129 @@ async function processSaleBarcode(barcode) {
 }
 
 async function handleCheckoutSale() {
-  const result = await chargeSale(currentSaleItems);
+  if (!Array.isArray(currentSaleItems) || currentSaleItems.length === 0) {
+    setScanFeedback("No hay productos para cobrar.");
+    return;
+  }
+  openSalePaymentOverlay();
+}
+
+function openSalePaymentOverlay() {
+  salePaymentCurrentTotal = getCurrentSaleTotal();
+  salePaymentType = "efectivo";
+  salePaymentSubmitting = false;
+  if (dom.salePaymentOverlay) {
+    dom.salePaymentOverlay.classList.remove("hidden");
+  }
+  if (dom.salePaymentTotal) {
+    dom.salePaymentTotal.textContent = `$${salePaymentCurrentTotal.toFixed(2)}`;
+  }
+  if (dom.salePaymentCashInput) {
+    dom.salePaymentCashInput.value = salePaymentCurrentTotal.toFixed(2);
+  }
+  if (dom.salePaymentToast) {
+    dom.salePaymentToast.classList.add("hidden");
+  }
+  if (dom.salePaymentProcessing) {
+    dom.salePaymentProcessing.classList.add("hidden");
+  }
+  if (dom.salePaymentFeedback) {
+    dom.salePaymentFeedback.textContent = "";
+  }
+  setSalePaymentActionsDisabled(false);
+  selectSalePaymentType("efectivo");
+}
+
+function closeSalePaymentOverlay() {
+  if (salePaymentSubmitting) return;
+  dom.salePaymentOverlay?.classList.add("hidden");
+}
+
+function selectSalePaymentType(type) {
+  salePaymentType = type;
+  dom.salePaymentCashBtn?.classList.toggle("is-selected", type === "efectivo");
+  dom.salePaymentVirtualBtn?.classList.toggle("is-selected", type === "virtual");
+  dom.salePaymentMixedBtn?.classList.toggle("is-selected", type === "mixto");
+  dom.salePaymentMixedFields?.classList.toggle("hidden", type !== "mixto");
+  if (dom.salePaymentCashInput) {
+    dom.salePaymentCashInput.disabled = salePaymentSubmitting || type !== "mixto";
+  }
+  if (type === "mixto" && dom.salePaymentCashInput) {
+    if (!dom.salePaymentCashInput.value) {
+      dom.salePaymentCashInput.value = salePaymentCurrentTotal.toFixed(2);
+    }
+    dom.salePaymentCashInput.focus({ preventScroll: true });
+    dom.salePaymentCashInput.select();
+  }
+  updateMixedPaymentPreview();
+}
+
+function handleMixedCashInputChange() {
+  updateMixedPaymentPreview();
+}
+
+function updateMixedPaymentPreview() {
+  const cashValue = round2(Number(dom.salePaymentCashInput?.value || 0));
+  const boundedCash = Math.max(0, Math.min(salePaymentCurrentTotal, Number.isFinite(cashValue) ? cashValue : 0));
+  const virtualValue = round2(salePaymentCurrentTotal - boundedCash);
+  if (dom.salePaymentVirtualPreview) {
+    dom.salePaymentVirtualPreview.textContent = `$${virtualValue.toFixed(2)}`;
+  }
+}
+
+function resolveSalePaymentPayload() {
+  if (salePaymentType === "efectivo") {
+    return {
+      ok: true,
+      payload: { tipoPago: "efectivo", pagoEfectivo: salePaymentCurrentTotal, pagoVirtual: 0 }
+    };
+  }
+  if (salePaymentType === "virtual") {
+    return {
+      ok: true,
+      payload: { tipoPago: "virtual", pagoEfectivo: 0, pagoVirtual: salePaymentCurrentTotal }
+    };
+  }
+
+  const cashValueRaw = Number(dom.salePaymentCashInput?.value || 0);
+  const cashValue = round2(cashValueRaw);
+  if (!Number.isFinite(cashValue) || cashValue < 0 || cashValue > salePaymentCurrentTotal) {
+    return { ok: false, error: "El pago en efectivo debe estar entre 0 y el total." };
+  }
+  const virtualValue = round2(salePaymentCurrentTotal - cashValue);
+  if (virtualValue < 0) {
+    return { ok: false, error: "El pago virtual no puede ser negativo." };
+  }
+  return {
+    ok: true,
+    payload: { tipoPago: "mixto", pagoEfectivo: cashValue, pagoVirtual: virtualValue }
+  };
+}
+
+async function handleConfirmSalePayment() {
+  const payment = resolveSalePaymentPayload();
+  if (!payment.ok) {
+    if (dom.salePaymentFeedback) {
+      dom.salePaymentFeedback.textContent = payment.error;
+    }
+    return;
+  }
+  if (dom.salePaymentFeedback) {
+    dom.salePaymentFeedback.textContent = "";
+  }
+
+  salePaymentSubmitting = true;
+  setSalePaymentActionsDisabled(true);
+  dom.salePaymentProcessing?.classList.remove("hidden");
+
+  const result = await chargeSale(currentSaleItems, payment.payload);
   if (!result.ok) {
-    setScanFeedback(result.error);
+    dom.salePaymentProcessing?.classList.add("hidden");
+    setSalePaymentActionsDisabled(false);
+    salePaymentSubmitting = false;
+    if (dom.salePaymentFeedback) {
+      dom.salePaymentFeedback.textContent = result.error;
+    }
     if (result.requiresLogin) {
       redirectToLogin();
     }
@@ -747,12 +877,40 @@ async function handleCheckoutSale() {
   const checkoutMessage = canViewSaleProfit
     ? `Venta cobrada. Items: ${result.itemsCount}. Total: $${result.total.toFixed(2)}. Ganancia: $${result.profit.toFixed(2)}.`
     : `Venta cobrada. Items: ${result.itemsCount}. Total: $${result.total.toFixed(2)}.`;
-  setScanFeedback(
-    checkoutMessage,
-    "success"
-  );
+  setScanFeedback(checkoutMessage, "success");
+  dom.salePaymentProcessing?.classList.add("hidden");
+  dom.salePaymentToast?.classList.remove("hidden");
   await refreshStock();
   await refreshCashPanel();
+  window.setTimeout(() => {
+    dom.salePaymentToast?.classList.add("hidden");
+    closeSalePaymentOverlay();
+    salePaymentSubmitting = false;
+  }, 2400);
+}
+
+function setSalePaymentActionsDisabled(disabled) {
+  dom.salePaymentCashBtn && (dom.salePaymentCashBtn.disabled = disabled);
+  dom.salePaymentVirtualBtn && (dom.salePaymentVirtualBtn.disabled = disabled);
+  dom.salePaymentMixedBtn && (dom.salePaymentMixedBtn.disabled = disabled);
+  dom.salePaymentCashInput && (dom.salePaymentCashInput.disabled = disabled || salePaymentType !== "mixto");
+  dom.salePaymentCancelBtn && (dom.salePaymentCancelBtn.disabled = disabled);
+  dom.salePaymentConfirmBtn && (dom.salePaymentConfirmBtn.disabled = disabled);
+}
+
+function handleSalePaymentOverlayKeydown(event) {
+  if (event.key !== "Escape") return;
+  if (dom.salePaymentOverlay?.classList.contains("hidden")) return;
+  event.preventDefault();
+  closeSalePaymentOverlay();
+}
+
+function getCurrentSaleTotal() {
+  return round2(currentSaleItems.reduce((acc, item) => acc + Number(item?.subtotal || 0), 0));
+}
+
+function round2(value) {
+  return Number(Number(value || 0).toFixed(2));
 }
 
 async function handleDetectedAddBarcode(barcode) {

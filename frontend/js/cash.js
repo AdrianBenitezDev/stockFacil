@@ -111,6 +111,8 @@ export async function closeTodayShift({ scope = "all" } = {}) {
         : serverClosures.reduce((acc, row) => acc + Number((row.ventasIncluidas || []).length || 0), 0),
       itemsCount: localSummary.itemsCount,
       totalAmount: Number(data.totalCaja || 0),
+      efectivoAmount: Number(data.totalEfectivoEntregar ?? data.efectivoEntregar ?? localSummary.efectivoAmount ?? 0),
+      virtualAmount: Number(data.totalVirtualEntregar ?? data.virtualEntregar ?? localSummary.virtualAmount ?? 0),
       totalCost: localSummary.totalCost,
       profitAmount: Number(data.totalGananciaRealCaja || 0)
     };
@@ -126,6 +128,8 @@ export async function closeTodayShift({ scope = "all" } = {}) {
           salesCount: rowSales.length,
           itemsCount: rowSummary.itemsCount,
           totalAmount: Number(row.totalCaja || 0),
+          efectivoAmount: Number(row.efectivoEntregar || 0),
+          virtualAmount: Number(row.virtualEntregar || 0),
           totalCost: rowSummary.totalCost,
           profitAmount: Number(row.totalGananciaRealCaja || 0)
         },
@@ -179,6 +183,10 @@ function buildLocalClosure({
     username: resolvedUsername,
     dateKey,
     totalAmount: Number(summary.totalAmount || 0),
+    efectivoEntregar: Number(summary.efectivoAmount || 0),
+    virtualEntregar: Number(summary.virtualAmount || 0),
+    efectivoEtregar: Number(summary.efectivoAmount || 0),
+    virtualEtregar: Number(summary.virtualAmount || 0),
     totalCost: Number(summary.totalCost || 0),
     profitAmount: Number(summary.profitAmount || 0),
     GanaciaRealCaja: Number(summary.profitAmount || 0),
@@ -196,13 +204,19 @@ function summarizeSales(sales) {
   const itemsCount = sales.reduce((acc, sale) => acc + Number(sale.itemsCount || 0), 0);
   const totalAmount = Number(sales.reduce((acc, sale) => acc + Number(sale.total || 0), 0).toFixed(2));
   const totalCost = Number(sales.reduce((acc, sale) => acc + Number(sale.totalCost || 0), 0).toFixed(2));
+  const efectivoAmount = Number(
+    sales.reduce((acc, sale) => acc + Number(resolveSaleCashAmount(sale) || 0), 0).toFixed(2)
+  );
+  const virtualAmount = Number(
+    sales.reduce((acc, sale) => acc + Number(resolveSaleVirtualAmount(sale) || 0), 0).toFixed(2)
+  );
   const profitAmount = Number(
     sales
       .reduce((acc, sale) => acc + Number(sale.gananciaReal ?? sale.ganaciaReal ?? sale.profit ?? 0), 0)
       .toFixed(2)
   );
 
-  return { salesCount, itemsCount, totalAmount, totalCost, profitAmount };
+  return { salesCount, itemsCount, totalAmount, efectivoAmount, virtualAmount, totalCost, profitAmount };
 }
 
 function summarizeSalesByIds(sales, saleIds) {
@@ -226,6 +240,8 @@ function normalizeServerClosures(data) {
       usuarioNombre: String(row?.usuarioNombre || "").trim(),
       role: String(row?.role || "").trim(),
       totalCaja: Number(row?.totalCaja || 0),
+      efectivoEntregar: Number(row?.efectivoEntregar ?? row?.efectivoEtregar ?? 0),
+      virtualEntregar: Number(row?.virtualEntregar ?? row?.virtualEtregar ?? 0),
       totalGananciaRealCaja: Number(row?.totalGananciaRealCaja || 0),
       ventasIncluidas: Array.isArray(row?.ventasIncluidas) ? row.ventasIncluidas : [],
       productosIncluidos: Array.isArray(row?.productosIncluidos) ? row.productosIncluidos : []
@@ -242,6 +258,8 @@ function normalizeServerClosures(data) {
       usuarioNombre: "",
       role: "",
       totalCaja: Number(data?.totalCaja || 0),
+      efectivoEntregar: Number(data?.efectivoEntregar ?? data?.efectivoEtregar ?? 0),
+      virtualEntregar: Number(data?.virtualEntregar ?? data?.virtualEtregar ?? 0),
       totalGananciaRealCaja: Number(data?.totalGananciaRealCaja || 0),
       ventasIncluidas: Array.isArray(data?.ventasIncluidas) ? data.ventasIncluidas : [],
       productosIncluidos: Array.isArray(data?.productosIncluidos) ? data.productosIncluidos : []
@@ -340,6 +358,9 @@ function normalizeCallableSale(sale) {
     totalCost: Number(sale.totalCost || sale.totalCosto || 0),
     gananciaReal: Number(sale.gananciaReal ?? sale.ganaciaReal ?? sale.profit ?? 0),
     profit: Number(sale.gananciaReal ?? sale.ganaciaReal ?? sale.profit ?? 0),
+    tipoPago: String(sale.tipoPago || "efectivo").toLowerCase(),
+    pagoEfectivo: Number(sale.pagoEfectivo || 0),
+    pagoVirtual: Number(sale.pagoVirtual || 0),
     cajaCerrada: sale.cajaCerrada === true,
     createdAt: normalizeDateToIso(sale.createdAt)
   };
@@ -367,6 +388,10 @@ function normalizeCallableClosure(session, closure) {
     username: String(closure?.username || "-"),
     dateKey,
     totalAmount: Number(closure?.totalAmount || 0),
+    efectivoEntregar: Number(closure?.efectivoEntregar ?? closure?.efectivoEtregar ?? 0),
+    virtualEntregar: Number(closure?.virtualEntregar ?? closure?.virtualEtregar ?? 0),
+    efectivoEtregar: Number(closure?.efectivoEtregar ?? closure?.efectivoEntregar ?? 0),
+    virtualEtregar: Number(closure?.virtualEtregar ?? closure?.virtualEntregar ?? 0),
     totalCost: Number(closure?.totalCost || 0),
     profitAmount: Number(closure?.profitAmount || 0),
     GanaciaRealCaja: Number(closure?.profitAmount || 0),
@@ -468,4 +493,32 @@ function isoToDateKey(isoDate) {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(
     date.getDate()
   ).padStart(2, "0")}`;
+}
+
+function resolveSaleCashAmount(sale) {
+  const total = Number(sale?.total || 0);
+  const tipo = String(sale?.tipoPago || "").trim().toLowerCase();
+  if (tipo === "virtual") return 0;
+  if (tipo === "mixto") {
+    const mixedCash = Number(sale?.pagoEfectivo || 0);
+    if (Number.isFinite(mixedCash) && mixedCash >= 0) return mixedCash;
+  }
+  if (tipo === "efectivo") return total;
+  const explicit = Number(sale?.pagoEfectivo || 0);
+  if (Number.isFinite(explicit) && explicit > 0) return explicit;
+  return total;
+}
+
+function resolveSaleVirtualAmount(sale) {
+  const total = Number(sale?.total || 0);
+  const tipo = String(sale?.tipoPago || "").trim().toLowerCase();
+  if (tipo === "efectivo") return 0;
+  if (tipo === "mixto") {
+    const mixedVirtual = Number(sale?.pagoVirtual || 0);
+    if (Number.isFinite(mixedVirtual) && mixedVirtual >= 0) return mixedVirtual;
+  }
+  if (tipo === "virtual") return total;
+  const explicit = Number(sale?.pagoVirtual || 0);
+  if (Number.isFinite(explicit) && explicit > 0) return explicit;
+  return 0;
 }

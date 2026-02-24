@@ -13,7 +13,7 @@ const functions = getFunctions(firebaseApp);
 const createSaleCallable = httpsCallable(functions, "createSale");
 const syncSalesCallable = httpsCallable(functions, "syncSales");
 
-export async function chargeSale(cartItems) {
+export async function chargeSale(cartItems, paymentDetails = null) {
   const session = getCurrentSession();
   if (!session) {
     return { ok: false, error: "Sesion expirada. Inicia sesion nuevamente.", requiresLogin: true };
@@ -21,16 +21,20 @@ export async function chargeSale(cartItems) {
   if (!Array.isArray(cartItems) || cartItems.length === 0) {
     return { ok: false, error: "No hay productos para cobrar." };
   }
+  const normalizedPayment = normalizePaymentDetails(paymentDetails, cartItems);
+  if (!normalizedPayment.ok) {
+    return { ok: false, error: normalizedPayment.error };
+  }
 
-  const backendAttempt = await tryCreateSaleInBackend(cartItems, session);
+  const backendAttempt = await tryCreateSaleInBackend(cartItems, session, normalizedPayment.value);
   if (backendAttempt.ok) {
-    return finalizeSaleLocally(cartItems, session, { authoritative: backendAttempt.data });
+    return finalizeSaleLocally(cartItems, session, { authoritative: backendAttempt.data, paymentDetails: normalizedPayment.value });
   }
   if (!backendAttempt.canFallbackToOffline) {
     return { ok: false, error: backendAttempt.error || "No se pudo cobrar la venta." };
   }
 
-  return finalizeSaleLocally(cartItems, session, { authoritative: null });
+  return finalizeSaleLocally(cartItems, session, { authoritative: null, paymentDetails: normalizedPayment.value });
 }
 
 export async function syncPendingSales() {
@@ -58,6 +62,9 @@ export async function syncPendingSales() {
       totalCost: Number(sale.totalCost || 0),
       gananciaReal: Number(sale.gananciaReal ?? sale.ganaciaReal ?? sale.profit ?? 0),
       itemsCount: Number(sale.itemsCount || 0),
+      tipoPago: String(sale.tipoPago || "efectivo"),
+      pagoEfectivo: Number(sale.pagoEfectivo || 0),
+      pagoVirtual: Number(sale.pagoVirtual || 0),
       createdAt: sale.createdAt || null,
       productos: (items || []).map((item) => ({
         codigo: String(item.barcode || "").trim(),
@@ -82,7 +89,7 @@ export async function syncPendingSales() {
   }
 }
 
-async function tryCreateSaleInBackend(cartItems, session) {
+async function tryCreateSaleInBackend(cartItems, session, paymentDetails) {
   if (!navigator.onLine) {
     return { ok: false, canFallbackToOffline: true };
   }
@@ -105,6 +112,9 @@ async function tryCreateSaleInBackend(cartItems, session) {
   const payload = {
     idVenta: `V-${Date.now()}`,
     tenantId: session.tenantId,
+    tipoPago: paymentDetails.tipoPago,
+    pagoEfectivo: paymentDetails.pagoEfectivo,
+    pagoVirtual: paymentDetails.pagoVirtual,
     productos: Array.from(grouped.entries()).map(([codigo, cantidad]) => ({ codigo, cantidad }))
   };
 
@@ -129,7 +139,7 @@ async function tryCreateSaleInBackend(cartItems, session) {
   }
 }
 
-async function finalizeSaleLocally(cartItems, session, { authoritative }) {
+async function finalizeSaleLocally(cartItems, session, { authoritative, paymentDetails }) {
   const db = await openDatabase();
   const nowIso = new Date().toISOString();
   const saleId = String(authoritative?.idVenta || crypto.randomUUID());
@@ -217,6 +227,9 @@ async function finalizeSaleLocally(cartItems, session, { authoritative }) {
         totalCost: saleCost,
         gananciaReal: saleGananciaReal,
         profit: saleGananciaReal,
+        tipoPago: String(authoritative?.tipoPago || paymentDetails?.tipoPago || "efectivo"),
+        pagoEfectivo: round2(Number(authoritative?.pagoEfectivo ?? paymentDetails?.pagoEfectivo ?? saleTotal)),
+        pagoVirtual: round2(Number(authoritative?.pagoVirtual ?? paymentDetails?.pagoVirtual ?? 0)),
         synced: Boolean(authoritative),
         backups: Boolean(authoritative),
         cajaCerrada: false,
@@ -239,6 +252,33 @@ async function finalizeSaleLocally(cartItems, session, { authoritative }) {
     profit: round2(salePayload?.gananciaReal ?? salePayload?.ganaciaReal ?? gananciaReal),
     itemsCount
   };
+}
+
+function normalizePaymentDetails(paymentDetails, cartItems) {
+  const total = round2(
+    (cartItems || []).reduce((acc, item) => acc + Number(item?.subtotal || Number(item?.price || 0) * Number(item?.quantity || 0)), 0)
+  );
+  const tipoPago = String(paymentDetails?.tipoPago || "efectivo").trim().toLowerCase();
+  if (!["efectivo", "virtual", "mixto"].includes(tipoPago)) {
+    return { ok: false, error: "Forma de pago invalida." };
+  }
+
+  if (tipoPago === "efectivo") {
+    return { ok: true, value: { tipoPago, pagoEfectivo: total, pagoVirtual: 0 } };
+  }
+  if (tipoPago === "virtual") {
+    return { ok: true, value: { tipoPago, pagoEfectivo: 0, pagoVirtual: total } };
+  }
+
+  const pagoEfectivo = round2(Number(paymentDetails?.pagoEfectivo || 0));
+  const pagoVirtual = round2(total - pagoEfectivo);
+  if (!Number.isFinite(pagoEfectivo) || pagoEfectivo < 0 || pagoEfectivo > total) {
+    return { ok: false, error: "Pago efectivo invalido para venta mixta." };
+  }
+  if (!Number.isFinite(pagoVirtual) || pagoVirtual < 0) {
+    return { ok: false, error: "Pago virtual invalido para venta mixta." };
+  }
+  return { ok: true, value: { tipoPago, pagoEfectivo, pagoVirtual } };
 }
 
 function mapCreateSaleError(code, message) {

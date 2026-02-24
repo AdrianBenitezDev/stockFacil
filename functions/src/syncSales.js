@@ -29,6 +29,9 @@ const syncSales = onCall(async (request) => {
         total: sale.total,
         totalCost: sale.totalCost,
         gananciaReal: sale.gananciaReal,
+        tipoPago: sale.tipoPago,
+        pagoEfectivo: sale.pagoEfectivo,
+        pagoVirtual: sale.pagoVirtual,
         usuarioUid: uid,
         usuarioNombre: String(caller.username || caller.displayName || "usuario"),
         cajaCerrada: false,
@@ -66,6 +69,7 @@ function normalizeSale(rawSale) {
   const itemsCount = Number(rawSale?.itemsCount || 0);
   const createdAtInput = rawSale?.createdAt;
   const productos = Array.isArray(rawSale?.productos) ? rawSale.productos : [];
+  const payment = normalizePayment(rawSale);
 
   if (!idVenta) {
     throw new HttpsError("invalid-argument", "Venta invalida: falta idVenta.");
@@ -88,6 +92,9 @@ function normalizeSale(rawSale) {
     total: round2(total),
     totalCost: round2(totalCost),
     gananciaReal: round2(gananciaReal),
+    tipoPago: payment.tipoPago,
+    pagoEfectivo: payment.pagoEfectivo,
+    pagoVirtual: payment.pagoVirtual,
     itemsCount: Math.trunc(itemsCount),
     productos: productos.map(normalizeSaleItem),
     createdAt: normalizeCreatedAt(createdAtInput)
@@ -135,6 +142,30 @@ function normalizeCreatedAt(input) {
 
 function round2(value) {
   return Number(Number(value || 0).toFixed(2));
+}
+
+function normalizePayment(rawSale) {
+  const tipoPago = String(rawSale?.tipoPago || "").trim().toLowerCase() || "efectivo";
+  const total = round2(Number(rawSale?.total || 0));
+
+  if (tipoPago === "virtual") {
+    return { tipoPago, pagoEfectivo: 0, pagoVirtual: total };
+  }
+  if (tipoPago === "mixto") {
+    const pagoEfectivo = round2(Number(rawSale?.pagoEfectivo || 0));
+    const pagoVirtual = round2(Number(rawSale?.pagoVirtual || 0));
+    if (
+      !Number.isFinite(pagoEfectivo) ||
+      !Number.isFinite(pagoVirtual) ||
+      pagoEfectivo < 0 ||
+      pagoVirtual < 0 ||
+      round2(pagoEfectivo + pagoVirtual) !== total
+    ) {
+      throw new HttpsError("invalid-argument", `Venta invalida (${String(rawSale?.idVenta || "")}): pago mixto.`);
+    }
+    return { tipoPago, pagoEfectivo, pagoVirtual };
+  }
+  return { tipoPago: "efectivo", pagoEfectivo: total, pagoVirtual: 0 };
 }
 
 module.exports = {

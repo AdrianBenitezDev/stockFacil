@@ -1,0 +1,39 @@
+quiero agregar un cambio en la logica de ventas quiero que cuando se aprete en cobrar, 
+aparezca un overlay que contenga un panel que tenga 3 botones, que sirven para indicar la 
+forma de pago.
+
+quiero que los botonesesten en row no en column
+
+esta forma de pago se registrara en un key de la venta "tipoPago", que despues utilizaremos para separar
+ lo que se debe entregar al empleador (cantidad en efectivo, cantidad de dinero virtual)
+
+en el overlay debe haber 3 botones con iconos 
+
+boton 1 "efectivo" (indica que el cliente paga esa venta en efectivo)
+
+boton 2 "virtual" (indica que el cliente paga esa venta por medios virtuales)
+
+boton 3 "pago mixto" (indica que el paga una parte virtual y una parte en efectivo), desplega input que indica 
+cuanto dinero virtual y cuanto dinero en efectivo paga, (se completa el input de cantidad en
+ efectivo y automaticamente al ir ingresando se calcula la cantidad virtual, ya que ambos deben dar el total de la venta)
+
+
+
+en el boton 3 se agrega a la venta= tipoPago (debe ser "mixto"), pagoEfectivo (la cantidad que se paga en efectivo)
+ y pagoVirtual (la cantidad que se paga en virtual)
+
+ debajo de todo esta el boton cancelar y terminar venta
+
+ luego un spin y un mensaje flotante que indica que la venta fue procesada correctamente dura 2 o 3 segundos y se va el mensaje
+
+
+
+ luego en la seccion caja debes editar el div "total a entregar" y colocar "efectivo a entregar" y "virtual entregar" en parentesis dentro de total a entregar:
+
+ejemplo:
+ total a entregar
+ 1200.00$ 
+    => 400.00$ efectivo (coloar verde) 
+    => 800.00$ virtual (color celesta o azul, el color de mercado pago )
+
+entonces cuando se cierra la caja debe tener una key efectivoEtregar, virtualEtregar, total

@@ -88,6 +88,12 @@ const createSale = onCall(async (request) => {
   total = round2(total);
   totalCosto = round2(totalCosto);
   gananciaReal = round2(gananciaReal);
+  const paymentDetails = normalizePaymentPayload({
+    tipoPago: payload.tipoPago,
+    pagoEfectivo: payload.pagoEfectivo,
+    pagoVirtual: payload.pagoVirtual,
+    total
+  });
 
   const saleRef = db.collection("tenants").doc(tenantId).collection("ventas").doc(idVenta);
   batch.set(saleRef, {
@@ -99,6 +105,9 @@ const createSale = onCall(async (request) => {
     gananciaReal,
     usuarioUid: uid,
     usuarioNombre: String(caller.username || caller.displayName || "usuario"),
+    tipoPago: paymentDetails.tipoPago,
+    pagoEfectivo: paymentDetails.pagoEfectivo,
+    pagoVirtual: paymentDetails.pagoVirtual,
     cajaCerrada: false,
     backups: true,
     itemsCount,
@@ -113,6 +122,9 @@ const createSale = onCall(async (request) => {
     totalCalculado: total,
     totalCosto,
     gananciaReal,
+    tipoPago: paymentDetails.tipoPago,
+    pagoEfectivo: paymentDetails.pagoEfectivo,
+    pagoVirtual: paymentDetails.pagoVirtual,
     itemsCount,
     productos: saleItems
   };
@@ -120,6 +132,37 @@ const createSale = onCall(async (request) => {
 
 function round2(value) {
   return Number(Number(value || 0).toFixed(2));
+}
+
+function normalizePaymentPayload({ tipoPago, pagoEfectivo, pagoVirtual, total }) {
+  const normalizedTotal = round2(total);
+  const normalizedType = String(tipoPago || "").trim().toLowerCase() || "efectivo";
+
+  if (normalizedType === "virtual") {
+    return {
+      tipoPago: "virtual",
+      pagoEfectivo: 0,
+      pagoVirtual: normalizedTotal
+    };
+  }
+  if (normalizedType === "mixto") {
+    const cash = round2(Number(pagoEfectivo || 0));
+    const virtual = round2(Number(pagoVirtual ?? normalizedTotal - cash));
+    const sum = round2(cash + virtual);
+    if (!Number.isFinite(cash) || !Number.isFinite(virtual) || cash < 0 || virtual < 0 || sum !== normalizedTotal) {
+      throw new HttpsError("invalid-argument", "Pago mixto invalido.");
+    }
+    return {
+      tipoPago: "mixto",
+      pagoEfectivo: cash,
+      pagoVirtual: virtual
+    };
+  }
+  return {
+    tipoPago: "efectivo",
+    pagoEfectivo: normalizedTotal,
+    pagoVirtual: 0
+  };
 }
 
 module.exports = {

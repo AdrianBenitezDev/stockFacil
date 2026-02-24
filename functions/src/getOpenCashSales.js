@@ -38,6 +38,9 @@ const getOpenCashSales = onCall(async (request) => {
         total: Number(sale.total || 0),
         totalCost: Number(sale.totalCost ?? sale.totalCosto ?? 0),
         gananciaReal: Number(sale.gananciaReal ?? sale.ganaciaReal ?? sale.profit ?? 0),
+        tipoPago: String(sale.tipoPago || "efectivo").toLowerCase(),
+        pagoEfectivo: Number(sale.pagoEfectivo || 0),
+        pagoVirtual: Number(sale.pagoVirtual || 0),
         itemsCount: Number(sale.itemsCount || 0),
         cajaCerrada: sale.cajaCerrada === true,
         createdAt: normalizeToIso(sale.createdAt)

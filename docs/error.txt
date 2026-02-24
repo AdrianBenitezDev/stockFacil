@@ -1,3 +1,0 @@
-Failed to load resource: the server responded with a status of 400 ()
-
-https://firestore.googleapis.com/google.firestore.v1.Firestore/Listen/channel?gsessionid=5P5g_aFMB_vw9JUHQTZS7GmmtVHEMqHO4WVxP2kNxsE-anprAbJJxg&VER=8&database=projects%2Fkiosco-stock-493c6%2Fdatabases%2F(default)&RID=rpc&SID=kcJ2XsAKeGuxeS6FDh4DRg&AID=73&CI=0&TYPE=xmlhttp&zx=5y002jys997n&t=1

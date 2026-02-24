@@ -70,6 +70,103 @@ body {
   text-transform: capitalize;
 }
 
+.sale-payment-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 140;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  background: rgba(15, 23, 42, 0.55);
+  backdrop-filter: blur(2px);
+}
+
+.sale-payment-panel {
+  width: min(680px, 100%);
+  border-radius: 14px;
+  border: 1px solid rgba(219, 227, 239, 0.9);
+  background: #ffffff;
+  box-shadow: 0 14px 34px rgba(15, 23, 42, 0.2);
+  padding: 1rem;
+}
+
+.sale-payment-panel h4 {
+  margin: 0 0 0.5rem;
+}
+
+.sale-payment-total-line {
+  margin: 0 0 0.75rem;
+  color: #334155;
+}
+
+.sale-payment-methods {
+  display: flex;
+  gap: 0.55rem;
+  flex-wrap: wrap;
+}
+
+.sale-payment-method-btn {
+  flex: 1 1 160px;
+  margin-top: 0;
+  background: #f8fafc;
+  color: #334155;
+  border: 1px solid var(--line);
+}
+
+.sale-payment-method-btn.is-selected {
+  border-color: #0f766e;
+  background: #ecfeff;
+  color: #0f766e;
+}
+
+.sale-payment-mixed-fields {
+  margin-top: 0.8rem;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 0.75rem;
+  background: #f8fafc;
+}
+
+.sale-payment-mixed-fields label {
+  margin-top: 0;
+}
+
+.sale-payment-mixed-preview {
+  margin: 0.5rem 0 0;
+  color: #334155;
+}
+
+.sale-payment-actions {
+  display: flex;
+  gap: 0.55rem;
+  margin-top: 0.55rem;
+}
+
+.sale-payment-actions button {
+  flex: 1 1 auto;
+  margin-top: 0;
+}
+
+.sale-payment-processing {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  margin-top: 0.75rem;
+  color: #0f766e;
+  font-weight: 700;
+}
+
+.sale-payment-toast {
+  margin: 0.6rem 0 0;
+  padding: 0.55rem 0.7rem;
+  border-radius: 8px;
+  border: 1px solid #a7f3d0;
+  background: #ecfdf5;
+  color: #065f46;
+  font-weight: 700;
+}
+
 @keyframes app-loading-spin {
   to {
     transform: rotate(360deg);
@@ -890,6 +987,20 @@ thead th {
   margin: 0;
   font-size: 1.25rem;
   font-weight: 700;
+}
+
+.cash-split-line {
+  margin: 0.32rem 0 0;
+  font-size: 0.86rem;
+  font-weight: 700;
+}
+
+.cash-split-cash {
+  color: #15803d;
+}
+
+.cash-split-virtual {
+  color: #0284c7;
 }
 
 #cash-sales-table-body tr.employee-tone-1 td,

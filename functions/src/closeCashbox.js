@@ -57,6 +57,10 @@ const closeCashbox = onCall(async (request) => {
       dateKey: turnoId || null,
       scopeKey,
       total: group.totalCaja,
+      efectivoEntregar: group.totalEfectivoEntregar,
+      virtualEntregar: group.totalVirtualEntregar,
+      efectivoEtregar: group.totalEfectivoEntregar,
+      virtualEtregar: group.totalVirtualEntregar,
       GanaciaRealCaja: group.totalGananciaRealCaja,
       totalGananciaRealCaja: group.totalGananciaRealCaja,
       usuarioUid: group.usuarioUid,
@@ -85,6 +89,8 @@ const closeCashbox = onCall(async (request) => {
       usuarioNombre: group.usuarioNombre,
       role: roleForClosure,
       totalCaja: group.totalCaja,
+      efectivoEntregar: group.totalEfectivoEntregar,
+      virtualEntregar: group.totalVirtualEntregar,
       totalGananciaRealCaja: group.totalGananciaRealCaja,
       ventasIncluidas: group.ventasIncluidas,
       productosIncluidos
@@ -97,6 +103,12 @@ const closeCashbox = onCall(async (request) => {
     Array.isArray(closure.ventasIncluidas) ? closure.ventasIncluidas : []
   );
   const totalCaja = round2(closures.reduce((acc, closure) => acc + Number(closure.totalCaja || 0), 0));
+  const totalEfectivoEntregar = round2(
+    closures.reduce((acc, closure) => acc + Number(closure.efectivoEntregar || 0), 0)
+  );
+  const totalVirtualEntregar = round2(
+    closures.reduce((acc, closure) => acc + Number(closure.virtualEntregar || 0), 0)
+  );
   const totalGananciaRealCaja = round2(
     closures.reduce((acc, closure) => acc + Number(closure.totalGananciaRealCaja || 0), 0)
   );
@@ -106,6 +118,12 @@ const closeCashbox = onCall(async (request) => {
     success: true,
     idCaja: closures.length === 1 ? String(closures[0].idCaja || "") : "",
     totalCaja,
+    totalEfectivoEntregar,
+    totalVirtualEntregar,
+    efectivoEntregar: totalEfectivoEntregar,
+    virtualEntregar: totalVirtualEntregar,
+    efectivoEtregar: totalEfectivoEntregar,
+    virtualEtregar: totalVirtualEntregar,
     totalGananciaRealCaja,
     ventasIncluidas,
     productosIncluidos,
@@ -128,6 +146,8 @@ function buildSellerGroups(salesDocs) {
         usuarioNombre,
         role: String(sale.role || "").trim().toLowerCase() || "",
         totalCaja: 0,
+        totalEfectivoEntregar: 0,
+        totalVirtualEntregar: 0,
         totalGananciaRealCaja: 0,
         fechaApertura: null,
         ventasIncluidas: [],
@@ -141,6 +161,13 @@ function buildSellerGroups(salesDocs) {
     group.docs.push(docSnap);
     group.ventasIncluidas.push(docSnap.id);
     group.totalCaja = round2(Number(group.totalCaja || 0) + Number(sale.total || 0));
+    const payment = resolveSalePaymentBreakdown(sale);
+    group.totalEfectivoEntregar = round2(
+      Number(group.totalEfectivoEntregar || 0) + Number(payment.pagoEfectivo || 0)
+    );
+    group.totalVirtualEntregar = round2(
+      Number(group.totalVirtualEntregar || 0) + Number(payment.pagoVirtual || 0)
+    );
     group.totalGananciaRealCaja = round2(
       Number(group.totalGananciaRealCaja || 0) + Number(sale.gananciaReal ?? sale.ganaciaReal ?? sale.profit ?? 0)
     );
@@ -223,6 +250,39 @@ function normalizeToDate(value) {
     if (!Number.isNaN(parsed.getTime())) return parsed;
   }
   return null;
+}
+
+function resolveSalePaymentBreakdown(sale) {
+  const total = round2(Number(sale?.total || 0));
+  const tipoPago = String(sale?.tipoPago || "").trim().toLowerCase();
+
+  if (tipoPago === "virtual") {
+    return { pagoEfectivo: 0, pagoVirtual: total };
+  }
+  if (tipoPago === "mixto") {
+    const pagoEfectivo = round2(Number(sale?.pagoEfectivo || 0));
+    const pagoVirtual = round2(Number(sale?.pagoVirtual || total - pagoEfectivo));
+    if (
+      Number.isFinite(pagoEfectivo) &&
+      Number.isFinite(pagoVirtual) &&
+      pagoEfectivo >= 0 &&
+      pagoVirtual >= 0 &&
+      round2(pagoEfectivo + pagoVirtual) === total
+    ) {
+      return { pagoEfectivo, pagoVirtual };
+    }
+  }
+
+  const explicitCash = round2(Number(sale?.pagoEfectivo || 0));
+  const explicitVirtual = round2(Number(sale?.pagoVirtual || 0));
+  if (explicitCash > 0 || explicitVirtual > 0) {
+    const normalizedVirtual = round2(total - explicitCash);
+    if (normalizedVirtual >= 0) {
+      return { pagoEfectivo: explicitCash, pagoVirtual: normalizedVirtual };
+    }
+  }
+
+  return { pagoEfectivo: total, pagoVirtual: 0 };
 }
 
 function round2(value) {
