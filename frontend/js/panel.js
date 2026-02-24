@@ -88,6 +88,7 @@ let startupOverlayHidden = false;
 let stockBulkSaveInProgress = false;
 const pendingStockChanges = new Set();
 const pendingStockValues = new Map();
+let uiModeToastTimer = null;
 
 init()
   .catch((error) => {
@@ -1479,6 +1480,7 @@ async function handleToggleUiMode() {
   forcedUiMode = nextMode;
   persistUiModePreference(nextMode);
   setupDeviceSpecificUI();
+  showUiModeToast(nextMode === "mobile" ? "Modo celular activado" : "Modo PC activado");
   const currentMode = getCurrentMode();
   keyboardScanner.setEnabled(shouldEnableKeyboardScanner(currentMode));
   if (currentMode === "add") {
@@ -1539,6 +1541,22 @@ function forceCameraControlsDisplay(showCameraControls) {
   dom.startScanBtn.style.display = "";
   dom.stopScanBtn.style.display = "";
   dom.saleScannerReader.style.display = "";
+}
+
+function showUiModeToast(message) {
+  if (!dom.uiModeToast) return;
+  dom.uiModeToast.textContent = message;
+  dom.uiModeToast.classList.remove("hidden");
+  dom.uiModeToast.classList.add("is-visible");
+  if (uiModeToastTimer) {
+    window.clearTimeout(uiModeToastTimer);
+  }
+  uiModeToastTimer = window.setTimeout(() => {
+    dom.uiModeToast?.classList.remove("is-visible");
+    window.setTimeout(() => {
+      dom.uiModeToast?.classList.add("hidden");
+    }, 220);
+  }, 1700);
 }
 
 function initSaleModeSwitch() {

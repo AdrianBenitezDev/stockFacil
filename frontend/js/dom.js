@@ -6,6 +6,7 @@ export const dom = {
   logoutBtn: document.getElementById("logout-btn"),
   configModeBtn: document.getElementById("config-mode-btn"),
   uiModeToggle: document.getElementById("ui-mode-toggle"),
+  uiModeToast: document.getElementById("ui-mode-toast"),
   addModeBtn: document.getElementById("mode-add-product"),
   sellModeBtn: document.getElementById("mode-sell"),
   stockModeBtn: document.getElementById("mode-stock"),

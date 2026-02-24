@@ -58,6 +58,7 @@
     </div>
   </div>
   <button id="offline-sync-banner" type="button" class="offline-sync-banner hidden" aria-live="polite"></button>
+  <p id="ui-mode-toast" class="ui-mode-toast hidden" aria-live="polite"></p>
   <button id="floating-sync-btn" type="button" class="floating-sync-btn" title="Sincronizar ahora" aria-label="Sincronizar ahora">
     <span class="btn-icon" aria-hidden="true">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v6h-6"/></svg>
@@ -306,7 +307,7 @@
 
         <p id="cash-closure-status" class="subtitle"></p>
 
-        <div class="scan-actions">
+        <div class="scan-actions cash-action-bar">
           <button id="close-my-sales-btn" type="button" class="mode-btn-secondary hidden">CERRAR MIS VENTAS</button>
           <button id="close-shift-btn" type="button">TERMINAR TURNO</button>
           <button id="refresh-cash-btn" type="button" class="mode-btn-secondary">Actualizar caja</button>
