@@ -1597,7 +1597,7 @@ function applySellModeUI() {
   }
   document.body.classList.toggle("sell-manual-mode", !saleUseScannerMode);
   document.body.classList.toggle("sell-scanner-mode", saleUseScannerMode);
-  const showSellCameraControls = isMobileMode() && saleUseScannerMode;
+  const showSellCameraControls = isMobileMode() && !saleUseScannerMode;
   dom.startScanBtn?.classList.toggle("hidden", !showSellCameraControls);
   dom.stopScanBtn?.classList.toggle("hidden", !showSellCameraControls);
   dom.saleScannerReader?.classList.toggle("hidden", !showSellCameraControls);
