@@ -873,6 +873,7 @@ thead th {
 }
 
 .stock-edit-cell {
+  justify-content: center;
   display: flex;
   flex-wrap: wrap;
   gap: 0.4rem;
