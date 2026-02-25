@@ -630,7 +630,8 @@ table {
 
 th,
 td {
-  text-align: left;
+
+  text-align: center;
   border-bottom: 1px solid var(--line);
   padding: 0.6rem;
   font-size: 0.95rem;
