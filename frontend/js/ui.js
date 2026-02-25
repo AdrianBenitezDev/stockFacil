@@ -30,6 +30,11 @@ export function showAppShell(user) {
   dom.cashSummary?.classList.toggle("cash-summary-limited", !isOwner);
   dom.cashSalesProfitCol?.classList.toggle("hidden", !isOwner);
   dom.cashClosuresProfitCol?.classList.toggle("hidden", !isOwner);
+
+
+  dom.cashClosuresProfitPrecieBuy?.classList.toggle("hidden", !isOwner);
+  dom.cashClosuresProfitDetalleBuy?.classList.toggle("hidden", !isOwner);
+  
   dom.closeMySalesBtn?.classList.toggle("hidden", !isOwner);
   dom.addModeBtn.disabled = !canCreateProducts;
   applyAddProductAvailability(canCreateProducts);
@@ -121,7 +126,7 @@ export function renderStockTable(products, { canEditStock = false } = {}) {
         console.log(product)
       return [
         `<tr class="${stockClass}" data-stock-row-id="${escapeHtml(product.id)}">`,
-        
+
         `<td>${escapeHtml(product.name)}</td>`,
         `<td>$${Number(product.price || 0).toFixed(2)}</td>`,
         canEditStock ? `<td>$${Number(product.providerCost || 0).toFixed(2)}</td>` : "",

@@ -97,6 +97,11 @@ export const dom = {
   cashClosuresToggleBtn: document.getElementById("cash-closures-toggle-btn"),
   cashClosuresTableWrap: document.getElementById("cash-closures-table-wrap"),
   cashClosuresProfitCol: document.getElementById("cash-closures-profit-col"),
+
+    cashClosuresProfitPrecieBuy: document.getElementById("cash-closures-profit-PrecieBuy"),
+      cashClosuresProfitDetalleBuy: document.getElementById("cash-closures-profit-detalleBuy"),
+
+
   closeMySalesBtn: document.getElementById("close-my-sales-btn"),
   closeShiftBtn: document.getElementById("close-shift-btn"),
   refreshCashBtn: document.getElementById("refresh-cash-btn"),
