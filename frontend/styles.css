@@ -861,13 +861,13 @@ thead th {
 }
 
 .stock-danger {
-  background-color: #b91c1c;
-  font-weight: 700;
+  background-color: #ff6767;
+  font-weight: 100;
 }
 
 .stock-warning {
-  background-color: #a16207;
-  font-weight: 700;
+  background-color: #fff14d;
+  font-weight: 100;
 }
 
 .stock-edit-cell {

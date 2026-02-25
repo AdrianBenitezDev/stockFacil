@@ -1,4 +1,7 @@
 necesito que realices las siguientes mejoras:
 
-quiero un spin dentro del boton "crear empleado" que se
+1.quiero un spin dentro del boton "crear empleado" que se
 encuentra el la seccion configuraciones
+
+2.cuando se crea un producto en la seccion "nuevo producto" el precio de compra
+ no puede ser superior al preci de venta
