@@ -58,9 +58,11 @@ export async function syncProductToFirestore(product) {
         costoProveedor: Number(product.providerCost || 0),
         stock: Number(product.stock || 0),
         createdBy: product.createdBy || null,
+        createdByName: product.createdByName || null,
         createdAt: product.createdAt || null,
         updatedAt: product.updatedAt || null,
         updatedBy: product.updatedBy || null,
+        updatedByName: product.updatedByName || null,
         syncedAt: serverTimestamp()
       },
       { merge: true }

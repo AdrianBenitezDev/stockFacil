@@ -79,6 +79,7 @@ export async function createProduct(formData) {
     createdAt: now,
     updatedAt: now,
     updatedBy: session.userId,
+    updatedByName: resolveUserLabel(session),
     kioscoId: session.tenantId,
     barcode: code,
     name,
@@ -86,6 +87,7 @@ export async function createProduct(formData) {
     price: Number(price.toFixed(2)),
     providerCost: Number(providerCost.toFixed(2)),
     createdBy: session.userId,
+    createdByName: resolveUserLabel(session),
     createdAtIso: new Date(now).toISOString()
   };
 
@@ -223,6 +225,7 @@ export async function updateProductStock(productId, newStockInput) {
   normalized.synced = false;
   normalized.updatedAt = now;
   normalized.updatedBy = session.userId;
+  normalized.updatedByName = resolveUserLabel(session);
   applyNormalizedToStoredProduct(product, normalized);
 
   await putProduct(product);
@@ -288,6 +291,7 @@ export async function updateProductDetails(productId, detailsInput) {
   normalized.synced = false;
   normalized.updatedAt = now;
   normalized.updatedBy = session.userId;
+  normalized.updatedByName = resolveUserLabel(session);
   applyNormalizedToStoredProduct(product, normalized);
 
   await putProduct(product);
@@ -416,7 +420,7 @@ export async function deleteProduct(productId) {
       await deleteProductById(productId);
       return { ok: true, message: `Producto ${normalized.name} eliminado y sincronizado.` };
     } catch (error) {
-      await markProductPendingDelete(stored, session.userId);
+      await markProductPendingDelete(stored, { userId: session.userId, userLabel: resolveUserLabel(session) });
       return {
         ok: true,
         localDeleted: true,
@@ -425,7 +429,7 @@ export async function deleteProduct(productId) {
     }
   }
 
-  await markProductPendingDelete(stored, session.userId);
+  await markProductPendingDelete(stored, { userId: session.userId, userLabel: resolveUserLabel(session) });
   return {
     ok: true,
     localDeleted: true,
@@ -459,6 +463,8 @@ function normalizeProduct(product) {
     category,
     price: Number.isFinite(salePrice) ? Number(salePrice.toFixed(2)) : 0,
     providerCost: Number.isFinite(purchasePrice) ? Number(purchasePrice.toFixed(2)) : 0,
+    updatedByName: String(product?.updatedByName || product?.updatedByDisplayName || "").trim(),
+    createdByName: String(product?.createdByName || "").trim(),
     kioscoId: String(product?.kioscoId || product?.tenantId || "").trim()
   };
 }
@@ -477,11 +483,13 @@ function applyNormalizedToStoredProduct(target, normalized) {
   target.createdAt = normalized.createdAt;
   target.updatedAt = normalized.updatedAt || Date.now();
   target.updatedBy = normalized.updatedBy || null;
+  target.updatedByName = normalized.updatedByName || null;
   target.barcode = normalized.barcode;
   target.name = normalized.name;
   target.category = normalized.category;
   target.price = normalized.price;
   target.providerCost = normalized.providerCost;
+  target.createdByName = normalized.createdByName || target.createdByName || null;
   target.kioscoId = normalized.kioscoId;
 }
 
@@ -518,14 +526,19 @@ async function canUseCloudNow() {
   return Boolean(firebaseAuth.currentUser) && navigator.onLine;
 }
 
-async function markProductPendingDelete(stored, userId) {
+async function markProductPendingDelete(stored, { userId, userLabel } = {}) {
   const next = normalizeProduct(stored);
   next.pendingDelete = true;
   next.synced = false;
   next.updatedBy = userId || null;
+  next.updatedByName = String(userLabel || "").trim() || null;
   next.updatedAt = Date.now();
   applyNormalizedToStoredProduct(stored, next);
   await putProduct(stored);
+}
+
+function resolveUserLabel(session) {
+  return String(session?.displayName || session?.username || session?.email || session?.userId || "").trim();
 }
 
 async function trySyncProductsNow(session, products) {
