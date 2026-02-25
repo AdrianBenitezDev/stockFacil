@@ -645,6 +645,7 @@ td {
 }
 
 thead th {
+  text-align: center;
   font-size: 0.85rem;
   color: #475569;
   text-transform: uppercase;
