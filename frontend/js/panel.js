@@ -601,12 +601,15 @@ function renderStockDetailEditCategoryOptions() {
 function renderStockDetailWithEditorState(product) {
   renderStockDetail(product);
   const canEditDetail = isEmployerRole(currentUser?.role) && Boolean(product);
+  dom.stockDetailReadonly?.classList.toggle("hidden", !Boolean(product));
   dom.stockDetailEditActions?.classList.toggle("hidden", !canEditDetail);
   if (!product) {
     dom.stockDetailEditForm?.classList.add("hidden");
     return;
   }
   dom.stockDetailEditForm?.classList.add("hidden");
+  dom.stockDetailReadonly?.classList.remove("hidden");
+  dom.stockDetailEditActions?.classList.remove("hidden");
   populateStockDetailEditForm(product);
 }
 
@@ -636,6 +639,8 @@ function handleStockDetailEditClick() {
     return;
   }
   populateStockDetailEditForm(product);
+  dom.stockDetailReadonly?.classList.add("hidden");
+  dom.stockDetailEditActions?.classList.add("hidden");
   dom.stockDetailEditForm?.classList.remove("hidden");
 }
 
@@ -671,6 +676,8 @@ async function handleStockDetailEditSubmit(event) {
     }
 
     dom.stockDetailEditForm?.classList.add("hidden");
+    dom.stockDetailReadonly?.classList.remove("hidden");
+    dom.stockDetailEditActions?.classList.remove("hidden");
     setStockFeedback(result.message, "success");
     showStockDetailToast("cambios guardados");
     await refreshStock();

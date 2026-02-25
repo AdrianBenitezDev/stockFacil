@@ -42,6 +42,7 @@ export const dom = {
   stockFeedback: document.getElementById("stock-feedback"),
   stockScannerReader: document.getElementById("stock-scanner-reader"),
   stockDetailPanel: document.getElementById("stock-detail-panel"),
+  stockDetailReadonly: document.getElementById("stock-detail-readonly"),
   stockDetailName: document.getElementById("stock-detail-name"),
   stockDetailBarcode: document.getElementById("stock-detail-barcode"),
   stockDetailCategory: document.getElementById("stock-detail-category"),
