@@ -225,6 +225,8 @@ export function renderCashSalesTable(sales, { canViewProfit = true, maskProfit =
         `<td>${username}</td>`,
         `<td>${Number(sale.itemsCount || 0)}</td>`,
         `<td>$${Number(sale.total || 0).toFixed(2)}</td>`,
+          `<td class="cash-split-cash">$${Number(sale.pagoEfectivo || 0).toFixed(2)}</td>`,
+            `<td class="cash-split-virtual">$${Number(sale.pagoVirtual || 0).toFixed(2)}</td>`,
         ...(canViewProfit
           ? [`<td>${maskProfit ? "****" : `$${Number(sale.profit || 0).toFixed(2)}`}</td>`]
           : []),
@@ -295,6 +297,8 @@ export function renderCashClosuresTable(closures, { canViewProfit = true, maskPr
         `<td>${escapeHtml(closure.username || "-")}</td>`,
         `<td>${Number(closure.salesCount || 0)}</td>`,
         `<td>$${Number(closure.totalAmount || 0).toFixed(2)}</td>`,
+        `<td class="cash-split-cash">$${Number(closure.efectivoEntregar || 0).toFixed(2)}</td>`,
+        `<td class="cash-split-virtual">$${Number(closure.virtualEntregar || 0).toFixed(2)}</td>`,
         ...(canViewProfit
           ? [`<td>${maskProfit ? "****" : `$${Number(closure.profitAmount || 0).toFixed(2)}`}</td>`]
           : []),

@@ -22,9 +22,31 @@ export const FIRESTORE_COLLECTIONS = {
 
 export const PRODUCT_CATEGORIES = [
   "Bebidas",
+  "Almacen",
   "Golosinas",
   "Snacks",
   "Cigarrillos",
   "Limpieza",
+  "Otros"
+];
+
+
+//proximamente
+export const PRODUCT_CATEGORIES2 = [
+  "Bebidas",
+  "Bebidas Alcohólicas",
+  "Almacén",
+  "Golosinas",
+  "Snacks",
+  "Cigarrillos",
+  "Limpieza",
+  "Perfumería",
+  "Lácteos",
+  "Panificados",
+  "Congelados",
+  "Enlatados",
+  "Fiambrería",
+  "Artículos Escolares",
+  "Recargas",
   "Otros"
 ];
