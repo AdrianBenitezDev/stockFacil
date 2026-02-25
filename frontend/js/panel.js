@@ -656,23 +656,52 @@ function handleClearSale() {
 }
 
 function handleRemoveCurrentSaleItem(event) {
-  const button = event.target.closest("[data-remove-sale-id]");
-  if (!button) return;
+  const minusBtn = event.target.closest("[data-sale-qty-minus-id]");
+  if (minusBtn) {
+    const productId = String(minusBtn.getAttribute("data-sale-qty-minus-id") || "").trim();
+    if (!productId) return;
+    const item = currentSaleItems.find((entry) => entry.productId === productId);
+    if (!item) return;
+    if (item.quantity <= 1) {
+      setScanFeedback(`La cantidad minima para ${item.name} es 1.`);
+      return;
+    }
+    item.quantity -= 1;
+    item.subtotal = Number((item.quantity * item.price).toFixed(2));
+    renderCurrentSale(currentSaleItems);
+    setScanFeedback(`Cantidad actualizada: ${item.name} x${item.quantity}.`, "success");
+    return;
+  }
 
-  const productId = String(button.getAttribute("data-remove-sale-id") || "").trim();
+  const plusBtn = event.target.closest("[data-sale-qty-plus-id]");
+  if (plusBtn) {
+    const productId = String(plusBtn.getAttribute("data-sale-qty-plus-id") || "").trim();
+    if (!productId) return;
+    const item = currentSaleItems.find((entry) => entry.productId === productId);
+    if (!item) return;
+    const product = allStockProducts.find((entry) => entry.id === productId);
+    const stock = Number(product?.stock || 0);
+    const nextQuantity = item.quantity + 1;
+    if (nextQuantity > stock) {
+      setScanFeedback(`Stock insuficiente para ${item.name}. Disponible: ${stock}.`);
+      return;
+    }
+    item.quantity = nextQuantity;
+    item.subtotal = Number((item.quantity * item.price).toFixed(2));
+    renderCurrentSale(currentSaleItems);
+    setScanFeedback(`Cantidad actualizada: ${item.name} x${item.quantity}.`, "success");
+    return;
+  }
+
+  const removeBtn = event.target.closest("[data-remove-sale-id]");
+  if (!removeBtn) return;
+
+  const productId = String(removeBtn.getAttribute("data-remove-sale-id") || "").trim();
   if (!productId) return;
 
   const index = currentSaleItems.findIndex((item) => item.productId === productId);
   if (index === -1) return;
-
-  const item = currentSaleItems[index];
-  if (item.quantity > 1) {
-    item.quantity -= 1;
-    item.subtotal = Number((item.quantity * item.price).toFixed(2));
-  } else {
-    currentSaleItems.splice(index, 1);
-  }
-
+  currentSaleItems.splice(index, 1);
   renderCurrentSale(currentSaleItems);
   setScanFeedback("Producto quitado de la venta actual.", "success");
 }
@@ -1809,4 +1838,3 @@ function normalizeDate(value) {
   const date = new Date(value);
   return Number.isNaN(date.getTime()) ? null : date;
 }
-

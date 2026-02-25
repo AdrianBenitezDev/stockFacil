@@ -862,6 +862,26 @@ thead th {
   background: #b91c1c;
 }
 
+.sale-qty-controls {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.sale-qty-btn {
+  margin-top: 0;
+  padding: 0.2rem 0.55rem;
+  min-width: 2rem;
+  line-height: 1;
+  font-weight: 700;
+}
+
+.sale-qty-value {
+  min-width: 1.4rem;
+  text-align: center;
+  font-weight: 700;
+}
+
 .stock-danger {
   background-color: #ff6767;
   font-weight: 100;
@@ -1340,5 +1360,4 @@ button:disabled {
     font-size: 0.8rem;
   }
 }
-
 

@@ -180,7 +180,11 @@ export function renderCurrentSale(items) {
         "<tr>",
         `<td>${escapeHtml(item.barcode)}</td>`,
         `<td>${escapeHtml(item.name)}</td>`,
-        `<td>${item.quantity}</td>`,
+        `<td><div class="sale-qty-controls"><button type="button" class="sale-qty-btn" data-sale-qty-minus-id="${escapeHtml(
+          item.productId
+        )}" aria-label="Restar cantidad de ${escapeHtml(item.name)}">-</button><span class="sale-qty-value">${item.quantity}</span><button type="button" class="sale-qty-btn" data-sale-qty-plus-id="${escapeHtml(
+          item.productId
+        )}" aria-label="Sumar cantidad de ${escapeHtml(item.name)}">+</button></div></td>`,
         `<td>$${item.price.toFixed(2)}</td>`,
         `<td>$${item.subtotal.toFixed(2)}</td>`,
         `<td><button type="button" class="sale-remove-btn" data-remove-sale-id="${escapeHtml(
@@ -352,4 +356,3 @@ function applyAddProductAvailability(enabled) {
   }
   clearProductFeedback();
 }
-
