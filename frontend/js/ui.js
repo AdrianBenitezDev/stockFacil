@@ -121,6 +121,7 @@ export function renderStockTable(products, { canEditStock = false } = {}) {
         console.log(product)
       return [
         `<tr class="${stockClass}" data-stock-row-id="${escapeHtml(product.id)}">`,
+        
         `<td>${escapeHtml(product.name)}</td>`,
         `<td>$${Number(product.price || 0).toFixed(2)}</td>`,
         canEditStock ? `<td>$${Number(product.providerCost || 0).toFixed(2)}</td>` : "",
