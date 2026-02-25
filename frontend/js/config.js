@@ -20,7 +20,7 @@ export const FIRESTORE_COLLECTIONS = {
   sesiones: "sesiones"
 };
 
-export const PRODUCT_CATEGORIES = [
+export const PRODUCT_CATEGORIES2 = [
   "Bebidas",
   "Almacen",
   "Golosinas",
@@ -32,7 +32,7 @@ export const PRODUCT_CATEGORIES = [
 
 
 //proximamente
-export const PRODUCT_CATEGORIES2 = [
+export const PRODUCT_CATEGORIES = [
   "Bebidas",
   "Bebidas Alcohólicas",
   "Almacén",
