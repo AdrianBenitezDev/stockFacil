@@ -16,6 +16,7 @@ import {
   syncProductsFromCloudForCurrentKiosco,
   syncPendingProducts,
   listProductsForCurrentKiosco,
+  updateProductDetails,
   updateProductStock
 } from "./products.js";
 import { isScannerReady, isScannerRunning, startScanner, stopScanner } from "./scanner.js";
@@ -86,6 +87,7 @@ let cashSalesSectionVisible = true;
 let cashClosuresSectionVisible = true;
 let startupOverlayHidden = false;
 let stockBulkSaveInProgress = false;
+let stockDetailToastTimer = null;
 const pendingStockChanges = new Set();
 const pendingStockValues = new Map();
 let uiModeToastTimer = null;
@@ -126,6 +128,7 @@ async function init() {
   updateStockBulkSaveButtonState();
   renderCategoryOptions(PRODUCT_CATEGORIES);
   renderStockCategoryOptions(PRODUCT_CATEGORIES);
+  renderStockDetailEditCategoryOptions();
   setupDeviceSpecificUI();
   initSaleModeSwitch();
   focusBarcodeInputIfDesktop();
@@ -192,6 +195,8 @@ function wireEvents() {
   dom.barcodeInput.addEventListener("keydown", handleBarcodeEnterOnAddProduct);
   dom.stockSearchInput.addEventListener("input", applyStockFilters);
   dom.stockCategoryFilter.addEventListener("change", applyStockFilters);
+  dom.stockDetailEditBtn?.addEventListener("click", handleStockDetailEditClick);
+  dom.stockDetailEditForm?.addEventListener("submit", handleStockDetailEditSubmit);
   dom.startAddScanBtn.addEventListener("click", handleStartAddBarcodeScanner);
   dom.stopAddScanBtn.addEventListener("click", handleStopAddBarcodeScanner);
   dom.startScanBtn.addEventListener("click", handleStartScanner);
@@ -570,17 +575,124 @@ function applyStockFilters() {
     return matchCategory && matchSearch;
   });
 
-  renderStockTable(filtered, { canEditStock: isEmployerRole(currentUser?.role) });
+  const visibleRows = filtered.slice(0, 10);
+  renderStockTable(visibleRows, { canEditStock: isEmployerRole(currentUser?.role) });
   wireStockRowEvents();
   updateStockBulkSaveButtonState();
 
   const selectedInFiltered = filtered.find((p) => p.id === selectedStockProductId);
   if (selectedInFiltered) {
-    renderStockDetail(selectedInFiltered);
+    renderStockDetailWithEditorState(selectedInFiltered);
   } else {
     selectedStockProductId = null;
-    renderStockDetail(null);
+    renderStockDetailWithEditorState(null);
   }
+}
+
+function renderStockDetailEditCategoryOptions() {
+  if (!dom.stockDetailEditCategory) return;
+  const options = [
+    '<option value="">Selecciona una categoria</option>',
+    ...PRODUCT_CATEGORIES.map((category) => `<option value="${escapeHtml(category)}">${escapeHtml(category)}</option>`)
+  ];
+  dom.stockDetailEditCategory.innerHTML = options.join("");
+}
+
+function renderStockDetailWithEditorState(product) {
+  renderStockDetail(product);
+  const canEditDetail = isEmployerRole(currentUser?.role) && Boolean(product);
+  dom.stockDetailEditActions?.classList.toggle("hidden", !canEditDetail);
+  if (!product) {
+    dom.stockDetailEditForm?.classList.add("hidden");
+    return;
+  }
+  dom.stockDetailEditForm?.classList.add("hidden");
+  populateStockDetailEditForm(product);
+}
+
+function populateStockDetailEditForm(product) {
+  if (!product) return;
+  if (dom.stockDetailEditName) dom.stockDetailEditName.value = String(product.name || "");
+  if (dom.stockDetailEditStock) dom.stockDetailEditStock.value = String(Math.trunc(Number(product.stock || 0)));
+  if (dom.stockDetailEditPrice) dom.stockDetailEditPrice.value = Number(product.price || 0).toFixed(2);
+  if (dom.stockDetailEditProviderCost) {
+    dom.stockDetailEditProviderCost.value = Number(product.providerCost || 0).toFixed(2);
+  }
+  if (dom.stockDetailEditCategory) dom.stockDetailEditCategory.value = String(product.category || "");
+}
+
+function handleStockDetailEditClick() {
+  if (!isEmployerRole(currentUser?.role)) {
+    setStockFeedback("Solo el empleador puede editar productos.");
+    return;
+  }
+  if (!selectedStockProductId) {
+    setStockFeedback("Selecciona un producto para editar.");
+    return;
+  }
+  const product = allStockProducts.find((item) => item.id === selectedStockProductId);
+  if (!product) {
+    setStockFeedback("No se encontro el producto seleccionado.");
+    return;
+  }
+  populateStockDetailEditForm(product);
+  dom.stockDetailEditForm?.classList.remove("hidden");
+}
+
+async function handleStockDetailEditSubmit(event) {
+  event.preventDefault();
+  if (!isEmployerRole(currentUser?.role)) {
+    setStockFeedback("Solo el empleador puede editar productos.");
+    return;
+  }
+  if (!selectedStockProductId) {
+    setStockFeedback("Selecciona un producto para editar.");
+    return;
+  }
+
+  const button = dom.stockDetailSaveBtn;
+  const stopLoading = setStockSaveButtonLoading(button, true);
+  const payload = {
+    name: String(dom.stockDetailEditName?.value || "").trim(),
+    stock: dom.stockDetailEditStock?.value,
+    price: dom.stockDetailEditPrice?.value,
+    providerCost: dom.stockDetailEditProviderCost?.value,
+    category: String(dom.stockDetailEditCategory?.value || "").trim()
+  };
+
+  try {
+    const result = await updateProductDetails(selectedStockProductId, payload);
+    if (!result.ok) {
+      setStockFeedback(result.error);
+      if (result.requiresLogin) {
+        redirectToLogin();
+      }
+      return;
+    }
+
+    dom.stockDetailEditForm?.classList.add("hidden");
+    setStockFeedback(result.message, "success");
+    showStockDetailToast("cambios guardados");
+    await refreshStock();
+  } finally {
+    stopLoading();
+  }
+}
+
+function showStockDetailToast(message) {
+  if (!dom.stockDetailToast) return;
+  dom.stockDetailToast.textContent = message;
+  dom.stockDetailToast.classList.remove("hidden");
+  dom.stockDetailToast.classList.add("is-visible");
+  if (stockDetailToastTimer) {
+    window.clearTimeout(stockDetailToastTimer);
+  }
+  stockDetailToastTimer = window.setTimeout(() => {
+    dom.stockDetailToast?.classList.remove("is-visible");
+    window.setTimeout(() => {
+      dom.stockDetailToast?.classList.add("hidden");
+    }, 240);
+  }, 1800);
 }
 
 async function switchMode(mode) {
@@ -1217,7 +1329,7 @@ function wireStockRowEvents() {
       const productId = row.getAttribute("data-stock-row-id");
       selectedStockProductId = productId;
       const product = allStockProducts.find((item) => item.id === productId) || null;
-      renderStockDetail(product);
+      renderStockDetailWithEditorState(product);
     });
   });
 

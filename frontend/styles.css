@@ -964,6 +964,59 @@ thead th {
   margin: 0.35rem 0;
 }
 
+.stock-detail-actions {
+  margin-top: 0.8rem;
+}
+
+.stock-detail-actions button {
+  margin-top: 0;
+}
+
+.stock-detail-edit-form {
+  margin-top: 0.9rem;
+  max-width: 520px;
+}
+
+.stock-detail-edit-form input,
+.stock-detail-edit-form select {
+  width: 100%;
+}
+
+.stock-detail-edit-submit-wrap {
+  display: flex;
+  justify-content: center;
+  margin-top: 0.6rem;
+}
+
+.stock-detail-edit-submit-wrap button {
+  margin-top: 0;
+  min-width: 180px;
+}
+
+.stock-detail-toast {
+  position: fixed;
+  left: 50%;
+  bottom: 22px;
+  transform: translate(-50%, 10px);
+  z-index: 140;
+  margin: 0;
+  padding: 0.52rem 0.85rem;
+  border-radius: 999px;
+  border: 1px solid #86efac;
+  background: rgba(21, 128, 61, 0.96);
+  color: #ffffff;
+  font-size: 0.85rem;
+  font-weight: 700;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.22s ease, transform 0.22s ease;
+}
+
+.stock-detail-toast.is-visible {
+  opacity: 1;
+  transform: translate(-50%, 0);
+}
+
 .cash-summary {
   display: grid;
   grid-template-columns: repeat(5, minmax(0, 1fr));
@@ -1360,4 +1413,3 @@ button:disabled {
     font-size: 0.8rem;
   }
 }
-

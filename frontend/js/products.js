@@ -238,6 +238,71 @@ export async function updateProductStock(productId, newStockInput) {
   };
 }
 
+export async function updateProductDetails(productId, detailsInput) {
+  const session = getCurrentSession();
+  if (!session) {
+    return { ok: false, error: "Sesion expirada. Inicia sesion nuevamente.", requiresLogin: true };
+  }
+  if (!isEmployerRole(session.role)) {
+    return { ok: false, error: "Solo el empleador puede editar productos." };
+  }
+
+  const nextName = String(detailsInput?.name || "").trim();
+  const nextCategory = String(detailsInput?.category || "").trim();
+  const nextStock = Number(detailsInput?.stock);
+  const nextPrice = Number(detailsInput?.price);
+  const nextProviderCost = Number(detailsInput?.providerCost);
+
+  if (!nextName) {
+    return { ok: false, error: "El nombre del producto es obligatorio." };
+  }
+  if (!nextCategory || !PRODUCT_CATEGORIES.includes(nextCategory)) {
+    return { ok: false, error: "Debes seleccionar una categoria valida." };
+  }
+  if (!Number.isFinite(nextStock) || nextStock < 0) {
+    return { ok: false, error: "Stock invalido." };
+  }
+  if (!Number.isFinite(nextPrice) || nextPrice < 0) {
+    return { ok: false, error: "Precio de venta invalido." };
+  }
+  if (!Number.isFinite(nextProviderCost) || nextProviderCost < 0) {
+    return { ok: false, error: "Precio de compra invalido." };
+  }
+
+  const product = await getProductById(productId);
+  if (!product || product.kioscoId !== session.tenantId) {
+    return { ok: false, error: "Producto no encontrado." };
+  }
+
+  const normalized = normalizeProduct(product);
+  const now = Date.now();
+  normalized.name = nextName;
+  normalized.nombre = nextName;
+  normalized.category = nextCategory;
+  normalized.categoria = nextCategory;
+  normalized.stock = Math.trunc(nextStock);
+  normalized.price = Number(nextPrice.toFixed(2));
+  normalized.precioVenta = Number(nextPrice.toFixed(2));
+  normalized.providerCost = Number(nextProviderCost.toFixed(2));
+  normalized.precioCompra = Number(nextProviderCost.toFixed(2));
+  normalized.synced = false;
+  normalized.updatedAt = now;
+  normalized.updatedBy = session.userId;
+  applyNormalizedToStoredProduct(product, normalized);
+
+  await putProduct(product);
+  const immediateSync = await trySyncProductsNow(session, [normalizeProduct(product)]);
+  if (immediateSync.ok) {
+    return { ok: true, message: `Producto ${normalized.name} actualizado y sincronizado.` };
+  }
+
+  const pending = await getUnsyncedProductsByKiosco(session.tenantId);
+  return {
+    ok: true,
+    message: `Producto ${normalized.name} actualizado en local. Pendientes de sync: ${pending.length}.`
+  };
+}
+
 export async function syncPendingProducts({ force = false } = {}) {
   const session = getCurrentSession();
   if (!session) {

@@ -267,13 +267,36 @@
         </div>
         <aside id="stock-detail-panel" class="stock-detail-panel hidden">
           <h4>Detalle de producto</h4>
-          <p><strong>Nombre:</strong> <span id="stock-detail-name">-</span></p>
-          <p><strong>Codigo:</strong> <span id="stock-detail-barcode">-</span></p>
-          <p><strong>Categoria:</strong> <span id="stock-detail-category">-</span></p>
-          <p><strong>Precio:</strong> <span id="stock-detail-price">-</span></p>
-          <p id="cash-closures-profit-detalleBuy"></p>><strong>Precio Compra:</strong> <span id="stock-detail-buy">-</span></p>
-          <p><strong>Stock:</strong> <span id="stock-detail-stock">-</span></p>
+          <div id="stock-detail-readonly">
+            <p><strong>Nombre:</strong> <span id="stock-detail-name">-</span></p>
+            <p><strong>Codigo:</strong> <span id="stock-detail-barcode">-</span></p>
+            <p><strong>Categoria:</strong> <span id="stock-detail-category">-</span></p>
+            <p><strong>Precio Venta:</strong> <span id="stock-detail-price">-</span></p>
+            <p id="cash-closures-profit-detalleBuy"><strong>Precio Compra:</strong> <span id="stock-detail-buy">-</span></p>
+            <p><strong>Stock:</strong> <span id="stock-detail-stock">-</span></p>
+          </div>
+          <div id="stock-detail-edit-actions" class="stock-detail-actions hidden">
+            <button id="stock-detail-edit-btn" type="button" class="mode-btn-secondary">Editar</button>
+          </div>
+          <form id="stock-detail-edit-form" class="stock-detail-edit-form hidden">
+            <label for="stock-detail-edit-name">Nombre del producto</label>
+            <input id="stock-detail-edit-name" type="text" maxlength="120" required>
+            <label for="stock-detail-edit-stock">Stock</label>
+            <input id="stock-detail-edit-stock" type="number" min="0" step="1" required>
+            <label for="stock-detail-edit-price">Precio de venta</label>
+            <input id="stock-detail-edit-price" type="number" min="0" step="0.01" required>
+            <label for="stock-detail-edit-provider-cost">Precio de compra</label>
+            <input id="stock-detail-edit-provider-cost" type="number" min="0" step="0.01" required>
+            <label for="stock-detail-edit-category">Categoria</label>
+            <select id="stock-detail-edit-category" required>
+              <option value="">Selecciona una categoria</option>
+            </select>
+            <div class="stock-detail-edit-submit-wrap">
+              <button id="stock-detail-save-btn" type="submit">Guardar cambios</button>
+            </div>
+          </form>
         </aside>
+        <p id="stock-detail-toast" class="stock-detail-toast hidden" aria-live="polite">cambios guardados</p>
       </section>
 
       <section id="cash-panel" class="panel hidden">

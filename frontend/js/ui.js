@@ -278,6 +278,9 @@ export function renderStockDetail(product) {
   dom.stockDetailBarcode.textContent = String(product.barcode || "-");
   dom.stockDetailCategory.textContent = String(product.category || "Sin categoria");
   dom.stockDetailPrice.textContent = `$${Number(product.price || 0).toFixed(2)}`;
+  if (dom.stockDetailBuy) {
+    dom.stockDetailBuy.textContent = `$${Number(product.providerCost || 0).toFixed(2)}`;
+  }
   dom.stockDetailStock.textContent = String(Number(product.stock || 0));
   dom.stockDetailPanel.classList.remove("hidden");
 }
