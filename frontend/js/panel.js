@@ -885,8 +885,9 @@ async function handleConfirmSalePayment() {
   await refreshCashPanel();
   window.setTimeout(() => {
     dom.salePaymentToast?.classList.add("hidden");
-    closeSalePaymentOverlay();
+  
     salePaymentSubmitting = false;
+      closeSalePaymentOverlay();
   }, 2400);
 }
 
