@@ -4,11 +4,13 @@ const { requireTenantMemberContext } = require("./shared/authz");
 const syncProducts = onCall(async (request) => {
   const { tenantId, role, caller } = await requireTenantMemberContext(request);
   const normalizedRole = String(role || caller?.role || "").trim().toLowerCase();
-  const canCreateProducts =
+  const canSyncProducts =
     normalizedRole === "empleador" ||
     caller?.canCreateProducts === true ||
-    caller?.puedeCrearProductos === true;
-  if (!canCreateProducts) {
+    caller?.puedeCrearProductos === true ||
+    caller?.canEditProducts === true ||
+    caller?.puedeEditarProductos === true;
+  if (!canSyncProducts) {
     throw new HttpsError("permission-denied", "No tienes permisos para sincronizar productos.");
   }
 

@@ -98,6 +98,39 @@ export async function updateEmployeeCreateProductsPermission(uidEmpleado, puedeC
   }
 }
 
+export async function updateEmployeeEditProductsPermission(uidEmpleado, puedeEditarProductos) {
+  const uid = String(uidEmpleado || "").trim();
+  if (!uid) {
+    return { ok: false, error: "Empleado invalido." };
+  }
+  if (typeof puedeEditarProductos !== "boolean") {
+    return { ok: false, error: "Permiso invalido." };
+  }
+
+  await ensureFirebaseAuth();
+  if (!firebaseAuth.currentUser) {
+    return { ok: false, error: "No hay sesion valida. Vuelve a iniciar sesion." };
+  }
+  const profileResult = await ensureCurrentUserProfile();
+  if (!profileResult.ok) {
+    return { ok: false, error: profileResult.error || "No se pudo validar tu perfil." };
+  }
+
+  try {
+    const result = await updateEmpleadoProductoPermissionCallable({ uidEmpleado: uid, puedeEditarProductos });
+    return {
+      ok: true,
+      data: result?.data || null
+    };
+  } catch (error) {
+    const message = mapPermissionCallableError(error);
+    return {
+      ok: false,
+      error: message
+    };
+  }
+}
+
 function normalizePayload(values) {
   const displayName = String(values?.displayName || "").trim();
   const email = String(values?.email || "").trim().toLowerCase();

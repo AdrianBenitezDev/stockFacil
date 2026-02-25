@@ -205,8 +205,8 @@ export async function updateProductStock(productId, newStockInput) {
   if (!session) {
     return { ok: false, error: "Sesion expirada. Inicia sesion nuevamente.", requiresLogin: true };
   }
-  if (!isEmployerRole(session.role)) {
-    return { ok: false, error: "Solo el empleador puede editar stock." };
+  if (!canEditProducts(session)) {
+    return { ok: false, error: "No tienes permisos para editar stock." };
   }
 
   const newStock = Number(newStockInput);
@@ -246,8 +246,8 @@ export async function updateProductDetails(productId, detailsInput) {
   if (!session) {
     return { ok: false, error: "Sesion expirada. Inicia sesion nuevamente.", requiresLogin: true };
   }
-  if (!isEmployerRole(session.role)) {
-    return { ok: false, error: "Solo el empleador puede editar productos." };
+  if (!canEditProducts(session)) {
+    return { ok: false, error: "No tienes permisos para editar productos." };
   }
 
   const nextName = String(detailsInput?.name || "").trim();
@@ -519,6 +519,12 @@ function canCreateProducts(session) {
   if (!session) return false;
   if (isEmployerRole(session.role)) return true;
   return session.canCreateProducts === true || session.puedeCrearProductos === true;
+}
+
+function canEditProducts(session) {
+  if (!session) return false;
+  if (isEmployerRole(session.role)) return true;
+  return session.canEditProducts === true || session.puedeEditarProductos === true;
 }
 
 async function canUseCloudNow() {

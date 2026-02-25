@@ -6,12 +6,26 @@ const updateEmpleadoProductoPermission = onCall(async (request) => {
 
   const uidEmpleado = String(request.data?.uidEmpleado || "").trim();
   const puedeCrearProductos = request.data?.puedeCrearProductos;
+  const puedeEditarProductos = request.data?.puedeEditarProductos;
 
   if (!uidEmpleado) {
     throw new HttpsError("invalid-argument", "Falta uidEmpleado.");
   }
-  if (typeof puedeCrearProductos !== "boolean") {
-    throw new HttpsError("invalid-argument", "puedeCrearProductos debe ser boolean.");
+  const updates = {};
+  if (typeof puedeCrearProductos !== "undefined") {
+    if (typeof puedeCrearProductos !== "boolean") {
+      throw new HttpsError("invalid-argument", "puedeCrearProductos debe ser boolean.");
+    }
+    updates.puedeCrearProductos = puedeCrearProductos;
+  }
+  if (typeof puedeEditarProductos !== "undefined") {
+    if (typeof puedeEditarProductos !== "boolean") {
+      throw new HttpsError("invalid-argument", "puedeEditarProductos debe ser boolean.");
+    }
+    updates.puedeEditarProductos = puedeEditarProductos;
+  }
+  if (Object.keys(updates).length === 0) {
+    throw new HttpsError("invalid-argument", "Debes enviar al menos un permiso a actualizar.");
   }
 
   const empleadoRef = db.collection("empleados").doc(uidEmpleado);
@@ -29,7 +43,7 @@ const updateEmpleadoProductoPermission = onCall(async (request) => {
   const now = Timestamp.now();
   const batch = db.batch();
   batch.update(empleadoRef, {
-    puedeCrearProductos,
+    ...updates,
     updatedAt: now
   });
 
@@ -37,7 +51,7 @@ const updateEmpleadoProductoPermission = onCall(async (request) => {
   const legacySnap = await legacyRef.get();
   if (legacySnap.exists) {
     batch.update(legacyRef, {
-      puedeCrearProductos,
+      ...updates,
       updatedAt: now
     });
   }
@@ -47,11 +61,10 @@ const updateEmpleadoProductoPermission = onCall(async (request) => {
   return {
     ok: true,
     uidEmpleado,
-    puedeCrearProductos
+    ...updates
   };
 });
 
 module.exports = {
   updateEmpleadoProductoPermission
 };
-

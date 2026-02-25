@@ -97,7 +97,7 @@ export function renderStockCategoryOptions(categories) {
   dom.stockCategoryFilter.innerHTML = options.join("");
 }
 
-export function renderStockTable(products, { canEditStock = false } = {}) {
+export function renderStockTable(products, { canEditStock = false, canDeleteStock = false } = {}) {
   if (products.length === 0) {
     dom.stockTableBody.innerHTML = '<tr><td colspan="4">Sin productos cargados.</td></tr>';
     return;
@@ -116,9 +116,11 @@ export function renderStockTable(products, { canEditStock = false } = {}) {
             `<button type="button" class="stock-save-btn" data-save-stock-id="${escapeHtml(
               product.id
             )}">Guardar</button>`,
-            `<button type="button" class="stock-delete-btn" data-delete-stock-id="${escapeHtml(
-              product.id
-            )}">${iconWithLabel(ICON_TRASH_SVG, "Eliminar")}</button>`,
+            canDeleteStock
+              ? `<button type="button" class="stock-delete-btn" data-delete-stock-id="${escapeHtml(
+                  product.id
+                )}">${iconWithLabel(ICON_TRASH_SVG, "Eliminar")}</button>`
+              : "",
             "</div>"
           ].join("")
         : '<span class="subtitle">Solo empleador</span>';

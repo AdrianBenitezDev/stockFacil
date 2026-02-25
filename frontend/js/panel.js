@@ -53,7 +53,8 @@ import {
 import {
   createEmployeeViaCallable,
   deleteEmployeeViaCallable,
-  updateEmployeeCreateProductsPermission
+  updateEmployeeCreateProductsPermission,
+  updateEmployeeEditProductsPermission
 } from "./employees.js";
 
 const currentSaleItems = [];
@@ -226,7 +227,7 @@ function wireEvents() {
   dom.floatingSyncBtn?.addEventListener("click", handleFloatingSyncClick);
   dom.floatingStockSaveBtn?.addEventListener("click", handleFloatingStockSaveClick);
   dom.employeeListTableBody?.addEventListener("click", handleDeleteEmployeeClick);
-  dom.employeeListTableBody?.addEventListener("change", handleToggleEmployeeCreateProducts);
+  dom.employeeListTableBody?.addEventListener("change", handleToggleEmployeeProductPermissions);
   window.addEventListener("online", handleOnlineReconnection);
   window.addEventListener("offline", handleOfflineDetected);
   window.addEventListener("keydown", handleSalePaymentOverlayKeydown);
@@ -432,7 +433,7 @@ async function refreshEmployeesPanel() {
   if (!dom.employeeListTableBody) return;
   if (!currentUser || currentUser.role !== "empleador") return;
 
-  dom.employeeListTableBody.innerHTML = '<tr><td colspan="6">Cargando empleados...</td></tr>';
+  dom.employeeListTableBody.innerHTML = '<tr><td colspan="7">Cargando empleados...</td></tr>';
   try {
     const q = query(
       collection(firestoreDb, "empleados"),
@@ -443,7 +444,7 @@ async function refreshEmployeesPanel() {
     rows.sort((a, b) => formatDateValue(b.createdAt) - formatDateValue(a.createdAt));
 
     if (!rows.length) {
-      dom.employeeListTableBody.innerHTML = '<tr><td colspan="6">No hay empleados registrados.</td></tr>';
+      dom.employeeListTableBody.innerHTML = '<tr><td colspan="7">No hay empleados registrados.</td></tr>';
       return;
     }
 
@@ -453,15 +454,18 @@ async function refreshEmployeesPanel() {
         const email = escapeHtml(employee.email || "-");
         const verified = employee.emailVerified === true || employee.correoVerificado === true ? "Si" : "No";
         const canCreateProducts = employee.puedeCrearProductos === true;
+        const canEditProducts = employee.puedeEditarProductos === true;
         const created = escapeHtml(formatDateForTable(employee.createdAt));
         const uid = escapeHtml(employee.uid || employee.id || "");
-        const toggleId = `employee-create-products-${uid}`;
+        const createToggleId = `employee-create-products-${uid}`;
+        const editToggleId = `employee-edit-products-${uid}`;
         return [
           "<tr>",
           `<td>${name}</td>`,
           `<td>${email}</td>`,
           `<td>${verified}</td>`,
-          `<td><input id="${toggleId}" type="checkbox" data-toggle-create-products-id="${uid}" ${canCreateProducts ? "checked" : ""}></td>`,
+          `<td><input id="${createToggleId}" type="checkbox" data-toggle-create-products-id="${uid}" ${canCreateProducts ? "checked" : ""}></td>`,
+          `<td><input id="${editToggleId}" type="checkbox" data-toggle-edit-products-id="${uid}" ${canEditProducts ? "checked" : ""}></td>`,
           `<td>${created}</td>`,
           `<td><button type="button" class="stock-delete-btn icon-only-btn" data-delete-employee-id="${uid}" title="Eliminar empleado" aria-label="Eliminar empleado">${iconOnly(ICON_TRASH_SVG)}</button></td>`,
           "</tr>"
@@ -471,32 +475,41 @@ async function refreshEmployeesPanel() {
   } catch (error) {
     console.error("No se pudo cargar listado de empleados:", error);
     dom.employeeListTableBody.innerHTML =
-      '<tr><td colspan="6">No se pudo cargar empleados. Verifica permisos y reglas.</td></tr>';
+      '<tr><td colspan="7">No se pudo cargar empleados. Verifica permisos y reglas.</td></tr>';
   }
 }
 
-async function handleToggleEmployeeCreateProducts(event) {
-  const input = event.target.closest("[data-toggle-create-products-id]");
+async function handleToggleEmployeeProductPermissions(event) {
+  const input = event.target.closest("[data-toggle-create-products-id], [data-toggle-edit-products-id]");
   if (!input) return;
 
-  const uidEmpleado = String(input.getAttribute("data-toggle-create-products-id") || "").trim();
+  const uidEmpleado = String(
+    input.getAttribute("data-toggle-create-products-id") || input.getAttribute("data-toggle-edit-products-id") || ""
+  ).trim();
   if (!uidEmpleado) return;
 
   const nextValue = Boolean(input.checked);
+  const isCreatePermissionToggle = input.hasAttribute("data-toggle-create-products-id");
   input.disabled = true;
   clearEmployeeFeedback();
 
   try {
-    const result = await updateEmployeeCreateProductsPermission(uidEmpleado, nextValue);
+    const result = isCreatePermissionToggle
+      ? await updateEmployeeCreateProductsPermission(uidEmpleado, nextValue)
+      : await updateEmployeeEditProductsPermission(uidEmpleado, nextValue);
     if (!result.ok) {
       input.checked = !nextValue;
       setEmployeeFeedback(result.error);
       return;
     }
     setEmployeeFeedback(
-      nextValue
-        ? "Permiso activado: el empleado ya puede crear productos."
-        : "Permiso removido: el empleado ya no puede crear productos.",
+      isCreatePermissionToggle
+        ? nextValue
+          ? "Permiso activado: el empleado ya puede crear productos."
+          : "Permiso removido: el empleado ya no puede crear productos."
+        : nextValue
+          ? "Permiso activado: el empleado ya puede editar productos."
+          : "Permiso removido: el empleado ya no puede editar productos.",
       "success"
     );
   } finally {
@@ -557,7 +570,7 @@ async function handleBarcodeEnterOnAddProduct(event) {
 async function refreshStock() {
   pendingStockChanges.clear();
   pendingStockValues.clear();
-  if (!isEmployerRole(currentUser?.role)) {
+  if (!canCurrentUserEditProducts()) {
     await syncProductsFromCloudForCurrentKiosco();
   }
   allStockProducts = await listProductsForCurrentKiosco();
@@ -576,7 +589,10 @@ function applyStockFilters() {
   });
 
   const visibleRows = filtered.slice(0, 10);
-  renderStockTable(visibleRows, { canEditStock: isEmployerRole(currentUser?.role) });
+  renderStockTable(visibleRows, {
+    canEditStock: canCurrentUserEditProducts(),
+    canDeleteStock: isEmployerRole(currentUser?.role)
+  });
   wireStockRowEvents();
   updateStockBulkSaveButtonState();
 
@@ -600,7 +616,7 @@ function renderStockDetailEditCategoryOptions() {
 
 function renderStockDetailWithEditorState(product) {
   renderStockDetail(product);
-  const canEditDetail = isEmployerRole(currentUser?.role) && Boolean(product);
+  const canEditDetail = canCurrentUserEditProducts() && Boolean(product);
   dom.stockDetailReadonly?.classList.toggle("hidden", !Boolean(product));
   dom.stockDetailEditActions?.classList.toggle("hidden", !canEditDetail);
   if (!product) {
@@ -625,8 +641,8 @@ function populateStockDetailEditForm(product) {
 }
 
 function handleStockDetailEditClick() {
-  if (!isEmployerRole(currentUser?.role)) {
-    setStockFeedback("Solo el empleador puede editar productos.");
+  if (!canCurrentUserEditProducts()) {
+    setStockFeedback("No tienes permisos para editar productos.");
     return;
   }
   if (!selectedStockProductId) {
@@ -646,8 +662,8 @@ function handleStockDetailEditClick() {
 
 async function handleStockDetailEditSubmit(event) {
   event.preventDefault();
-  if (!isEmployerRole(currentUser?.role)) {
-    setStockFeedback("Solo el empleador puede editar productos.");
+  if (!canCurrentUserEditProducts()) {
+    setStockFeedback("No tienes permisos para editar productos.");
     return;
   }
   if (!selectedStockProductId) {
@@ -1411,7 +1427,7 @@ function wireStockRowEvents() {
 
 async function handleFloatingStockSaveClick() {
   if (stockBulkSaveInProgress) return;
-  if (!isEmployerRole(currentUser?.role)) return;
+  if (!canCurrentUserEditProducts()) return;
 
   const pendingIds = [...pendingStockChanges];
   if (pendingIds.length === 0) {
@@ -1557,7 +1573,7 @@ function syncPendingStockChangeState(productId, rawStockValue) {
 function updateStockBulkSaveButtonState(explicitMode = "") {
   if (!dom.floatingStockSaveBtn) return;
   const currentMode = explicitMode || getCurrentMode();
-  const canShow = isEmployerRole(currentUser?.role) && currentMode === "stock";
+  const canShow = canCurrentUserEditProducts() && currentMode === "stock";
   dom.floatingStockSaveBtn.classList.toggle("hidden", !canShow);
   if (!canShow) return;
 
@@ -1667,6 +1683,12 @@ function canCurrentUserCreateProducts() {
   if (!currentUser) return false;
   if (isEmployerRole(currentUser.role)) return true;
   return currentUser.canCreateProducts === true || currentUser.puedeCrearProductos === true;
+}
+
+function canCurrentUserEditProducts() {
+  if (!currentUser) return false;
+  if (isEmployerRole(currentUser.role)) return true;
+  return currentUser.canEditProducts === true || currentUser.puedeEditarProductos === true;
 }
 
 function loadUiModePreference() {

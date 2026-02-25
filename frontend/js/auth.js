@@ -224,6 +224,10 @@ export async function ensureCurrentUserProfile() {
     role === "empleador"
       ? true
       : profile.puedeCrearProductos === true || String(profile.puedeCrearProductos || "").toLowerCase() === "true";
+  const canEditProducts =
+    role === "empleador"
+      ? true
+      : profile.puedeEditarProductos === true || String(profile.puedeEditarProductos || "").toLowerCase() === "true";
 
   currentSession = {
     userId: authUser.uid,
@@ -238,6 +242,8 @@ export async function ensureCurrentUserProfile() {
     correoVerificado: role === "empleado" ? authUser.emailVerified === true : profile.correoVerificado === true,
     puedeCrearProductos: canCreateProducts,
     canCreateProducts,
+    puedeEditarProductos: canEditProducts,
+    canEditProducts,
     planActual: String(profile.plan || profile.planId || profile.planActual || "").trim().toLowerCase() || "prueba",
     username: profile.username || authUser.email || authUser.uid,
     loggedAt: new Date().toISOString()
