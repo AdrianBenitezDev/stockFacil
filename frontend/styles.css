@@ -673,7 +673,7 @@ td {
 }
 
 #stock-table-body tr[data-stock-row-id]:hover {
-  background: #37a364;
+  background: #61a77e;
 }
 
 thead th {
