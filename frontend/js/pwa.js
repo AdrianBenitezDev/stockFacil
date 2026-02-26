@@ -10,6 +10,14 @@ function isIos() {
   return /iphone|ipad|ipod/i.test(ua);
 }
 
+function isMobileBrowser() {
+  const ua = window.navigator.userAgent || "";
+  const mobileUa = /android|iphone|ipad|ipod|mobile/i.test(ua);
+  const coarsePointer = window.matchMedia("(pointer: coarse)").matches;
+  const narrowViewport = window.matchMedia("(max-width: 820px)").matches;
+  return mobileUa || (coarsePointer && narrowViewport);
+}
+
 function ensureInstallButton() {
   if (installButton) return installButton;
   installButton = document.createElement("button");
@@ -24,11 +32,9 @@ function ensureInstallButton() {
 
 function updateInstallButtonVisibility() {
   const button = ensureInstallButton();
-  if (isStandaloneMode()) {
-    button.classList.add("hidden");
-    return;
-  }
-  button.classList.remove("hidden");
+  const shouldShow = isMobileBrowser() && !isStandaloneMode();
+  button.classList.toggle("hidden", !shouldShow);
+  button.classList.toggle("is-active", shouldShow);
 }
 
 function showManualInstallHelp() {
@@ -70,6 +76,9 @@ document.addEventListener("DOMContentLoaded", () => {
   ensureInstallButton();
   updateInstallButtonVisibility();
 });
+
+window.addEventListener("resize", updateInstallButtonVisibility);
+window.addEventListener("orientationchange", updateInstallButtonVisibility);
 
 window.addEventListener("beforeinstallprompt", (event) => {
   event.preventDefault();

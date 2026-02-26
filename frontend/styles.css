@@ -1202,13 +1202,18 @@ button:disabled {
 
 .install-app-btn {
   position: fixed;
-  top: 76px;
-  right: 16px;
+  top: 66px;
+  left: 50%;
+  transform: translateX(-50%);
   z-index: 97;
   margin: 0;
   border-radius: 999px;
-  padding: 0.6rem 0.85rem;
+  padding: 0.54rem 0.82rem;
   box-shadow: 0 10px 22px rgba(15, 23, 42, 0.24);
+}
+
+.install-app-btn:not(.is-active) {
+  display: none;
 }
 .site-footer {
   width: 100%;
@@ -1263,6 +1268,12 @@ button:disabled {
     width: calc(100% - 1rem);
     max-width: 460px;
     border-radius: 12px;
+  }
+
+  .install-app-btn {
+    top: 58px;
+    width: fit-content;
+    max-width: calc(100% - 1rem);
   }
 
   .floating-sync-btn {
