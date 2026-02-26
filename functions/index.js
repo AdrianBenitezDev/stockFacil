@@ -17,6 +17,8 @@ const { adminGetUsersOverview } = require("./src/adminGetUsersOverview");
 const { adminManagePlans } = require("./src/adminManagePlans");
 const { adminManageAccounts } = require("./src/adminManageAccounts");
 const { adminManageProducts } = require("./src/adminManageProducts");
+const { adminManageSales } = require("./src/adminManageSales");
+const { adminManageCashboxes } = require("./src/adminManageCashboxes");
 
 exports.seedPlanes = seedPlanes;
 
@@ -38,3 +40,5 @@ exports.adminGetUsersOverview = adminGetUsersOverview;
 exports.adminManagePlans = adminManagePlans;
 exports.adminManageAccounts = adminManageAccounts;
 exports.adminManageProducts = adminManageProducts;
+exports.adminManageSales = adminManageSales;
+exports.adminManageCashboxes = adminManageCashboxes;

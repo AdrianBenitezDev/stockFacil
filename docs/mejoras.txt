@@ -5,3 +5,5 @@ encuentra el la seccion configuraciones
 
 2.cuando se crea un producto en la seccion "nuevo producto" el precio de compra
  no puede ser superior al preci de venta
+
+ 3. el empleador puede eliminar ventas
