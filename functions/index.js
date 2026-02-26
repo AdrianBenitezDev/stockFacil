@@ -16,6 +16,7 @@ const { updateEmpleadoProductoPermission } = require("./src/updateEmpleadoProduc
 const { adminGetUsersOverview } = require("./src/adminGetUsersOverview");
 const { adminManagePlans } = require("./src/adminManagePlans");
 const { adminManageAccounts } = require("./src/adminManageAccounts");
+const { adminManageProducts } = require("./src/adminManageProducts");
 
 exports.seedPlanes = seedPlanes;
 
@@ -36,3 +37,4 @@ exports.updateEmpleadoProductoPermission = updateEmpleadoProductoPermission;
 exports.adminGetUsersOverview = adminGetUsersOverview;
 exports.adminManagePlans = adminManagePlans;
 exports.adminManageAccounts = adminManageAccounts;
+exports.adminManageProducts = adminManageProducts;
