@@ -1,0 +1,20 @@
+{
+  "name": "StockFacil",
+  "short_name": "StockFacil",
+  "description": "Gestion de stock, ventas y caja diaria para kioscos y comercios.",
+  "start_url": "/index.html",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#f4f6fb",
+  "theme_color": "#0f766e",
+  "lang": "es-AR",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
