@@ -5,6 +5,11 @@ function isStandaloneMode() {
   return window.matchMedia("(display-mode: standalone)").matches || window.navigator.standalone === true;
 }
 
+function isIos() {
+  const ua = window.navigator.userAgent || "";
+  return /iphone|ipad|ipod/i.test(ua);
+}
+
 function ensureInstallButton() {
   if (installButton) return installButton;
   installButton = document.createElement("button");
@@ -19,12 +24,27 @@ function ensureInstallButton() {
 
 function updateInstallButtonVisibility() {
   const button = ensureInstallButton();
-  const canShow = Boolean(deferredInstallPrompt) && !isStandaloneMode();
-  button.classList.toggle("hidden", !canShow);
+  if (isStandaloneMode()) {
+    button.classList.add("hidden");
+    return;
+  }
+  button.classList.remove("hidden");
+}
+
+function showManualInstallHelp() {
+  if (isIos()) {
+    window.alert("Para instalar en iPhone: toca Compartir y luego 'Agregar a pantalla de inicio'.");
+    return;
+  }
+  window.alert("Para instalar: abre el menu del navegador y elige 'Instalar app' o 'Agregar a pantalla de inicio'.");
 }
 
 async function handleInstallClick() {
-  if (!deferredInstallPrompt) return;
+  if (!deferredInstallPrompt) {
+    showManualInstallHelp();
+    return;
+  }
+
   deferredInstallPrompt.prompt();
   try {
     await deferredInstallPrompt.userChoice;
