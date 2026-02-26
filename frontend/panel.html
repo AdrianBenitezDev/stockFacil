@@ -1,4 +1,4 @@
-﻿<!doctype html>
+<!doctype html>
 <html lang="es">
 <head>
   <meta charset="utf-8">
@@ -183,10 +183,11 @@
           <label for="product-stock">Stock inicial</label>
           <input id="product-stock" name="stock" type="number" min="0" step="1" required>
 
-          <button type="submit">Guardar producto</button>
+          <button id="create-product-btn" type="submit" class="add-product-submit-btn">Crear producto</button>
           <button id="sync-products-btn" type="button" class="mode-btn-secondary">Sincronizar productos</button>
         </form>
         <p id="product-feedback" class="feedback" aria-live="polite"></p>
+        <p id="add-product-toast" class="add-product-toast hidden" aria-live="polite"></p>
 
       </section>
 
@@ -449,3 +450,4 @@
   <script type="module" src="js/panel.js"></script>
 </body>
 </html>
+

@@ -89,6 +89,7 @@ let cashClosuresSectionVisible = true;
 let startupOverlayHidden = false;
 let stockBulkSaveInProgress = false;
 let stockDetailToastTimer = null;
+let addProductToastTimer = null;
 const pendingStockChanges = new Set();
 const pendingStockValues = new Map();
 let uiModeToastTimer = null;
@@ -245,20 +246,45 @@ async function handleAddProductSubmit(event) {
   event.preventDefault();
   clearProductFeedback();
 
-  const result = await createProduct(new FormData(dom.addProductForm));
-  if (!result.ok) {
-    setProductFeedbackError(result.error);
-    if (result.requiresLogin) {
-      redirectToLogin();
-    }
-    return;
+  const submitBtn = dom.addProductSubmitBtn;
+  const originalLabel = submitBtn?.textContent || "Crear producto";
+  if (submitBtn) {
+    submitBtn.disabled = true;
+    submitBtn.classList.add("is-loading");
+    submitBtn.setAttribute("aria-busy", "true");
+    submitBtn.textContent = "Creando...";
   }
 
-  dom.addProductForm.reset();
-  renderCategoryOptions(PRODUCT_CATEGORIES);
-  setProductFeedbackSuccess(result.message);
-  focusBarcodeInputIfDesktop();
-  await refreshStock();
+  try {
+    const result = await createProduct(new FormData(dom.addProductForm));
+    if (!result.ok) {
+      setProductFeedbackError(result.error);
+      showAddProductToast(result.error || "No se pudo crear el producto.", "error");
+      if (result.requiresLogin) {
+        redirectToLogin();
+      }
+      return;
+    }
+
+    dom.addProductForm.reset();
+    renderCategoryOptions(PRODUCT_CATEGORIES);
+    setProductFeedbackSuccess(result.message);
+    showAddProductToast(result.message || "Producto creado correctamente.", "success");
+    focusBarcodeInputIfDesktop();
+    await refreshStock();
+  } catch (error) {
+    console.error(error);
+    const fallbackMessage = "No se pudo crear el producto. Intenta nuevamente.";
+    setProductFeedbackError(fallbackMessage);
+    showAddProductToast(fallbackMessage, "error");
+  } finally {
+    if (submitBtn) {
+      submitBtn.disabled = false;
+      submitBtn.classList.remove("is-loading");
+      submitBtn.removeAttribute("aria-busy");
+      submitBtn.textContent = originalLabel;
+    }
+  }
 }
 
 async function handleManualProductsSync() {
@@ -716,6 +742,29 @@ function showStockDetailToast(message) {
       dom.stockDetailToast?.classList.add("hidden");
     }, 240);
   }, 1800);
+}
+
+function showAddProductToast(message, tone = "success") {
+  if (!dom.addProductToast) return;
+  dom.addProductToast.textContent = message;
+  dom.addProductToast.classList.remove(
+    "hidden",
+    "add-product-toast--success",
+    "add-product-toast--error"
+  );
+  dom.addProductToast.classList.add(
+    tone === "error" ? "add-product-toast--error" : "add-product-toast--success"
+  );
+  dom.addProductToast.classList.add("is-visible");
+  if (addProductToastTimer) {
+    window.clearTimeout(addProductToastTimer);
+  }
+  addProductToastTimer = window.setTimeout(() => {
+    dom.addProductToast?.classList.remove("is-visible");
+    window.setTimeout(() => {
+      dom.addProductToast?.classList.add("hidden");
+    }, 220);
+  }, 2200);
 }
 
 async function switchMode(mode) {
@@ -1979,3 +2028,4 @@ function normalizeDate(value) {
   const date = new Date(value);
   return Number.isNaN(date.getTime()) ? null : date;
 }
+

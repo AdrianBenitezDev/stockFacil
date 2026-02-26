@@ -17,6 +17,8 @@ export const dom = {
   cashPanel: document.getElementById("cash-panel"),
   configPanel: document.getElementById("config-panel"),
   addProductForm: document.getElementById("add-product-form"),
+  addProductSubmitBtn: document.getElementById("create-product-btn"),
+  addProductToast: document.getElementById("add-product-toast"),
   syncProductsBtn: document.getElementById("sync-products-btn"),
   barcodeInput: document.getElementById("barcode"),
   productNameInput: document.getElementById("product-name"),
@@ -121,3 +123,4 @@ export const dom = {
   cashSalesTableBody: document.getElementById("cash-sales-table-body"),
   cashClosuresTableBody: document.getElementById("cash-closures-table-body")
 };
+

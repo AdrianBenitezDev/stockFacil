@@ -1,4 +1,4 @@
-﻿:root {
+:root {
   --bg: #f4f6fb;
   --card: #ffffff;
   --text: #1f2937;
@@ -492,6 +492,37 @@ button {
   align-items: center;
   justify-content: center;
   gap: 0.35rem;
+}
+
+.add-product-submit-btn {
+  position: relative;
+  min-width: 170px;
+}
+
+.add-product-submit-btn.is-loading {
+  pointer-events: none;
+  opacity: 0.9;
+  padding-left: 2rem;
+}
+
+.add-product-submit-btn.is-loading::before {
+  content: "";
+  position: absolute;
+  left: 0.72rem;
+  top: 50%;
+  width: 0.78rem;
+  height: 0.78rem;
+  margin-top: -0.39rem;
+  border: 2px solid rgba(255, 255, 255, 0.55);
+  border-top-color: #ffffff;
+  border-radius: 50%;
+  animation: spin-add-product-btn 0.8s linear infinite;
+}
+
+@keyframes spin-add-product-btn {
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .btn-with-icon {
@@ -1017,6 +1048,35 @@ thead th {
   transform: translate(-50%, 0);
 }
 
+.add-product-toast {
+  position: fixed;
+  left: 50%;
+  bottom: 22px;
+  transform: translate(-50%, 10px);
+  z-index: 140;
+  margin: 0;
+  padding: 0.52rem 0.85rem;
+  border-radius: 999px;
+  border: 1px solid #86efac;
+  background: rgba(21, 128, 61, 0.96);
+  color: #ffffff;
+  font-size: 0.85rem;
+  font-weight: 700;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.22s ease, transform 0.22s ease;
+}
+
+.add-product-toast.add-product-toast--error {
+  border-color: #fecaca;
+  background: rgba(185, 28, 28, 0.96);
+}
+
+.add-product-toast.is-visible {
+  opacity: 1;
+  transform: translate(-50%, 0);
+}
+
 .cash-summary {
   display: grid;
   grid-template-columns: repeat(5, minmax(0, 1fr));
@@ -1413,3 +1473,4 @@ button:disabled {
     font-size: 0.8rem;
   }
 }
+
