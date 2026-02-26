@@ -1,4 +1,4 @@
-:root {
+﻿:root {
   --bg: #f4f6fb;
   --card: #ffffff;
   --text: #1f2937;
@@ -673,7 +673,7 @@ td {
 }
 
 #stock-table-body tr[data-stock-row-id]:hover {
-  background: #f8fafc;
+  background: #37a364;
 }
 
 thead th {
