@@ -342,7 +342,13 @@ async function loadScopedOpenSales(session, { scope = "all" } = {}) {
         scope: effectiveScope,
         sessionRole: session?.role
       });
-      if (cloudSales.length > 0) return { sales: cloudSales };
+      await reconcileSyncedOpenSalesWithCloud({
+        tenantId: session.tenantId,
+        sessionUserId: session.userId,
+        effectiveScope,
+        cloudSales
+      });
+      return { sales: cloudSales };
     } catch (error) {
       cloudError = error;
     }
@@ -352,6 +358,43 @@ async function loadScopedOpenSales(session, { scope = "all" } = {}) {
     return { sales: [], loadError: mapOpenCashSalesError(cloudError) };
   }
   return { sales: localSales };
+}
+
+async function reconcileSyncedOpenSalesWithCloud({
+  tenantId,
+  sessionUserId,
+  effectiveScope,
+  cloudSales
+}) {
+  const cloudSaleIds = new Set(
+    (Array.isArray(cloudSales) ? cloudSales : [])
+      .map((sale) => String(sale?.id || sale?.idVenta || "").trim())
+      .filter(Boolean)
+  );
+
+  const localSales = await getSalesByKiosco(tenantId);
+  const staleSyncedIds = localSales
+    .filter((sale) => {
+      if (sale?.synced !== true) return false;
+      if (sale?.cajaCerrada === true) return false;
+      if (!doesSaleMatchScope(sale, effectiveScope, sessionUserId)) return false;
+      const localId = String(sale?.id || sale?.idVenta || "").trim();
+      if (!localId) return false;
+      return !cloudSaleIds.has(localId);
+    })
+    .map((sale) => String(sale?.id || sale?.idVenta || "").trim())
+    .filter(Boolean);
+
+  if (staleSyncedIds.length === 0) return;
+  await deleteSalesAndItemsBySaleIds(staleSyncedIds);
+}
+
+function doesSaleMatchScope(sale, effectiveScope, sessionUserId) {
+  const saleUserId = String(sale?.userId || sale?.usuarioUid || "").trim();
+  const currentUserId = String(sessionUserId || "").trim();
+  if (effectiveScope === "all") return true;
+  if (effectiveScope === "others") return saleUserId !== currentUserId;
+  return saleUserId === currentUserId;
 }
 
 async function loadScopedOpenSalesFromCallable({ scope = "all", sessionRole = "" } = {}) {
