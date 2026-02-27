@@ -179,6 +179,7 @@ function buildLocalClosure({
   userId = "",
   username = "",
   role = "",
+  inicioCaja = 0,
   productosIncluidos = []
 }) {
   const resolvedScopeKey = String(scopeKey || "").trim() || getScopeKey(session);
@@ -197,6 +198,7 @@ function buildLocalClosure({
     totalAmount: Number(summary.totalAmount || 0),
     efectivoEntregar: Number(summary.efectivoAmount || 0),
     virtualEntregar: Number(summary.virtualAmount || 0),
+    inicioCaja: Number(inicioCaja || 0),
     totalCost: Number(summary.totalCost || 0),
     profitAmount: Number(summary.profitAmount || 0),
     GanaciaRealCaja: Number(summary.profitAmount || 0),
@@ -462,6 +464,7 @@ function normalizeCallableClosure(session, closure) {
     totalAmount: Number(closure?.totalAmount || 0),
     efectivoEntregar: Number(closure?.efectivoEntregar ?? closure?.efectivoEtregar ?? 0),
     virtualEntregar: Number(closure?.virtualEntregar ?? closure?.virtualEtregar ?? 0),
+    inicioCaja: Number(closure?.inicioCaja || 0),
     totalCost: Number(closure?.totalCost || 0),
     profitAmount: Number(closure?.profitAmount || 0),
     GanaciaRealCaja: Number(closure?.profitAmount || 0),

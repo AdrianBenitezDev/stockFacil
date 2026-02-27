@@ -228,6 +228,10 @@ export async function ensureCurrentUserProfile() {
     role === "empleador"
       ? true
       : profile.puedeEditarProductos === true || String(profile.puedeEditarProductos || "").toLowerCase() === "true";
+  const canViewStock =
+    role === "empleador"
+      ? true
+      : profile.puedeVerStock === true || String(profile.puedeVerStock || "").toLowerCase() === "true";
 
   currentSession = {
     userId: authUser.uid,
@@ -244,6 +248,8 @@ export async function ensureCurrentUserProfile() {
     canCreateProducts,
     puedeEditarProductos: canEditProducts,
     canEditProducts,
+    puedeVerStock: canViewStock,
+    canViewStock,
     planActual: String(profile.plan || profile.planId || profile.planActual || "").trim().toLowerCase() || "prueba",
     username: profile.username || authUser.email || authUser.uid,
     loggedAt: new Date().toISOString()

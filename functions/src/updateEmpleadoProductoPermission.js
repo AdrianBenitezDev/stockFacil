@@ -7,6 +7,7 @@ const updateEmpleadoProductoPermission = onCall(async (request) => {
   const uidEmpleado = String(request.data?.uidEmpleado || "").trim();
   const puedeCrearProductos = request.data?.puedeCrearProductos;
   const puedeEditarProductos = request.data?.puedeEditarProductos;
+  const puedeVerStock = request.data?.puedeVerStock;
 
   if (!uidEmpleado) {
     throw new HttpsError("invalid-argument", "Falta uidEmpleado.");
@@ -23,6 +24,12 @@ const updateEmpleadoProductoPermission = onCall(async (request) => {
       throw new HttpsError("invalid-argument", "puedeEditarProductos debe ser boolean.");
     }
     updates.puedeEditarProductos = puedeEditarProductos;
+  }
+  if (typeof puedeVerStock !== "undefined") {
+    if (typeof puedeVerStock !== "boolean") {
+      throw new HttpsError("invalid-argument", "puedeVerStock debe ser boolean.");
+    }
+    updates.puedeVerStock = puedeVerStock;
   }
   if (Object.keys(updates).length === 0) {
     throw new HttpsError("invalid-argument", "Debes enviar al menos un permiso a actualizar.");

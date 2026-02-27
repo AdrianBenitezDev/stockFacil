@@ -65,6 +65,7 @@ const crearEmpleado = onCall({ secrets: ["RESEND_API_KEY"] }, async (request) =>
       emailEmpleador: employerEmail,
       puedeCrearProductos: false,
       puedeEditarProductos: false,
+      puedeVerStock: true,
       createdAt: now,
       createdBy: callerUid,
       emailVerified: false

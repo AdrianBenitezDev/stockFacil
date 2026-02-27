@@ -40,6 +40,7 @@ const getRecentCashClosures = onCall(async (request) => {
       totalAmount: Number(row.total || row.totalCaja || 0),
       efectivoEntregar: Number(row.efectivoEntregar ?? row.efectivoEtregar ?? 0),
       virtualEntregar: Number(row.virtualEntregar ?? row.virtualEtregar ?? 0),
+      inicioCaja: Number(row.inicioCaja || 0),
       efectivoEtregar: Number(row.efectivoEtregar ?? row.efectivoEntregar ?? 0),
       virtualEtregar: Number(row.virtualEtregar ?? row.virtualEntregar ?? 0),
       totalCost: Number(row.totalCost || row.totalCosto || 0),

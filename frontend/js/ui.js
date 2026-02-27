@@ -99,7 +99,7 @@ export function renderStockCategoryOptions(categories) {
   dom.stockCategoryFilter.innerHTML = options.join("");
 }
 
-export function renderStockTable(products, { canEditStock = false, canDeleteStock = false } = {}) {
+export function renderStockTable(products, { canEditStock = false, canDeleteStock = false, canViewStock = true } = {}) {
   if (products.length === 0) {
     dom.stockTableBody.innerHTML = '<tr><td colspan="4">Sin productos cargados.</td></tr>';
     return;
@@ -126,15 +126,14 @@ export function renderStockTable(products, { canEditStock = false, canDeleteStoc
             "</div>"
           ].join("")
         : '<span class="subtitle">Solo empleador</span>';
-        
-        console.log(product)
+      const stockValue = canViewStock ? String(stock) : "**";
       return [
         `<tr class="${stockClass}" data-stock-row-id="${escapeHtml(product.id)}">`,
 
         `<td>${escapeHtml(product.name)}</td>`,
         `<td>$${Number(product.price || 0).toFixed(2)}</td>`,
         canEditStock ? `<td>$${Number(product.providerCost || 0).toFixed(2)}</td>` : "",
-        `<td>${stock}</td>`,
+        `<td>${stockValue}</td>`,
         `<td>${editCell}</td>`,
         "</tr>"
       ].join("");
@@ -287,7 +286,7 @@ export function clearStockFeedback() {
   dom.stockFeedback.textContent = "";
 }
 
-export function renderStockDetail(product) {
+export function renderStockDetail(product, { maskStock = false } = {}) {
   if (!product) {
     dom.stockDetailPanel.classList.add("hidden");
     return;
@@ -300,7 +299,7 @@ export function renderStockDetail(product) {
   if (dom.stockDetailBuy) {
     dom.stockDetailBuy.textContent = `$${Number(product.providerCost || 0).toFixed(2)}`;
   }
-  dom.stockDetailStock.textContent = String(Number(product.stock || 0));
+  dom.stockDetailStock.textContent = maskStock ? "**" : String(Number(product.stock || 0));
   dom.stockDetailPanel.classList.remove("hidden");
 }
 
@@ -316,7 +315,7 @@ export function renderCashClosureStatus(todayClosure) {
 }
 
 export function renderCashClosuresTable(closures, { canViewProfit = true, maskProfit = false, canManageRecords = false } = {}) {
-  const emptyColspan = canViewProfit ? 5 : 4;
+  const emptyColspan = canViewProfit ? 8 : 7;
   if (!closures || closures.length === 0) {
     dom.cashClosuresTableBody.innerHTML = `<tr><td colspan="${emptyColspan}">No hay cierres registrados.</td></tr>`;
     return;
@@ -345,6 +344,7 @@ export function renderCashClosuresTable(closures, { canViewProfit = true, maskPr
         `<td>$${Number(closure.totalAmount || 0).toFixed(2)}</td>`,
         `<td class="cash-split-cash">$${Number(closure.efectivoEntregar || 0).toFixed(2)}</td>`,
         `<td class="cash-split-virtual">$${Number(closure.virtualEntregar || 0).toFixed(2)}</td>`,
+        `<td class="cash-split-start">$${Number(closure.inicioCaja || 0).toFixed(2)}</td>`,
         ...(canViewProfit
           ? [`<td>${maskProfit ? "****" : `$${Number(closure.profitAmount || 0).toFixed(2)}`}</td>`]
           : []),
