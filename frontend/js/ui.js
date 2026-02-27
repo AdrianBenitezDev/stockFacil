@@ -14,8 +14,8 @@ const employeeToneByKey = new Map();
 let nextEmployeeToneIndex = 0;
 
 export function showAppShell(user) {
-  const role = String(user.role || "").trim().toLowerCase();
-  const isOwner = role === "empleador";
+  const role = String(user.role || user.tipo || "").trim().toLowerCase();
+  const isOwner = role === "empleador" || role === "dueno";
   const planLabel = String(user.planActual || "prueba").toUpperCase();
   dom.sessionInfo.textContent = `${user.displayName} (${user.role})`;
   dom.sessionEmail.textContent = user.email ? `${user.email}` : "****";

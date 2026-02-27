@@ -545,7 +545,13 @@ function resolveSaleCashAmount(sale) {
   if (tipo === "virtual") return 0;
   if (tipo === "mixto") {
     const mixedCash = Number(sale?.pagoEfectivo || 0);
-    if (Number.isFinite(mixedCash) && mixedCash >= 0) return mixedCash;
+    const mixedVirtual = Number(sale?.pagoVirtual || 0);
+    const cashValid = Number.isFinite(mixedCash) && mixedCash >= 0;
+    const virtualValid = Number.isFinite(mixedVirtual) && mixedVirtual >= 0;
+    if (cashValid && virtualValid && round2(mixedCash + mixedVirtual) === round2(total)) return mixedCash;
+    if (cashValid && mixedCash > 0 && mixedCash <= total) return mixedCash;
+    if (virtualValid && mixedVirtual > 0 && mixedVirtual <= total) return round2(total - mixedVirtual);
+    return total;
   }
   if (tipo === "efectivo") return total;
   const explicit = Number(sale?.pagoEfectivo || 0);
@@ -558,8 +564,14 @@ function resolveSaleVirtualAmount(sale) {
   const tipo = String(sale?.tipoPago || "").trim().toLowerCase();
   if (tipo === "efectivo") return 0;
   if (tipo === "mixto") {
+    const mixedCash = Number(sale?.pagoEfectivo || 0);
     const mixedVirtual = Number(sale?.pagoVirtual || 0);
-    if (Number.isFinite(mixedVirtual) && mixedVirtual >= 0) return mixedVirtual;
+    const cashValid = Number.isFinite(mixedCash) && mixedCash >= 0;
+    const virtualValid = Number.isFinite(mixedVirtual) && mixedVirtual >= 0;
+    if (cashValid && virtualValid && round2(mixedCash + mixedVirtual) === round2(total)) return mixedVirtual;
+    if (virtualValid && mixedVirtual > 0 && mixedVirtual <= total) return mixedVirtual;
+    if (cashValid && mixedCash > 0 && mixedCash <= total) return round2(total - mixedCash);
+    return 0;
   }
   if (tipo === "virtual") return total;
   const explicit = Number(sale?.pagoVirtual || 0);

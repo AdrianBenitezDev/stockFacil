@@ -129,6 +129,7 @@ async function init() {
   }
   currentUser = profileResult.user;
 
+  ensureCashOwnerActionsDom();
   showAppShell(currentUser);
   dom.syncProductsBtn?.classList.toggle("hidden", !canCurrentUserCreateProducts());
   updateStockBulkSaveButtonState();
@@ -144,6 +145,64 @@ async function init() {
   await runPostStartupRefreshes();
   wireEvents();
   initializeOfflineSyncBanner();
+}
+
+function ensureCashOwnerActionsDom() {
+  if (dom.cashOwnerActions && dom.closeMySalesBtn && dom.startEmployeeShiftBtn && dom.closeShiftBtn) return;
+  const cashActionBar = document.querySelector(".cash-action-bar");
+  const refreshBtn = dom.refreshCashBtn || document.getElementById("refresh-cash-btn");
+  if (!cashActionBar || !refreshBtn) return;
+
+  let ownerStack = document.getElementById("cash-owner-actions");
+  if (!ownerStack) {
+    ownerStack = document.createElement("div");
+    ownerStack.id = "cash-owner-actions";
+    ownerStack.className = "cash-owner-action-stack hidden";
+  }
+
+  if (!document.getElementById("close-my-sales-btn")) {
+    const row1 = document.createElement("div");
+    row1.className = "cash-owner-action-row";
+    const closeMySalesBtn = document.createElement("button");
+    closeMySalesBtn.id = "close-my-sales-btn";
+    closeMySalesBtn.type = "button";
+    closeMySalesBtn.className = "mode-btn-secondary";
+    closeMySalesBtn.textContent = "CERRAR MIS VENTAS";
+    row1.appendChild(closeMySalesBtn);
+    ownerStack.appendChild(row1);
+  }
+
+  const hasShiftRow = Array.from(ownerStack.querySelectorAll(".cash-owner-action-row button")).some(
+    (button) => button.id === "start-employee-shift-btn" || button.id === "close-shift-btn"
+  );
+  if (!hasShiftRow) {
+    const row2 = document.createElement("div");
+    row2.className = "cash-owner-action-row";
+
+    const startShiftBtn = document.createElement("button");
+    startShiftBtn.id = "start-employee-shift-btn";
+    startShiftBtn.type = "button";
+    startShiftBtn.className = "mode-btn-secondary";
+    startShiftBtn.textContent = "INICIAR TURNO EMPLEADO";
+    row2.appendChild(startShiftBtn);
+
+    const closeShiftBtn = document.createElement("button");
+    closeShiftBtn.id = "close-shift-btn";
+    closeShiftBtn.type = "button";
+    closeShiftBtn.textContent = "TERMINAR TURNO EMPLEADO";
+    row2.appendChild(closeShiftBtn);
+
+    ownerStack.appendChild(row2);
+  }
+
+  if (!ownerStack.parentElement) {
+    cashActionBar.insertBefore(ownerStack, refreshBtn);
+  }
+
+  dom.cashOwnerActions = ownerStack;
+  dom.closeMySalesBtn = document.getElementById("close-my-sales-btn");
+  dom.startEmployeeShiftBtn = document.getElementById("start-employee-shift-btn");
+  dom.closeShiftBtn = document.getElementById("close-shift-btn");
 }
 
 function hideStartupOverlay() {
