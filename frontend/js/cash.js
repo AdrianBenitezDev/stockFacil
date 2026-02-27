@@ -3,6 +3,7 @@ import { ensureFirebaseAuth, firebaseApp, firebaseAuth } from "../config.js";
 import { getCurrentSession } from "./auth.js";
 import {
   deleteSalesAndItemsBySaleIds,
+  deleteCashClosureById,
   getCashClosuresByKioscoAndDateRange,
   getSalesByKiosco,
   putCashClosure
@@ -15,6 +16,7 @@ const closeCashboxCallable = httpsCallable(functions, "closeCashbox");
 const getOpenCashSalesCallable = httpsCallable(functions, "getOpenCashSales");
 const getRecentCashClosuresCallable = httpsCallable(functions, "getRecentCashClosures");
 const getShiftCashDetailCallable = httpsCallable(functions, "getShiftCashDetail");
+const deleteCashRecordCallable = httpsCallable(functions, "deleteCashRecord");
 
 export async function getCashSnapshotForToday() {
   const session = getCurrentSession();
@@ -387,6 +389,7 @@ function normalizeCallableSale(sale) {
     tipoPago: String(sale.tipoPago || "efectivo").toLowerCase(),
     pagoEfectivo: Number(sale.pagoEfectivo || 0),
     pagoVirtual: Number(sale.pagoVirtual || 0),
+    synced: true,
     cajaCerrada: sale.cajaCerrada === true,
     createdAt: normalizeDateToIso(sale.createdAt)
   };
@@ -581,4 +584,62 @@ function resolveSaleVirtualAmount(sale) {
 
 function round2(value) {
   return Number(Number(value || 0).toFixed(2));
+}
+
+export async function deleteCashSaleById(saleId, { synced = false } = {}) {
+  const session = getCurrentSession();
+  if (!session) {
+    return { ok: false, error: "Sesion expirada. Inicia sesion nuevamente.", requiresLogin: true };
+  }
+  if (String(session.role || "").trim().toLowerCase() !== "empleador") {
+    return { ok: false, error: "Solo el empleador puede eliminar ventas." };
+  }
+  const id = String(saleId || "").trim();
+  if (!id) {
+    return { ok: false, error: "Venta invalida." };
+  }
+
+  if (synced) {
+    const canUseCloud = navigator.onLine && (await hasFirebaseSession());
+    if (!canUseCloud) {
+      return { ok: false, error: "Necesitas conexion para eliminar ventas sincronizadas." };
+    }
+    try {
+      await deleteCashRecordCallable({ recordType: "sale", recordId: id });
+    } catch (error) {
+      return { ok: false, error: String(error?.message || "No se pudo eliminar la venta en Firebase.") };
+    }
+  }
+
+  await deleteSalesAndItemsBySaleIds([id]);
+  return { ok: true };
+}
+
+export async function deleteCashClosureByIdWithSync(closureId, { synced = false } = {}) {
+  const session = getCurrentSession();
+  if (!session) {
+    return { ok: false, error: "Sesion expirada. Inicia sesion nuevamente.", requiresLogin: true };
+  }
+  if (String(session.role || "").trim().toLowerCase() !== "empleador") {
+    return { ok: false, error: "Solo el empleador puede eliminar cajas." };
+  }
+  const id = String(closureId || "").trim();
+  if (!id) {
+    return { ok: false, error: "Caja invalida." };
+  }
+
+  if (synced) {
+    const canUseCloud = navigator.onLine && (await hasFirebaseSession());
+    if (!canUseCloud) {
+      return { ok: false, error: "Necesitas conexion para eliminar cajas sincronizadas." };
+    }
+    try {
+      await deleteCashRecordCallable({ recordType: "closure", recordId: id });
+    } catch (error) {
+      return { ok: false, error: String(error?.message || "No se pudo eliminar la caja en Firebase.") };
+    }
+  }
+
+  await deleteCashClosureById(id);
+  return { ok: true };
 }

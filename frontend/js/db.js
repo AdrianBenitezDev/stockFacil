@@ -414,6 +414,19 @@ export async function getCashClosuresByKioscoAndDateRange(kioscoId, startIso, en
   });
 }
 
+export async function deleteCashClosureById(closureId) {
+  const id = String(closureId || "").trim();
+  if (!id) return;
+  const db = await openDatabase();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(STORES.cashClosures, "readwrite");
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+    tx.onabort = () => reject(tx.error || new Error("No se pudo eliminar cierre local."));
+    tx.objectStore(STORES.cashClosures).delete(id);
+  });
+}
+
 function reqToPromise(request) {
   return new Promise((resolve, reject) => {
     request.onsuccess = () => resolve(request.result);

@@ -3,6 +3,8 @@ const ICON_TRASH_SVG =
   '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/></svg>';
 const ICON_REMOVE_SVG =
   '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M18 6L6 18"/><path d="M6 6l12 12"/></svg>';
+const ICON_WIFI_OFF_SVG =
+  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M1 1l22 22"/><path d="M16.72 11.06A10.94 10.94 0 0 1 22 12.55"/><path d="M5 12.55a10.94 10.94 0 0 1 5.17-1.5"/><path d="M10.71 5.05A16 16 0 0 1 22 8.5"/><path d="M2 8.5a16 16 0 0 1 4.9-2.85"/><path d="M8.53 16.11a6 6 0 0 1 6.95 0"/><path d="M12 20h.01"/></svg>';
 const EMPLOYEE_TONE_CLASSES = [
   "employee-tone-1",
   "employee-tone-2",
@@ -224,7 +226,7 @@ export function renderCashSummary(summary, { maskProfit = false, maskCost = fals
     : `$${Number(summary.profitAmount || 0).toFixed(2)}`;
 }
 
-export function renderCashSalesTable(sales, { canViewProfit = true, maskProfit = false } = {}) {
+export function renderCashSalesTable(sales, { canViewProfit = true, maskProfit = false, canManageRecords = false } = {}) {
   const emptyColspan = canViewProfit ? 5 : 4;
   if (!sales || sales.length === 0) {
     dom.cashSalesTableBody.innerHTML = `<tr><td colspan="${emptyColspan}">No hay ventas registradas hoy.</td></tr>`;
@@ -236,9 +238,21 @@ export function renderCashSalesTable(sales, { canViewProfit = true, maskProfit =
       const time = formatTime(sale.createdAt);
       const username = escapeHtml(sale.username || "-");
       const rowToneClass = getEmployeeToneClass(sale.username);
+      const saleId = escapeHtml(sale.id || "");
+      const unsynced = sale.synced !== true;
+      const syncBadge = unsynced
+        ? `<span class="sync-state-badge unsynced" title="No sincronizado" aria-label="No sincronizado">${iconOnly(
+            ICON_WIFI_OFF_SVG
+          )}</span>`
+        : "";
+      const deleteAction = canManageRecords && saleId
+        ? `<button type="button" class="cash-row-action-btn" data-delete-sale-id="${saleId}" data-sale-synced="${
+            sale.synced === true ? "true" : "false"
+          }" title="Eliminar venta" aria-label="Eliminar venta">${iconOnly(ICON_TRASH_SVG)}</button>`
+        : "";
       return [
         `<tr class="${rowToneClass}">`,
-        `<td>${time}</td>`,
+        `<td>${syncBadge}${deleteAction}${time}</td>`,
         `<td>${username}</td>`,
         `<td>${Number(sale.itemsCount || 0)}</td>`,
         `<td>$${Number(sale.total || 0).toFixed(2)}</td>`,
@@ -301,7 +315,7 @@ export function renderCashClosureStatus(todayClosure) {
     `Turno cerrado hoy a las ${time}. Monto: $${Number(todayClosure.totalAmount || 0).toFixed(2)}.`;
 }
 
-export function renderCashClosuresTable(closures, { canViewProfit = true, maskProfit = false } = {}) {
+export function renderCashClosuresTable(closures, { canViewProfit = true, maskProfit = false, canManageRecords = false } = {}) {
   const emptyColspan = canViewProfit ? 5 : 4;
   if (!closures || closures.length === 0) {
     dom.cashClosuresTableBody.innerHTML = `<tr><td colspan="${emptyColspan}">No hay cierres registrados.</td></tr>`;
@@ -311,9 +325,21 @@ export function renderCashClosuresTable(closures, { canViewProfit = true, maskPr
   dom.cashClosuresTableBody.innerHTML = closures
     .map((closure) => {
       const rowToneClass = getEmployeeToneClass(closure.username);
+      const closureId = escapeHtml(closure.id || "");
+      const unsynced = closure.synced !== true;
+      const syncBadge = unsynced
+        ? `<span class="sync-state-badge unsynced" title="No sincronizado" aria-label="No sincronizado">${iconOnly(
+            ICON_WIFI_OFF_SVG
+          )}</span>`
+        : "";
+      const deleteAction = canManageRecords && closureId
+        ? `<button type="button" class="cash-row-action-btn" data-delete-closure-id="${closureId}" data-closure-synced="${
+            closure.synced === true ? "true" : "false"
+          }" title="Eliminar caja" aria-label="Eliminar caja">${iconOnly(ICON_TRASH_SVG)}</button>`
+        : "";
       return [
         `<tr class="${rowToneClass}">`,
-        `<td>${escapeHtml(closure.dateKey || "-")}</td>`,
+        `<td>${syncBadge}${deleteAction}${escapeHtml(closure.dateKey || "-")}</td>`,
         `<td>${escapeHtml(closure.username || "-")}</td>`,
         `<td>${Number(closure.salesCount || 0)}</td>`,
         `<td>$${Number(closure.totalAmount || 0).toFixed(2)}</td>`,

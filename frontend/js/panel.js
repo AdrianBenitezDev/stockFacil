@@ -22,7 +22,12 @@ import {
 import { isScannerReady, isScannerRunning, startScanner, stopScanner } from "./scanner.js";
 import { createKeyboardScanner } from "./keyboard_scanner.js";
 import { chargeSale, syncPendingSales } from "./sales.js";
-import { closeTodayShift, getCashSnapshotForToday } from "./cash.js";
+import {
+  closeTodayShift,
+  deleteCashClosureByIdWithSync,
+  deleteCashSaleById,
+  getCashSnapshotForToday
+} from "./cash.js";
 import {
   clearAddScanFeedback,
   clearCashFeedback,
@@ -299,6 +304,8 @@ function wireEvents() {
   dom.floatingStockSaveBtn?.addEventListener("click", handleFloatingStockSaveClick);
   dom.employeeListTableBody?.addEventListener("click", handleDeleteEmployeeClick);
   dom.employeeListTableBody?.addEventListener("change", handleToggleEmployeeProductPermissions);
+  dom.cashSalesTableBody?.addEventListener("click", handleDeleteCashSaleClick);
+  dom.cashClosuresTableBody?.addEventListener("click", handleDeleteCashClosureClick);
   window.addEventListener("online", handleOnlineReconnection);
   window.addEventListener("offline", handleOfflineDetected);
   window.addEventListener("keydown", handleSalePaymentOverlayKeydown);
@@ -1514,12 +1521,17 @@ function renderCashSnapshot(snapshot) {
   renderCashPrivacyToggle();
   renderCashScopeLabel(snapshot.scopeLabel);
   const canViewProfit = isEmployerRole(currentUser?.role);
+  const canManageRecords = isEmployerRole(currentUser?.role);
   const maskProfit = canViewProfit && cashSensitiveMasked;
   const maskCost = canViewProfit && cashSensitiveMasked;
   renderCashSummary(snapshot.summary, { maskProfit, maskCost });
-  renderCashSalesTable(snapshot.sales, { canViewProfit, maskProfit });
+  renderCashSalesTable(snapshot.sales, { canViewProfit, maskProfit, canManageRecords });
   renderCashClosureStatus(snapshot.todayClosure);
-  renderCashClosuresTable(snapshot.recentClosures, { canViewProfit, maskProfit: !canViewProfit || maskProfit });
+  renderCashClosuresTable(snapshot.recentClosures, {
+    canViewProfit,
+    maskProfit: !canViewProfit || maskProfit,
+    canManageRecords
+  });
   renderCashSectionToggles();
   dom.closeShiftBtn.disabled = Number(snapshot.summary?.salesCount || 0) === 0;
 }
@@ -1709,6 +1721,68 @@ async function handleRefreshCashClick() {
   } finally {
     dom.refreshCashBtn.disabled = false;
     dom.refreshCashBtn.classList.remove("btn-loading");
+  }
+}
+
+async function handleDeleteCashSaleClick(event) {
+  const button = event.target.closest("[data-delete-sale-id]");
+  if (!button) return;
+  if (!isEmployerRole(currentUser?.role)) return;
+
+  const saleId = String(button.getAttribute("data-delete-sale-id") || "").trim();
+  if (!saleId) return;
+  const synced = String(button.getAttribute("data-sale-synced") || "").trim().toLowerCase() === "true";
+  const confirmed = window.confirm(
+    "Esta venta se eliminara permanentemente de la web y de Firebase. Esta accion no se puede deshacer. Continuar?"
+  );
+  if (!confirmed) return;
+
+  button.disabled = true;
+  button.classList.add("btn-loading");
+  clearCashFeedback();
+  try {
+    const result = await deleteCashSaleById(saleId, { synced });
+    if (!result.ok) {
+      setCashFeedback(result.error || "No se pudo eliminar la venta.");
+      if (result.requiresLogin) redirectToLogin();
+      return;
+    }
+    setCashFeedback("Venta eliminada permanentemente.", "success");
+    await refreshCashPanel();
+  } finally {
+    button.disabled = false;
+    button.classList.remove("btn-loading");
+  }
+}
+
+async function handleDeleteCashClosureClick(event) {
+  const button = event.target.closest("[data-delete-closure-id]");
+  if (!button) return;
+  if (!isEmployerRole(currentUser?.role)) return;
+
+  const closureId = String(button.getAttribute("data-delete-closure-id") || "").trim();
+  if (!closureId) return;
+  const synced = String(button.getAttribute("data-closure-synced") || "").trim().toLowerCase() === "true";
+  const confirmed = window.confirm(
+    "Esta caja se eliminara permanentemente de la web y de Firebase. Esta accion no se puede deshacer. Continuar?"
+  );
+  if (!confirmed) return;
+
+  button.disabled = true;
+  button.classList.add("btn-loading");
+  clearCashFeedback();
+  try {
+    const result = await deleteCashClosureByIdWithSync(closureId, { synced });
+    if (!result.ok) {
+      setCashFeedback(result.error || "No se pudo eliminar la caja.");
+      if (result.requiresLogin) redirectToLogin();
+      return;
+    }
+    setCashFeedback("Caja eliminada permanentemente.", "success");
+    await refreshCashPanel();
+  } finally {
+    button.disabled = false;
+    button.classList.remove("btn-loading");
   }
 }
 

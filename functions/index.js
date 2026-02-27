@@ -24,6 +24,7 @@ const { getShiftCashDetail } = require("./src/getShiftCashDetail");
 const { getMyShiftStatus } = require("./src/getMyShiftStatus");
 const { registerEmergencyShiftStart } = require("./src/registerEmergencyShiftStart");
 const { registerSalesAuditEvent } = require("./src/registerSalesAuditEvent");
+const { deleteCashRecord } = require("./src/deleteCashRecord");
 
 exports.seedPlanes = seedPlanes;
 
@@ -53,3 +54,4 @@ exports.getShiftCashDetail = getShiftCashDetail;
 exports.getMyShiftStatus = getMyShiftStatus;
 exports.registerEmergencyShiftStart = registerEmergencyShiftStart;
 exports.registerSalesAuditEvent = registerSalesAuditEvent;
+exports.deleteCashRecord = deleteCashRecord;

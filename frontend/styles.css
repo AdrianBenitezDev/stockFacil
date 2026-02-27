@@ -1215,6 +1215,33 @@ thead th {
   color: #ca8a04;
 }
 
+.sync-state-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.2rem;
+  height: 1.2rem;
+  margin-right: 0.28rem;
+  vertical-align: middle;
+}
+
+.sync-state-badge.unsynced {
+  color: #b45309;
+}
+
+.cash-row-action-btn {
+  margin-top: 0;
+  margin-right: 0.28rem;
+  width: 1.6rem;
+  height: 1.6rem;
+  padding: 0;
+  background: #b91c1c;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  vertical-align: middle;
+}
+
 #cash-sales-table-body tr.employee-tone-1 td,
 #cash-closures-table-body tr.employee-tone-1 td {
   background: #ecfeff;
