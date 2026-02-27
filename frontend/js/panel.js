@@ -1335,10 +1335,11 @@ async function handleConfirmEmployeeShiftStart() {
     );
     const employeeName = String(selectedEmployee?.displayName || selectedEmployee?.username || "empleado");
     setCashFeedback(`Turno iniciado para ${employeeName}. Inicio de caja: $${Number(amount).toFixed(2)}.`, "success");
-    closeEmployeeShiftOverlay();
-    await refreshCashPanel();
+  
   } finally {
     employeeShiftSubmitting = false;
+      closeEmployeeShiftOverlay();
+    await refreshCashPanel();
     dom.employeeShiftConfirmBtn?.classList.remove("btn-loading");
     dom.employeeShiftCancelBtn && (dom.employeeShiftCancelBtn.disabled = false);
     updateEmployeeShiftConfirmState();
