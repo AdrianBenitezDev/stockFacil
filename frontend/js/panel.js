@@ -1295,6 +1295,7 @@ function updateEmployeeShiftConfirmState() {
   dom.employeeShiftConfirmBtn.disabled = employeeShiftSubmitting || !hasEmployee || !hasValidAmount;
 }
 
+//del overlay que confirma el inicio de turno del empleado, muestra errores o exito en este span  
 function setEmployeeShiftFeedback(message, kind = "error") {
   if (!dom.employeeShiftFeedback) return;
   dom.employeeShiftFeedback.style.color = kind === "success" ? "var(--accent)" : "var(--danger)";
@@ -1338,18 +1339,23 @@ async function handleConfirmEmployeeShiftStart() {
     
     await refreshCashPanel();
   
-    setCashFeedback(`Turno iniciado para ${employeeName}. Inicio de caja: $${Number(amount).toFixed(2)}.`, "success");
-  
+    setEmployeeShiftFeedback(`Turno iniciado para ${employeeName}. Inicio de caja: $${Number(amount).toFixed(2)}.`, "success");
+
+    setTimeout(() => {
 
     employeeShiftSubmitting = false;
       closeEmployeeShiftOverlay();
   
+
+    },1000)
   
     
   } finally {
     dom.employeeShiftConfirmBtn?.classList.remove("btn-loading");
     dom.employeeShiftCancelBtn && (dom.employeeShiftCancelBtn.disabled = false);
     updateEmployeeShiftConfirmState();
+    
+    setCashFeedback(`Turno iniciado para ${employeeName}. Inicio de caja: $${Number(amount).toFixed(2)}.`, "success");
   }
 }
 
@@ -1402,7 +1408,7 @@ async function handleConfirmSalePayment() {
   
     salePaymentSubmitting = false;
       closeSalePaymentOverlay();
-  }, 2400);
+  }, 900);
 }
 
 function setSalePaymentActionsDisabled(disabled) {
