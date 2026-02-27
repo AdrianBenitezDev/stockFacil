@@ -1,4 +1,4 @@
-const { HttpsError, onCall, db } = require("./shared/context");
+const { HttpsError, onCall, Timestamp, db } = require("./shared/context");
 const { requireEmployerContext } = require("./shared/authz");
 const {
   getLatestEmployeeShift,
@@ -114,6 +114,27 @@ const endEmployeeShift = onCall(async (request) => {
   totalVirtual = round2(totalVirtual);
   const inicioCaja = round2(Number(latest.inicioCaja || 0));
   const montoCierreCaja = round2(inicioCaja + totalEfectivo + totalVirtual);
+  const efectivoEntregar = round2(totalEfectivo + inicioCaja);
+  const virtualEntregar = round2(totalVirtual);
+  const totalGananciaRealCaja = round2(
+    salesSnap.docs.reduce((acc, docSnap) => {
+      const sale = docSnap.data() || {};
+      return acc + Number(sale.gananciaReal ?? sale.ganaciaReal ?? sale.profit ?? 0);
+    }, 0)
+  );
+  const productosIncluidosMap = new Map();
+  let fechaApertura = null;
+  salesSnap.docs.forEach((docSnap) => {
+    const sale = docSnap.data() || {};
+    collectSaleProducts(sale, productosIncluidosMap);
+    const createdAt = normalizeToDate(sale.createdAt);
+    if (createdAt && (!fechaApertura || createdAt < fechaApertura)) {
+      fechaApertura = createdAt;
+    }
+  });
+  const productosIncluidos = Array.from(productosIncluidosMap.values()).sort((a, b) =>
+    String(a.idProducto || "").localeCompare(String(b.idProducto || ""))
+  );
 
   const nowDate = new Date();
   const nextTurno = closeTurnoPayload({
@@ -125,13 +146,48 @@ const endEmployeeShift = onCall(async (request) => {
   if (!turnoDocId) {
     throw new HttpsError("internal", "No se pudo identificar el turno activo.");
   }
-  await employeeRef.collection("turno").doc(turnoDocId).set(
+  const idCaja = `CAJA-${turnoDocId}-${sanitizeIdPart(employeeUid)}-${nowDate.getTime()}`;
+  const closureDateKey = String(nextTurno.fechaCierre || nextTurno.fechaInicio || "").trim();
+  const fechaCierre = Timestamp.now();
+  const usuarioNombre = String(employee.displayName || employee.username || employee.email || employeeUid).trim();
+  const cajaRef = db.collection("tenants").doc(tenantId).collection("cajas").doc(idCaja);
+  const batch = db.batch();
+  batch.set(
+    employeeRef.collection("turno").doc(turnoDocId),
     {
       ...nextTurno,
       cerradoPorUid: uid
     },
     { merge: true }
   );
+  batch.set(cajaRef, {
+    idCaja,
+    tenantId,
+    dateKey: closureDateKey || null,
+    scopeKey: employeeUid,
+    total: montoCierreCaja,
+    totalCaja: montoCierreCaja,
+    inicioCaja,
+    efectivoVentas: totalEfectivo,
+    efectivoEntregar,
+    virtualEntregar,
+    GanaciaRealCaja: totalGananciaRealCaja,
+    totalGananciaRealCaja,
+    usuarioUid: employeeUid,
+    usuarioNombre,
+    role: "empleado",
+    fechaApertura: fechaApertura ? Timestamp.fromDate(fechaApertura) : fechaCierre,
+    fechaCierre,
+    productosIncluidos,
+    salesCount: Number(salesSnap.size || 0),
+    closedByUid: uid,
+    closedByName: String(request.auth?.token?.name || request.auth?.token?.email || uid).trim(),
+    createdAt: Timestamp.now()
+  });
+  salesSnap.docs.forEach((docSnap) => {
+    batch.delete(docSnap.ref);
+  });
+  await batch.commit();
   invalidateEmployeeShiftCache(employeeUid);
 
   return {
@@ -150,6 +206,19 @@ const endEmployeeShift = onCall(async (request) => {
       montoCierreCaja,
       turnoIniciado: false,
       turnoCerrado: true
+    },
+    caja: {
+      idCaja,
+      tenantId,
+      usuarioUid: employeeUid,
+      usuarioNombre,
+      inicioCaja,
+      totalEfectivo,
+      totalVirtual,
+      efectivoEntregar,
+      virtualEntregar,
+      totalCaja: montoCierreCaja,
+      salesCount: Number(salesSnap.size || 0)
     }
   };
 });
@@ -189,6 +258,53 @@ function resolveSalePaymentBreakdown(sale) {
 
 function round2(value) {
   return Number(Number(value || 0).toFixed(2));
+}
+
+function sanitizeIdPart(value) {
+  return String(value || "")
+    .trim()
+    .replace(/[^a-zA-Z0-9_-]/g, "-")
+    .replace(/-+/g, "-")
+    .slice(0, 48) || "sin-usuario";
+}
+
+function collectSaleProducts(sale, targetMap) {
+  const items = Array.isArray(sale?.productos) ? sale.productos : [];
+  items.forEach((item) => {
+    const idProducto = String(
+      item?.idProducto || item?.codigo || item?.productId || item?.barcode || ""
+    ).trim();
+    if (!idProducto) return;
+
+    const cantidad = Number(item?.cantidad ?? item?.quantity ?? 0);
+    if (!Number.isFinite(cantidad) || cantidad <= 0) return;
+
+    const precioVenta = round2(Number(item?.precioUnitario ?? item?.unitPrice ?? 0));
+    const precioCompra = round2(Number(item?.precioCompraUnitario ?? item?.unitProviderCost ?? 0));
+    const key = `${idProducto}::${precioVenta}::${precioCompra}`;
+    const current = targetMap.get(key);
+    if (!current) {
+      targetMap.set(key, {
+        idProducto,
+        cantidadVendido: round2(cantidad),
+        precioVenta,
+        precioCompra
+      });
+      return;
+    }
+    current.cantidadVendido = round2(Number(current.cantidadVendido || 0) + cantidad);
+  });
+}
+
+function normalizeToDate(value) {
+  if (!value) return null;
+  if (value instanceof Timestamp) return value.toDate();
+  if (typeof value?.toDate === "function") return value.toDate();
+  if (typeof value === "string") {
+    const parsed = new Date(value);
+    if (!Number.isNaN(parsed.getTime())) return parsed;
+  }
+  return null;
 }
 
 module.exports = {
