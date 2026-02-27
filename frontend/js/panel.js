@@ -1634,26 +1634,21 @@ async function handleCloseShift() {
     return;
   }
 
-  const cierreRaw = window.prompt(
-    "Ingresa monto de cierre de caja del empleado:",
-    "0"
-  );
-  if (cierreRaw === null) return;
-  const montoCierreCaja = Number(String(cierreRaw).replace(",", ".").trim());
-  if (!Number.isFinite(montoCierreCaja) || montoCierreCaja < 0) {
-    setCashFeedback("Monto de cierre invalido.");
-    return;
-  }
-
-  const result = await endEmployeeShift({ employeeUid: selectedUid, montoCierreCaja });
+  const result = await endEmployeeShift({ employeeUid: selectedUid });
   if (!result.ok) {
     setCashFeedback(result.error);
     return;
   }
 
   const employeeName = String(selectedEmployee?.displayName || selectedEmployee?.username || "empleado");
+  const cierreTotal = Number(result?.data?.turno?.montoCierreCaja || 0);
+  const cierreEfectivo = Number(result?.data?.turno?.totalEfectivo || 0);
+  const cierreVirtual = Number(result?.data?.turno?.totalVirtual || 0);
+  const inicioCaja = Number(result?.data?.turno?.inicioCaja || 0);
   setCashFeedback(
-    `Turno de ${employeeName} finalizado. Monto de cierre: $${Number(montoCierreCaja).toFixed(2)}.`,
+    `Turno de ${employeeName} finalizado. Total: $${cierreTotal.toFixed(2)} (efectivo $${cierreEfectivo.toFixed(
+      2
+    )} + virtual $${cierreVirtual.toFixed(2)} + inicio $${inicioCaja.toFixed(2)}).`,
     "success"
   );
   await refreshCashPanel();

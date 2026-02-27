@@ -51,14 +51,10 @@ export async function startEmployeeShift({ employeeUid, inicioCaja }) {
   }
 }
 
-export async function endEmployeeShift({ employeeUid, montoCierreCaja }) {
+export async function endEmployeeShift({ employeeUid }) {
   const uid = String(employeeUid || "").trim();
-  const amount = Number(montoCierreCaja);
   if (!uid) {
     return { ok: false, error: "Debes seleccionar un empleado." };
-  }
-  if (!Number.isFinite(amount) || amount < 0) {
-    return { ok: false, error: "El monto de cierre de caja es invalido." };
   }
 
   await ensureFirebaseAuth();
@@ -72,7 +68,7 @@ export async function endEmployeeShift({ employeeUid, montoCierreCaja }) {
   }
 
   try {
-    const response = await endEmployeeShiftCallable({ employeeUid: uid, montoCierreCaja: amount });
+    const response = await endEmployeeShiftCallable({ employeeUid: uid });
     const tenantId = String(profileResult?.user?.tenantId || "").trim();
     if (tenantId) {
       registerOwnerShiftEndLocal({ tenantId, employeeUid: uid });

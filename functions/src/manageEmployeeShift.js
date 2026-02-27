@@ -71,12 +71,8 @@ const endEmployeeShift = onCall(async (request) => {
   const { tenantId, uid } = await requireEmployerContext(request);
 
   const employeeUid = String(request.data?.employeeUid || "").trim();
-  const montoCierreCaja = Number(request.data?.montoCierreCaja);
   if (!employeeUid) {
     throw new HttpsError("invalid-argument", "Debes seleccionar un empleado.");
-  }
-  if (!Number.isFinite(montoCierreCaja) || montoCierreCaja < 0) {
-    throw new HttpsError("invalid-argument", "El monto de cierre de caja es invalido.");
   }
 
   const employeeRef = db.collection("empleados").doc(employeeUid);
@@ -97,6 +93,27 @@ const endEmployeeShift = onCall(async (request) => {
   if (latest.turnoIniciado !== true || latest.turnoCerrado === true) {
     throw new HttpsError("failed-precondition", "El empleado no tiene un turno activo para cerrar.");
   }
+
+  const salesSnap = await db
+    .collection("tenants")
+    .doc(tenantId)
+    .collection("ventas")
+    .where("cajaCerrada", "==", false)
+    .where("usuarioUid", "==", employeeUid)
+    .get();
+
+  let totalEfectivo = 0;
+  let totalVirtual = 0;
+  salesSnap.docs.forEach((docSnap) => {
+    const sale = docSnap.data() || {};
+    const payment = resolveSalePaymentBreakdown(sale);
+    totalEfectivo += Number(payment.pagoEfectivo || 0);
+    totalVirtual += Number(payment.pagoVirtual || 0);
+  });
+  totalEfectivo = round2(totalEfectivo);
+  totalVirtual = round2(totalVirtual);
+  const inicioCaja = round2(Number(latest.inicioCaja || 0));
+  const montoCierreCaja = round2(inicioCaja + totalEfectivo + totalVirtual);
 
   const nowDate = new Date();
   const nextTurno = closeTurnoPayload({
@@ -127,13 +144,52 @@ const endEmployeeShift = onCall(async (request) => {
       horaInicio: String(nextTurno.horaInicio || ""),
       fechaCierre: String(nextTurno.fechaCierre || ""),
       horaCierre: String(nextTurno.horaCierre || ""),
-      inicioCaja: Number(nextTurno.inicioCaja || 0),
-      montoCierreCaja: Number(nextTurno.montoCierreCaja || 0),
+      inicioCaja,
+      totalEfectivo,
+      totalVirtual,
+      montoCierreCaja,
       turnoIniciado: false,
       turnoCerrado: true
     }
   };
 });
+
+function resolveSalePaymentBreakdown(sale) {
+  const total = round2(Number(sale?.total || 0));
+  const tipoPago = String(sale?.tipoPago || "").trim().toLowerCase();
+
+  if (tipoPago === "virtual") {
+    return { pagoEfectivo: 0, pagoVirtual: total };
+  }
+  if (tipoPago === "mixto") {
+    const pagoEfectivo = round2(Number(sale?.pagoEfectivo || 0));
+    const pagoVirtual = round2(Number(sale?.pagoVirtual || total - pagoEfectivo));
+    if (
+      Number.isFinite(pagoEfectivo) &&
+      Number.isFinite(pagoVirtual) &&
+      pagoEfectivo >= 0 &&
+      pagoVirtual >= 0 &&
+      round2(pagoEfectivo + pagoVirtual) === total
+    ) {
+      return { pagoEfectivo, pagoVirtual };
+    }
+  }
+
+  const explicitCash = round2(Number(sale?.pagoEfectivo || 0));
+  const explicitVirtual = round2(Number(sale?.pagoVirtual || 0));
+  if (explicitCash > 0 || explicitVirtual > 0) {
+    const normalizedVirtual = round2(total - explicitCash);
+    if (normalizedVirtual >= 0) {
+      return { pagoEfectivo: explicitCash, pagoVirtual: normalizedVirtual };
+    }
+  }
+
+  return { pagoEfectivo: total, pagoVirtual: 0 };
+}
+
+function round2(value) {
+  return Number(Number(value || 0).toFixed(2));
+}
 
 module.exports = {
   startEmployeeShift,

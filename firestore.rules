@@ -31,6 +31,13 @@ service cloud.firestore {
       return role() == "empleador";
     }
 
+    function isTenantOwner(tenantDocId) {
+      return isAuthenticated() &&
+        tenantId() != null &&
+        tenantDocId == tenantId() &&
+        get(/databases/$(database)/documents/tenants/$(tenantDocId)).data.ownerUid == request.auth.uid;
+    }
+
     function hasVerifiedEmail() {
       return isAuthenticated() && request.auth.token.email_verified == true;
     }
@@ -95,7 +102,7 @@ service cloud.firestore {
       allow read: if isAuthenticated() &&
         tenantId() != null &&
         tenantDocId == tenantId() &&
-        role() == "empleador";
+        (role() == "empleador" || role() == "dueno" || isTenantOwner(tenantDocId));
       allow create, update, delete: if false;
     }
 
