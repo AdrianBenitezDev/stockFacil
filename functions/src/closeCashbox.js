@@ -59,8 +59,6 @@ const closeCashbox = onCall(async (request) => {
       total: group.totalCaja,
       efectivoEntregar: group.totalEfectivoEntregar,
       virtualEntregar: group.totalVirtualEntregar,
-      efectivoEtregar: group.totalEfectivoEntregar,
-      virtualEtregar: group.totalVirtualEntregar,
       GanaciaRealCaja: group.totalGananciaRealCaja,
       totalGananciaRealCaja: group.totalGananciaRealCaja,
       usuarioUid: group.usuarioUid,
@@ -68,18 +66,14 @@ const closeCashbox = onCall(async (request) => {
       role: roleForClosure,
       fechaApertura: group.fechaApertura ? Timestamp.fromDate(group.fechaApertura) : fechaCierre,
       fechaCierre,
-      ventasIncluidas: group.ventasIncluidas,
       productosIncluidos,
+      salesCount: Number(group.ventasIncluidas.length || 0),
       closedByUid,
       closedByName,
       createdAt: Timestamp.now()
     });
     group.docs.forEach((docSnap) => {
-      batch.update(docSnap.ref, {
-        cajaId: idCaja,
-        cajaCerrada: true,
-        updatedAt: fechaCierre
-      });
+      batch.delete(docSnap.ref);
     });
 
     return {
@@ -92,16 +86,14 @@ const closeCashbox = onCall(async (request) => {
       efectivoEntregar: group.totalEfectivoEntregar,
       virtualEntregar: group.totalVirtualEntregar,
       totalGananciaRealCaja: group.totalGananciaRealCaja,
-      ventasIncluidas: group.ventasIncluidas,
+      salesCount: Number(group.ventasIncluidas.length || 0),
       productosIncluidos
     };
   });
 
   await batch.commit();
 
-  const ventasIncluidas = closures.flatMap((closure) =>
-    Array.isArray(closure.ventasIncluidas) ? closure.ventasIncluidas : []
-  );
+  const totalSalesCount = closures.reduce((acc, closure) => acc + Number(closure.salesCount || 0), 0);
   const totalCaja = round2(closures.reduce((acc, closure) => acc + Number(closure.totalCaja || 0), 0));
   const totalEfectivoEntregar = round2(
     closures.reduce((acc, closure) => acc + Number(closure.efectivoEntregar || 0), 0)
@@ -122,10 +114,8 @@ const closeCashbox = onCall(async (request) => {
     totalVirtualEntregar,
     efectivoEntregar: totalEfectivoEntregar,
     virtualEntregar: totalVirtualEntregar,
-    efectivoEtregar: totalEfectivoEntregar,
-    virtualEtregar: totalVirtualEntregar,
     totalGananciaRealCaja,
-    ventasIncluidas,
+    totalSalesCount,
     productosIncluidos,
     cierres: closures
   };

@@ -35,7 +35,7 @@ export function showAppShell(user) {
   dom.cashClosuresProfitPrecieBuy?.classList.toggle("hidden", !isOwner);
   dom.cashClosuresProfitDetalleBuy?.classList.toggle("hidden", !isOwner);
   
-  dom.closeMySalesBtn?.classList.toggle("hidden", !isOwner);
+  dom.cashOwnerActions?.classList.toggle("hidden", !isOwner);
   dom.addModeBtn.disabled = !canCreateProducts;
   applyAddProductAvailability(canCreateProducts);
   setMode(canCreateProducts ? "add" : "sell");
@@ -207,13 +207,16 @@ export function renderCashScopeLabel(label) {
 
 export function renderCashSummary(summary, { maskProfit = false, maskCost = false } = {}) {
   dom.cashSalesCount.textContent = String(summary.salesCount || 0);
-  dom.cashItemsCount.textContent = String(summary.itemsCount || 0);
-  dom.cashTotalAmount.textContent = `$${Number(summary.totalAmount || 0).toFixed(2)}`;
-  if (dom.cashTotalCashAmount) {
-    dom.cashTotalCashAmount.textContent = `=> $${Number(summary.efectivoAmount || 0).toFixed(2)} efectivo`;
+  dom.cashItemsCount.textContent = `${Number(summary.itemsCount || 0)} productos vendidos`;
+  dom.cashTotalAmount.textContent = `$${Number(summary.totalToDeliverAmount || summary.totalAmount || 0).toFixed(2)}`;
+  if (dom.cashShiftStartAmount) {
+    dom.cashShiftStartAmount.textContent = `=> $${Number(summary.startCashAmount || 0).toFixed(2)} inicio de caja`;
   }
-  if (dom.cashTotalVirtualAmount) {
-    dom.cashTotalVirtualAmount.textContent = `=> $${Number(summary.virtualAmount || 0).toFixed(2)} virtual`;
+  if (dom.cashDetailCashAmount) {
+    dom.cashDetailCashAmount.textContent = `=> $${Number(summary.efectivoAmount || 0).toFixed(2)} efectivo`;
+  }
+  if (dom.cashDetailVirtualAmount) {
+    dom.cashDetailVirtualAmount.textContent = `=> $${Number(summary.virtualAmount || 0).toFixed(2)} virtual`;
   }
   dom.cashTotalCost.textContent = maskCost ? "****" : `$${Number(summary.totalCost || 0).toFixed(2)}`;
   dom.cashProfitAmount.textContent = maskProfit

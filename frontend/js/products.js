@@ -52,6 +52,9 @@ export async function createProduct(formData) {
   if (providerCost === null || !Number.isFinite(providerCost) || providerCost < 0) {
     return { ok: false, error: "Debes cargar un valor de proveedor valido." };
   }
+  if (providerCost > price) {
+    return { ok: false, error: "El precio de compra no puede ser mayor al precio de venta." };
+  }
 
   const hasBarcode = Boolean(barcodeInput);
   const code = hasBarcode ? barcodeInput : `INT-${Date.now()}`;
@@ -270,6 +273,9 @@ export async function updateProductDetails(productId, detailsInput) {
   }
   if (!Number.isFinite(nextProviderCost) || nextProviderCost < 0) {
     return { ok: false, error: "Precio de compra invalido." };
+  }
+  if (nextProviderCost > nextPrice) {
+    return { ok: false, error: "El precio de compra no puede ser mayor al precio de venta." };
   }
 
   const product = await getProductById(productId);

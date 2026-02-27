@@ -2,17 +2,19 @@ import { getFunctions, httpsCallable } from "https://www.gstatic.com/firebasejs/
 import { ensureFirebaseAuth, firebaseApp, firebaseAuth } from "../config.js";
 import { getCurrentSession } from "./auth.js";
 import {
-  assignCashboxToSalesByIds,
+  deleteSalesAndItemsBySaleIds,
   getCashClosuresByKioscoAndDateRange,
   getSalesByKiosco,
   putCashClosure
 } from "./db.js";
 import { syncPendingSales } from "./sales.js";
+import { getLocalShiftCashDetailFallback, saveOwnerShiftCashSnapshot } from "./shifts.js";
 
 const functions = getFunctions(firebaseApp);
 const closeCashboxCallable = httpsCallable(functions, "closeCashbox");
 const getOpenCashSalesCallable = httpsCallable(functions, "getOpenCashSales");
 const getRecentCashClosuresCallable = httpsCallable(functions, "getRecentCashClosures");
+const getShiftCashDetailCallable = httpsCallable(functions, "getShiftCashDetail");
 
 export async function getCashSnapshotForToday() {
   const session = getCurrentSession();
@@ -28,6 +30,10 @@ export async function getCashSnapshotForToday() {
   const sales = salesResult.sales;
   const orderedSales = sales.sort((a, b) => String(b.createdAt || "").localeCompare(String(a.createdAt || "")));
   const summary = summarizeSales(orderedSales);
+  const shiftDetail = await loadShiftCashDetail(session);
+  const startCashAmount = Number(shiftDetail.startCashAmount || 0);
+  summary.startCashAmount = startCashAmount;
+  summary.totalToDeliverAmount = round2(Number(summary.totalAmount || 0) + startCashAmount);
   const scopeKey = getScopeKey(session);
   const recentClosures = await listRecentClosures(session, scopeKey);
   const todayClosure = recentClosures.find((closure) => String(closure.dateKey || "") === dateKey) || null;
@@ -78,6 +84,10 @@ export async function closeTodayShift({ scope = "all" } = {}) {
       synced: false
     });
     await putCashClosure(provisional);
+    const localIds = localSales
+      .map((sale) => String(sale.id || sale.idVenta || "").trim())
+      .filter(Boolean);
+    await deleteSalesAndItemsBySaleIds(localIds);
     return { ok: true, summary: localSummary, provisional: true };
   }
 
@@ -106,9 +116,9 @@ export async function closeTodayShift({ scope = "all" } = {}) {
     }
 
     const authoritativeSummary = {
-      salesCount: Array.isArray(data.ventasIncluidas)
-        ? data.ventasIncluidas.length
-        : serverClosures.reduce((acc, row) => acc + Number((row.ventasIncluidas || []).length || 0), 0),
+      salesCount: Number(
+        data.totalSalesCount || serverClosures.reduce((acc, row) => acc + Number(row.salesCount || 0), 0)
+      ),
       itemsCount: localSummary.itemsCount,
       totalAmount: Number(data.totalCaja || 0),
       efectivoAmount: Number(data.totalEfectivoEntregar ?? data.efectivoEntregar ?? localSummary.efectivoAmount ?? 0),
@@ -118,14 +128,14 @@ export async function closeTodayShift({ scope = "all" } = {}) {
     };
 
     for (const row of serverClosures) {
-      const rowSales = Array.isArray(row.ventasIncluidas) ? row.ventasIncluidas : [];
-      const rowSummary = summarizeSalesByIds(localSales, rowSales);
+      const rowSalesCount = Number(row.salesCount || 0);
+      const rowSummary = summarizeClosureProducts(row.productosIncluidos);
       const closure = buildLocalClosure({
         session,
         dateKey,
         closureKey,
         summary: {
-          salesCount: rowSales.length,
+          salesCount: rowSalesCount,
           itemsCount: rowSummary.itemsCount,
           totalAmount: Number(row.totalCaja || 0),
           efectivoAmount: Number(row.efectivoEntregar || 0),
@@ -139,15 +149,16 @@ export async function closeTodayShift({ scope = "all" } = {}) {
         userId: String(row.usuarioUid || ""),
         username: String(row.usuarioNombre || ""),
         role: String(row.role || ""),
-        ventasIncluidas: rowSales,
         productosIncluidos: Array.isArray(row.productosIncluidos) ? row.productosIncluidos : []
       });
       closure.GanaciaRealCaja = Number(row.totalGananciaRealCaja || 0);
       await putCashClosure(closure);
-      if (rowSales.length > 0 && row.idCaja) {
-        await assignCashboxToSalesByIds(rowSales, String(row.idCaja));
-      }
     }
+
+    const localIds = localSales
+      .map((sale) => String(sale.id || sale.idVenta || "").trim())
+      .filter(Boolean);
+    await deleteSalesAndItemsBySaleIds(localIds);
 
     return { ok: true, summary: authoritativeSummary, provisional: false };
   } catch (error) {
@@ -166,7 +177,6 @@ function buildLocalClosure({
   userId = "",
   username = "",
   role = "",
-  ventasIncluidas = [],
   productosIncluidos = []
 }) {
   const resolvedScopeKey = String(scopeKey || "").trim() || getScopeKey(session);
@@ -185,14 +195,11 @@ function buildLocalClosure({
     totalAmount: Number(summary.totalAmount || 0),
     efectivoEntregar: Number(summary.efectivoAmount || 0),
     virtualEntregar: Number(summary.virtualAmount || 0),
-    efectivoEtregar: Number(summary.efectivoAmount || 0),
-    virtualEtregar: Number(summary.virtualAmount || 0),
     totalCost: Number(summary.totalCost || 0),
     profitAmount: Number(summary.profitAmount || 0),
     GanaciaRealCaja: Number(summary.profitAmount || 0),
     salesCount: Number(summary.salesCount || 0),
     itemsCount: Number(summary.itemsCount || 0),
-    ventasIncluidas,
     productosIncluidos,
     synced,
     createdAt: new Date().toISOString()
@@ -216,18 +223,37 @@ function summarizeSales(sales) {
       .toFixed(2)
   );
 
-  return { salesCount, itemsCount, totalAmount, efectivoAmount, virtualAmount, totalCost, profitAmount };
+  return {
+    salesCount,
+    itemsCount,
+    totalAmount,
+    efectivoAmount,
+    virtualAmount,
+    totalCost,
+    profitAmount,
+    startCashAmount: 0,
+    totalToDeliverAmount: totalAmount
+  };
 }
 
-function summarizeSalesByIds(sales, saleIds) {
-  if (!Array.isArray(sales) || !Array.isArray(saleIds) || saleIds.length === 0) {
+function summarizeClosureProducts(products) {
+  const rows = Array.isArray(products) ? products : [];
+  if (rows.length === 0) {
     return { itemsCount: 0, totalCost: 0 };
   }
-  const idSet = new Set(saleIds.map((id) => String(id || "").trim()).filter(Boolean));
-  const selected = sales.filter((sale) => idSet.has(String(sale.id || sale.idVenta || "").trim()));
+  const itemsCount = rows.reduce((acc, item) => acc + Number(item?.cantidadVendido || 0), 0);
+  const totalCost = Number(
+    rows
+      .reduce(
+        (acc, item) =>
+          acc + Number(item?.cantidadVendido || 0) * Number(item?.precioCompra || item?.precioCompraUnitario || 0),
+        0
+      )
+      .toFixed(2)
+  );
   return {
-    itemsCount: selected.reduce((acc, sale) => acc + Number(sale.itemsCount || 0), 0),
-    totalCost: Number(selected.reduce((acc, sale) => acc + Number(sale.totalCost || 0), 0).toFixed(2))
+    itemsCount,
+    totalCost
   };
 }
 
@@ -243,7 +269,7 @@ function normalizeServerClosures(data) {
       efectivoEntregar: Number(row?.efectivoEntregar ?? row?.efectivoEtregar ?? 0),
       virtualEntregar: Number(row?.virtualEntregar ?? row?.virtualEtregar ?? 0),
       totalGananciaRealCaja: Number(row?.totalGananciaRealCaja || 0),
-      ventasIncluidas: Array.isArray(row?.ventasIncluidas) ? row.ventasIncluidas : [],
+      salesCount: Number(row?.salesCount || 0),
       productosIncluidos: Array.isArray(row?.productosIncluidos) ? row.productosIncluidos : []
     }));
   }
@@ -261,7 +287,7 @@ function normalizeServerClosures(data) {
       efectivoEntregar: Number(data?.efectivoEntregar ?? data?.efectivoEtregar ?? 0),
       virtualEntregar: Number(data?.virtualEntregar ?? data?.virtualEtregar ?? 0),
       totalGananciaRealCaja: Number(data?.totalGananciaRealCaja || 0),
-      ventasIncluidas: Array.isArray(data?.ventasIncluidas) ? data.ventasIncluidas : [],
+      salesCount: Number(data?.totalSalesCount || 0),
       productosIncluidos: Array.isArray(data?.productosIncluidos) ? data.productosIncluidos : []
     }
   ];
@@ -390,14 +416,11 @@ function normalizeCallableClosure(session, closure) {
     totalAmount: Number(closure?.totalAmount || 0),
     efectivoEntregar: Number(closure?.efectivoEntregar ?? closure?.efectivoEtregar ?? 0),
     virtualEntregar: Number(closure?.virtualEntregar ?? closure?.virtualEtregar ?? 0),
-    efectivoEtregar: Number(closure?.efectivoEtregar ?? closure?.efectivoEntregar ?? 0),
-    virtualEtregar: Number(closure?.virtualEtregar ?? closure?.virtualEntregar ?? 0),
     totalCost: Number(closure?.totalCost || 0),
     profitAmount: Number(closure?.profitAmount || 0),
     GanaciaRealCaja: Number(closure?.profitAmount || 0),
     salesCount: Number(closure?.salesCount || 0),
     itemsCount: Number(closure?.itemsCount || 0),
-    ventasIncluidas: Array.isArray(closure?.ventasIncluidas) ? closure.ventasIncluidas : [],
     productosIncluidos: Array.isArray(closure?.productosIncluidos) ? closure.productosIncluidos : [],
     synced: true,
     createdAt
@@ -429,6 +452,27 @@ function mapOpenCashSalesError(error) {
     return "Sesion invalida para consultar caja.";
   }
   return message || "No se pudieron cargar las ventas abiertas de caja.";
+}
+
+async function loadShiftCashDetail(session) {
+  const canUseCloud = navigator.onLine && (await hasFirebaseSession());
+  if (!canUseCloud) return getLocalShiftCashDetailFallback(session);
+
+  try {
+    const requestedScope = String(session?.role || "").trim().toLowerCase() === "empleador" ? "all" : "mine";
+    const response = await getShiftCashDetailCallable({ scope: requestedScope });
+    const data = response?.data || {};
+    const normalized = {
+      startCashAmount: Number(data.startCashAmount || 0),
+      activeShiftCount: Number(data.activeShiftCount || 0)
+    };
+    if (requestedScope === "all") {
+      saveOwnerShiftCashSnapshot(String(session?.tenantId || "").trim(), normalized);
+    }
+    return normalized;
+  } catch (_) {
+    return getLocalShiftCashDetailFallback(session);
+  }
 }
 
 async function hasFirebaseSession() {
@@ -521,4 +565,8 @@ function resolveSaleVirtualAmount(sale) {
   const explicit = Number(sale?.pagoVirtual || 0);
   if (Number.isFinite(explicit) && explicit > 0) return explicit;
   return 0;
+}
+
+function round2(value) {
+  return Number(Number(value || 0).toFixed(2));
 }

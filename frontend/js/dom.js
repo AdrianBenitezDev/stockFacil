@@ -28,8 +28,10 @@ export const dom = {
   productFeedback: document.getElementById("product-feedback"),
   employeeAdminPanel: document.getElementById("employee-admin-panel"),
   createEmployeeForm: document.getElementById("create-employee-form"),
+  createEmployeeBtn: document.getElementById("create-employee-btn"),
   employeeFeedback: document.getElementById("employee-feedback"),
   employeeListTableBody: document.getElementById("employee-list-table-body"),
+  auditSalesTableBody: document.getElementById("audit-sales-table-body"),
   productCategory: document.getElementById("product-category"),
   startAddScanBtn: document.getElementById("start-add-scan-btn"),
   stopAddScanBtn: document.getElementById("stop-add-scan-btn"),
@@ -94,9 +96,10 @@ export const dom = {
   cashPrivacyToggle: document.getElementById("cash-privacy-toggle"),
   cashSalesCount: document.getElementById("cash-sales-count"),
   cashItemsCount: document.getElementById("cash-items-count"),
+  cashShiftStartAmount: document.getElementById("cash-shift-start-amount"),
+  cashDetailCashAmount: document.getElementById("cash-detail-cash-amount"),
+  cashDetailVirtualAmount: document.getElementById("cash-detail-virtual-amount"),
   cashTotalAmount: document.getElementById("cash-total-amount"),
-  cashTotalCashAmount: document.getElementById("cash-total-cash-amount"),
-  cashTotalVirtualAmount: document.getElementById("cash-total-virtual-amount"),
   cashSummary: document.getElementById("cash-summary"),
   cashCardCost: document.getElementById("cash-card-cost"),
   cashCardProfit: document.getElementById("cash-card-profit"),
@@ -117,10 +120,18 @@ export const dom = {
 
 
   closeMySalesBtn: document.getElementById("close-my-sales-btn"),
+  cashOwnerActions: document.getElementById("cash-owner-actions"),
+  startEmployeeShiftBtn: document.getElementById("start-employee-shift-btn"),
   closeShiftBtn: document.getElementById("close-shift-btn"),
   refreshCashBtn: document.getElementById("refresh-cash-btn"),
   cashFeedback: document.getElementById("cash-feedback"),
   cashSalesTableBody: document.getElementById("cash-sales-table-body"),
-  cashClosuresTableBody: document.getElementById("cash-closures-table-body")
+  cashClosuresTableBody: document.getElementById("cash-closures-table-body"),
+  employeeShiftOverlay: document.getElementById("employee-shift-overlay"),
+  employeeShiftEmployees: document.getElementById("employee-shift-employees"),
+  employeeShiftCashInput: document.getElementById("employee-shift-cash-input"),
+  employeeShiftFeedback: document.getElementById("employee-shift-feedback"),
+  employeeShiftCancelBtn: document.getElementById("employee-shift-cancel-btn"),
+  employeeShiftConfirmBtn: document.getElementById("employee-shift-confirm-btn")
 };
 

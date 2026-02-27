@@ -1,9 +1,55 @@
 necesito que realices las siguientes mejoras:
 
-1.quiero un spin dentro del boton "crear empleado" que se
+1. Quiero un spin dentro del boton "crear empleado" que se
 encuentra el la seccion configuraciones
 
-2.cuando se crea un producto en la seccion "nuevo producto" el precio de compra
+2. Cuando se crea un producto en la seccion "nuevo producto" el precio de compra
  no puede ser superior al preci de venta
 
- 3. el empleador puede eliminar ventas
+ // (ignora esta mejora, despues la implementamos) 3. el empleador puede eliminar ventas en la seccion caja 
+
+ 4. en la seccion caja crea un boton para el empleador que diga "Iniciar Turno Empleado" en el cual 
+ salte una ventana que tenga 2 secciones 1. seleccione el empleado (se renderizan botones
+ con el nombre del empleado) el empleador debe selecconar un emleado, se habilita el input 
+ de la seccion 2, en el cual el empleador debe ingresar el dinero en efetivo que deja en caja para el empleador
+ ese monto se renderiza en el article detalle ==> inicio de caja 
+
+ en la coleccion empleados se agrega una colecion al empleado que se seleciono que se llama "turno": 
+
+ turno {
+    idTurno: (se crea un id del turno),
+    fechaInicio: , 
+    horaInicio: ,
+    fechaCierre:,
+    horaCierre, 
+    inicioCaja: (se guarda el monto de inicio de caja), (lo agrega el empleador)
+    montoCierreCaja: (monto cuando se cierra la caja), 
+    turnoIniciado:true/false,
+    turnoCerrado:true/false
+    }
+
+    solo el epleador puede crear este documento al la coleccion turno
+
+los empleados no pueden reaizar ventas si no estan habilitados por el empleador (es decir si en la coleccion
+ turno no se encuetra turnoIniciado==true && turnoCerrado==false)
+
+ en function cuando el empleado quiere realizar una venta busca el ultimo doc de turno perteneciente al id 
+ del empleado y verifica si esta habilitado para realizar ventas (functio lo guarda en cache para no estar
+ consultando la base de datos en cada venta)
+
+ en el frontend salta una alerta de: "el empleador no inicio tu turno!"  
+
+
+ 5. quiero que en la seccion caja unifique en un mismo article 
+ "ventas del dia" y "productos vendidos", y quiero que agregues un article que indique el "total a entregar"
+ y a la izquierda de ese article quiero que este el "detalle de caja", en el cual se muestre 
+ ==> $ inicio de caja (todo el color amarillo) (se obtiene de la coleccion turno )
+ ==> $ efectivo "efectivo" (todo en verde) (el color actual)
+ ==> $ virtual "virual" (todo en celeste) (el color actual)
+
+6. en la seccion caja en el div con class "scan-actions cash-action-bar", quiero que agregues para el empleador 
+2 div que esten uno debajo del otro, que contengan los botones,
+
+en el 1er div colocaremos los borones "cerrar mis ventas"
+en el 2do div colocaremos los borones "Iniciar Turno Empleado","Terminar Turno Empleado" (ex terminar turno) solo cambiale el textcontent
+

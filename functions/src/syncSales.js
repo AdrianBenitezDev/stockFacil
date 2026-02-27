@@ -32,6 +32,10 @@ const syncSales = onCall(async (request) => {
         tipoPago: sale.tipoPago,
         pagoEfectivo: sale.pagoEfectivo,
         pagoVirtual: sale.pagoVirtual,
+        auditRequired: sale.auditRequired === true,
+        auditReason: String(sale.auditReason || ""),
+        auditNote: String(sale.auditNote || ""),
+        auditSource: String(sale.auditSource || ""),
         usuarioUid: uid,
         usuarioNombre: String(caller.username || caller.displayName || "usuario"),
         cajaCerrada: false,
@@ -68,6 +72,10 @@ function normalizeSale(rawSale) {
   const gananciaReal = Number(rawSale?.gananciaReal ?? rawSale?.ganaciaReal ?? 0);
   const itemsCount = Number(rawSale?.itemsCount || 0);
   const createdAtInput = rawSale?.createdAt;
+  const auditRequired = rawSale?.auditRequired === true;
+  const auditReason = String(rawSale?.auditReason || "").trim();
+  const auditNote = String(rawSale?.auditNote || "").trim();
+  const auditSource = String(rawSale?.auditSource || "").trim();
   const productos = Array.isArray(rawSale?.productos) ? rawSale.productos : [];
   const payment = normalizePayment(rawSale);
 
@@ -96,6 +104,10 @@ function normalizeSale(rawSale) {
     pagoEfectivo: payment.pagoEfectivo,
     pagoVirtual: payment.pagoVirtual,
     itemsCount: Math.trunc(itemsCount),
+    auditRequired,
+    auditReason,
+    auditNote,
+    auditSource,
     productos: productos.map(normalizeSaleItem),
     createdAt: normalizeCreatedAt(createdAtInput)
   };

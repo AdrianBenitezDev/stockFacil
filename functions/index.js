@@ -19,6 +19,11 @@ const { adminManageAccounts } = require("./src/adminManageAccounts");
 const { adminManageProducts } = require("./src/adminManageProducts");
 const { adminManageSales } = require("./src/adminManageSales");
 const { adminManageCashboxes } = require("./src/adminManageCashboxes");
+const { startEmployeeShift, endEmployeeShift } = require("./src/manageEmployeeShift");
+const { getShiftCashDetail } = require("./src/getShiftCashDetail");
+const { getMyShiftStatus } = require("./src/getMyShiftStatus");
+const { registerEmergencyShiftStart } = require("./src/registerEmergencyShiftStart");
+const { registerSalesAuditEvent } = require("./src/registerSalesAuditEvent");
 
 exports.seedPlanes = seedPlanes;
 
@@ -42,3 +47,9 @@ exports.adminManageAccounts = adminManageAccounts;
 exports.adminManageProducts = adminManageProducts;
 exports.adminManageSales = adminManageSales;
 exports.adminManageCashboxes = adminManageCashboxes;
+exports.startEmployeeShift = startEmployeeShift;
+exports.endEmployeeShift = endEmployeeShift;
+exports.getShiftCashDetail = getShiftCashDetail;
+exports.getMyShiftStatus = getMyShiftStatus;
+exports.registerEmergencyShiftStart = registerEmergencyShiftStart;
+exports.registerSalesAuditEvent = registerSalesAuditEvent;

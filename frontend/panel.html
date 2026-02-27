@@ -314,18 +314,20 @@
         <p id="cash-scope-label" class="subtitle"></p>
         <div id="cash-summary" class="cash-summary">
           <article class="cash-card">
-            <h4>Ventas del dia</h4>
+            <h4>Actividad del dia</h4>
             <p id="cash-sales-count" class="cash-value">0</p>
+            <p class="cash-split-line">ventas del dia</p>
+            <p id="cash-items-count" class="cash-split-line">0 productos vendidos</p>
           </article>
           <article class="cash-card">
-            <h4>Productos vendidos</h4>
-            <p id="cash-items-count" class="cash-value">0</p>
+            <h4>Detalle de caja</h4>
+            <p id="cash-shift-start-amount" class="cash-split-line cash-split-start">=&gt; $0.00 inicio de caja</p>
+            <p id="cash-detail-cash-amount" class="cash-split-line cash-split-cash">=&gt; $0.00 efectivo</p>
+            <p id="cash-detail-virtual-amount" class="cash-split-line cash-split-virtual">=&gt; $0.00 virtual</p>
           </article>
           <article class="cash-card">
             <h4>Total a entregar</h4>
             <p id="cash-total-amount" class="cash-value">$0.00</p>
-            <p id="cash-total-cash-amount" class="cash-split-line cash-split-cash">=&gt; $0.00 efectivo</p>
-            <p id="cash-total-virtual-amount" class="cash-split-line cash-split-virtual">=&gt; $0.00 virtual</p>
           </article>
           <article id="cash-card-cost" class="cash-card">
             <h4>Costo del dia</h4>
@@ -340,8 +342,15 @@
         <p id="cash-closure-status" class="subtitle"></p>
 
         <div class="scan-actions cash-action-bar">
-          <button id="close-my-sales-btn" type="button" class="mode-btn-secondary hidden">CERRAR MIS VENTAS</button>
-          <button id="close-shift-btn" type="button">TERMINAR TURNO</button>
+          <div id="cash-owner-actions" class="cash-owner-action-stack hidden">
+            <div class="cash-owner-action-row">
+              <button id="close-my-sales-btn" type="button" class="mode-btn-secondary">CERRAR MIS VENTAS</button>
+            </div>
+            <div class="cash-owner-action-row">
+              <button id="start-employee-shift-btn" type="button" class="mode-btn-secondary">INICIAR TURNO EMPLEADO</button>
+              <button id="close-shift-btn" type="button">TERMINAR TURNO EMPLEADO</button>
+            </div>
+          </div>
           <button id="refresh-cash-btn" type="button" class="mode-btn-secondary">Actualizar caja</button>
         </div>
         <p id="cash-feedback" class="feedback" aria-live="polite"></p>
@@ -414,7 +423,7 @@
             <label for="employee-password">Contrasena temporal</label>
             <input id="employee-password" name="password" type="password" minlength="6" required>
 
-            <button type="submit">Crear empleado</button>
+            <button id="create-employee-btn" type="submit">Crear empleado</button>
           </form>
           <p id="employee-feedback" class="feedback" aria-live="polite"></p>
           <p class="subtitle">Solo para empleador. El cupo depende del plan activo.</p>
@@ -440,10 +449,46 @@
               </tbody>
             </table>
           </div>
+
+          <h4>Auditoria de ventas</h4>
+          <p class="subtitle">Ventas marcadas para revision (prioridad: continuidad operativa).</p>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Fecha</th>
+                  <th>Usuario</th>
+                  <th>Total</th>
+                  <th>Motivo auditoria</th>
+                  <th>Fuente</th>
+                </tr>
+              </thead>
+              <tbody id="audit-sales-table-body">
+                <tr>
+                  <td colspan="5">Cargando ventas en auditoria...</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
         </section>
       </section>
     </section>
   </main>
+
+  <div id="employee-shift-overlay" class="sale-payment-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="employee-shift-title">
+    <div class="sale-payment-panel employee-shift-panel">
+      <h4 id="employee-shift-title">Iniciar Turno Empleado</h4>
+      <p class="subtitle">1. Selecciona el empleado</p>
+      <div id="employee-shift-employees" class="shift-employee-list"></div>
+      <p class="subtitle">2. Ingresa inicio de caja</p>
+      <input id="employee-shift-cash-input" type="number" min="0" step="0.01" placeholder="0.00" disabled>
+      <p id="employee-shift-feedback" class="feedback" aria-live="polite"></p>
+      <div class="sale-payment-actions">
+        <button id="employee-shift-cancel-btn" type="button" class="mode-btn-secondary">Cancelar</button>
+        <button id="employee-shift-confirm-btn" type="button" disabled>Iniciar turno</button>
+      </div>
+    </div>
+  </div>
 
   <footer class="site-footer">
     <div class="site-footer-inner">

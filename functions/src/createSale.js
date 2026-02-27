@@ -1,8 +1,17 @@
 const { HttpsError, onCall, Timestamp, db } = require("./shared/context");
 const { requireTenantMemberContext } = require("./shared/authz");
+const { getEmployeeShiftStatusCached } = require("./shared/employeeShift");
 
 const createSale = onCall(async (request) => {
   const { uid, tenantId, caller } = await requireTenantMemberContext(request);
+  const normalizedRole = String(caller?.role || "").trim().toLowerCase();
+
+  if (normalizedRole === "empleado") {
+    const shiftStatus = await getEmployeeShiftStatusCached(uid, tenantId);
+    if (!shiftStatus.ok || shiftStatus.active !== true) {
+      throw new HttpsError("failed-precondition", "el empleador no inicio tu turno!");
+    }
+  }
 
   const payload = request.data || {};
   const requestedId = String(payload.idVenta || "").trim();
@@ -108,6 +117,10 @@ const createSale = onCall(async (request) => {
     tipoPago: paymentDetails.tipoPago,
     pagoEfectivo: paymentDetails.pagoEfectivo,
     pagoVirtual: paymentDetails.pagoVirtual,
+    auditRequired: false,
+    auditReason: "",
+    auditNote: "",
+    auditSource: "online",
     cajaCerrada: false,
     backups: true,
     itemsCount,

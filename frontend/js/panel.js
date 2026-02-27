@@ -56,6 +56,7 @@ import {
   updateEmployeeCreateProductsPermission,
   updateEmployeeEditProductsPermission
 } from "./employees.js";
+import { endEmployeeShift, startEmployeeShift, syncMyShiftStatusCache } from "./shifts.js";
 
 const currentSaleItems = [];
 let scannerMode = null;
@@ -93,6 +94,9 @@ let addProductToastTimer = null;
 const pendingStockChanges = new Set();
 const pendingStockValues = new Map();
 let uiModeToastTimer = null;
+let employeeShiftSubmitting = false;
+let employeeShiftCandidates = [];
+let selectedEmployeeShiftUid = "";
 
 init()
   .catch((error) => {
@@ -160,10 +164,12 @@ function scheduleStartupOverlayFallback() {
 
 async function runPostStartupRefreshes() {
   const tasks = [
+    syncMyShiftStatusCache(currentUser),
     ensureInitialProductsConsistency(),
     refreshStock(),
     refreshCashPanel(),
-    refreshEmployeesPanel()
+    refreshEmployeesPanel(),
+    refreshAuditPanel()
   ];
   const results = await Promise.allSettled(tasks);
   const firstError = results.find((entry) => entry.status === "rejected");
@@ -221,7 +227,12 @@ function wireEvents() {
   dom.saleTableBody.addEventListener("click", handleRemoveCurrentSaleItem);
   dom.closeShiftBtn.addEventListener("click", handleCloseShift);
   dom.closeMySalesBtn?.addEventListener("click", handleCloseMySales);
+  dom.startEmployeeShiftBtn?.addEventListener("click", handleOpenEmployeeShiftOverlay);
   dom.refreshCashBtn.addEventListener("click", handleRefreshCashClick);
+  dom.employeeShiftCancelBtn?.addEventListener("click", closeEmployeeShiftOverlay);
+  dom.employeeShiftConfirmBtn?.addEventListener("click", handleConfirmEmployeeShiftStart);
+  dom.employeeShiftCashInput?.addEventListener("input", updateEmployeeShiftConfirmState);
+  dom.employeeShiftEmployees?.addEventListener("click", handleSelectEmployeeShiftCandidate);
   dom.cashPrivacyToggle?.addEventListener("click", handleToggleCashPrivacy);
   dom.cashSalesToggleBtn?.addEventListener("click", handleToggleCashSalesSection);
   dom.cashClosuresToggleBtn?.addEventListener("click", handleToggleCashClosuresSection);
@@ -232,6 +243,7 @@ function wireEvents() {
   window.addEventListener("online", handleOnlineReconnection);
   window.addEventListener("offline", handleOfflineDetected);
   window.addEventListener("keydown", handleSalePaymentOverlayKeydown);
+  window.addEventListener("keydown", handleEmployeeShiftOverlayKeydown);
   dom.offlineSyncBanner?.addEventListener("click", handleOfflineBannerClick);
 }
 
@@ -431,28 +443,46 @@ async function handleCreateEmployeeSubmit(event) {
     return;
   }
 
-  const formData = new FormData(dom.createEmployeeForm);
-  const result = await createEmployeeViaCallable({
-    displayName: formData.get("displayName"),
-    email: formData.get("email"),
-    password: formData.get("password")
-  });
-
-  if (!result.ok) {
-    setEmployeeFeedback(result.error);
-    return;
+  const submitBtn = dom.createEmployeeBtn;
+  const originalLabel = submitBtn?.textContent || "Crear empleado";
+  if (submitBtn) {
+    submitBtn.disabled = true;
+    submitBtn.classList.add("btn-loading");
+    submitBtn.setAttribute("aria-busy", "true");
+    submitBtn.textContent = "Creando...";
   }
 
-  dom.createEmployeeForm.reset();
-  setEmployeeFeedback(
-    result?.data?.verificationEmailSent === false
-      ? `Empleado creado, pero no se pudo enviar correo de verificacion. Detalle: ${String(
-          result?.data?.verificationEmailError || "sin detalle"
-        )}`
-      : "Empleado creado y correo de verificacion enviado.",
-    result?.data?.verificationEmailSent === false ? "error" : "success"
-  );
-  await refreshEmployeesPanel();
+  try {
+    const formData = new FormData(dom.createEmployeeForm);
+    const result = await createEmployeeViaCallable({
+      displayName: formData.get("displayName"),
+      email: formData.get("email"),
+      password: formData.get("password")
+    });
+
+    if (!result.ok) {
+      setEmployeeFeedback(result.error);
+      return;
+    }
+
+    dom.createEmployeeForm.reset();
+    setEmployeeFeedback(
+      result?.data?.verificationEmailSent === false
+        ? `Empleado creado, pero no se pudo enviar correo de verificacion. Detalle: ${String(
+            result?.data?.verificationEmailError || "sin detalle"
+          )}`
+        : "Empleado creado y correo de verificacion enviado.",
+      result?.data?.verificationEmailSent === false ? "error" : "success"
+    );
+    await refreshEmployeesPanel();
+  } finally {
+    if (submitBtn) {
+      submitBtn.disabled = false;
+      submitBtn.classList.remove("btn-loading");
+      submitBtn.removeAttribute("aria-busy");
+      submitBtn.textContent = originalLabel;
+    }
+  }
 }
 
 async function refreshEmployeesPanel() {
@@ -502,6 +532,58 @@ async function refreshEmployeesPanel() {
     console.error("No se pudo cargar listado de empleados:", error);
     dom.employeeListTableBody.innerHTML =
       '<tr><td colspan="7">No se pudo cargar empleados. Verifica permisos y reglas.</td></tr>';
+  } finally {
+    await refreshAuditPanel();
+  }
+}
+
+async function refreshAuditPanel() {
+  if (!dom.auditSalesTableBody) return;
+  if (!currentUser || currentUser.role !== "empleador") return;
+
+  dom.auditSalesTableBody.innerHTML = '<tr><td colspan="5">Cargando ventas en auditoria...</td></tr>';
+  try {
+    const tenantId = String(currentUser.tenantId || "").trim();
+    if (!tenantId) {
+      dom.auditSalesTableBody.innerHTML = '<tr><td colspan="5">No se pudo resolver tenant actual.</td></tr>';
+      return;
+    }
+    const salesQuery = query(
+      collection(firestoreDb, "tenants", tenantId, "ventas"),
+      where("auditRequired", "==", true)
+    );
+    const eventsQuery = query(
+      collection(firestoreDb, "tenants", tenantId, "auditoria_turnos"),
+      where("auditRequired", "==", true)
+    );
+    const [salesSnap, eventsSnap] = await Promise.all([getDocs(salesQuery), getDocs(eventsQuery)]);
+    const saleRows = salesSnap.docs.map((docSnap) => ({ id: docSnap.id, kind: "sale", ...(docSnap.data() || {}) }));
+    const eventRows = eventsSnap.docs.map((docSnap) => ({ id: docSnap.id, kind: "event", ...(docSnap.data() || {}) }));
+    const rows = [...saleRows, ...eventRows];
+    rows.sort((a, b) => formatDateValue(b.createdAt) - formatDateValue(a.createdAt));
+
+    if (!rows.length) {
+      dom.auditSalesTableBody.innerHTML = '<tr><td colspan="5">No hay ventas marcadas para auditoria.</td></tr>';
+      return;
+    }
+
+    dom.auditSalesTableBody.innerHTML = rows
+      .slice(0, 200)
+      .map((row) => {
+        const created = escapeHtml(formatDateForTable(row.createdAt));
+        const user = escapeHtml(row.usuarioNombre || row.empleadoNombre || row.username || row.userId || row.empleadoUid || "-");
+        const total = row.kind === "sale" ? `$${Number(row.total || 0).toFixed(2)}` : "-";
+        const reason = escapeHtml(
+          String(row.kind === "sale" ? row.auditReason || "revision_manual" : row.tipo || "evento_auditoria")
+        );
+        const source = escapeHtml(String(row.kind === "sale" ? row.auditSource || "-" : row.source || "-"));
+        return [`<tr>`, `<td>${created}</td>`, `<td>${user}</td>`, `<td>${total}</td>`, `<td>${reason}</td>`, `<td>${source}</td>`, `</tr>`].join("");
+      })
+      .join("");
+  } catch (error) {
+    console.error("No se pudo cargar tabla de auditoria:", error);
+    dom.auditSalesTableBody.innerHTML =
+      '<tr><td colspan="5">No se pudo cargar auditoria. Verifica permisos y conexion.</td></tr>';
   }
 }
 
@@ -1055,6 +1137,147 @@ function resolveSalePaymentPayload() {
   };
 }
 
+async function handleOpenEmployeeShiftOverlay() {
+  if (!isEmployerRole(currentUser?.role)) return;
+  resetEmployeeShiftOverlayState();
+  dom.employeeShiftOverlay?.classList.remove("hidden");
+  await loadEmployeeShiftCandidates();
+}
+
+function closeEmployeeShiftOverlay() {
+  if (employeeShiftSubmitting) return;
+  dom.employeeShiftOverlay?.classList.add("hidden");
+}
+
+function resetEmployeeShiftOverlayState() {
+  employeeShiftSubmitting = false;
+  employeeShiftCandidates = [];
+  selectedEmployeeShiftUid = "";
+  if (dom.employeeShiftEmployees) dom.employeeShiftEmployees.innerHTML = "";
+  if (dom.employeeShiftCashInput) {
+    dom.employeeShiftCashInput.value = "";
+    dom.employeeShiftCashInput.disabled = true;
+  }
+  setEmployeeShiftFeedback("");
+  updateEmployeeShiftConfirmState();
+}
+
+async function loadEmployeeShiftCandidates() {
+  if (!dom.employeeShiftEmployees) return;
+  const tenantId = String(currentUser?.tenantId || "").trim();
+  if (!tenantId) {
+    setEmployeeShiftFeedback("No se pudo resolver el tenant actual.");
+    return;
+  }
+
+  dom.employeeShiftEmployees.innerHTML = '<span class="subtitle">Cargando empleados...</span>';
+  try {
+    const q = query(collection(firestoreDb, "empleados"), where("comercioId", "==", tenantId));
+    const snap = await getDocs(q);
+    const rows = snap.docs.map((docSnap) => ({ id: docSnap.id, ...(docSnap.data() || {}) }));
+    rows.sort((a, b) =>
+      String(a.displayName || a.username || a.id || "").localeCompare(String(b.displayName || b.username || b.id || ""))
+    );
+    employeeShiftCandidates = rows;
+    renderEmployeeShiftCandidates();
+  } catch (error) {
+    console.error("No se pudo cargar empleados para iniciar turno:", error);
+    setEmployeeShiftFeedback("No se pudo cargar el listado de empleados.");
+    dom.employeeShiftEmployees.innerHTML = "";
+  }
+}
+
+function renderEmployeeShiftCandidates() {
+  if (!dom.employeeShiftEmployees) return;
+  if (!employeeShiftCandidates.length) {
+    dom.employeeShiftEmployees.innerHTML = '<span class="subtitle">No hay empleados disponibles.</span>';
+    return;
+  }
+
+  dom.employeeShiftEmployees.innerHTML = employeeShiftCandidates
+    .map((employee) => {
+      const uid = escapeHtml(employee.uid || employee.id || "");
+      const label = escapeHtml(employee.displayName || employee.username || uid || "Empleado");
+      const selectedClass = uid === selectedEmployeeShiftUid ? "is-selected" : "";
+      return `<button type="button" class="shift-employee-btn ${selectedClass}" data-shift-employee-id="${uid}">${label}</button>`;
+    })
+    .join("");
+}
+
+function handleSelectEmployeeShiftCandidate(event) {
+  const button = event.target.closest("[data-shift-employee-id]");
+  if (!button) return;
+  const uid = String(button.getAttribute("data-shift-employee-id") || "").trim();
+  if (!uid) return;
+
+  selectedEmployeeShiftUid = uid;
+  if (dom.employeeShiftCashInput) {
+    dom.employeeShiftCashInput.disabled = false;
+    dom.employeeShiftCashInput.focus({ preventScroll: true });
+  }
+  renderEmployeeShiftCandidates();
+  updateEmployeeShiftConfirmState();
+}
+
+function updateEmployeeShiftConfirmState() {
+  if (!dom.employeeShiftConfirmBtn) return;
+  const amountRaw = String(dom.employeeShiftCashInput?.value || "").trim();
+  const amount = Number(amountRaw);
+  const hasEmployee = Boolean(selectedEmployeeShiftUid);
+  const hasValidAmount = amountRaw !== "" && Number.isFinite(amount) && amount >= 0;
+  dom.employeeShiftConfirmBtn.disabled = employeeShiftSubmitting || !hasEmployee || !hasValidAmount;
+}
+
+function setEmployeeShiftFeedback(message, kind = "error") {
+  if (!dom.employeeShiftFeedback) return;
+  dom.employeeShiftFeedback.style.color = kind === "success" ? "var(--accent)" : "var(--danger)";
+  dom.employeeShiftFeedback.textContent = String(message || "");
+}
+
+async function handleConfirmEmployeeShiftStart() {
+  if (employeeShiftSubmitting) return;
+  if (!selectedEmployeeShiftUid) {
+    setEmployeeShiftFeedback("Debes seleccionar un empleado.");
+    return;
+  }
+
+  const amount = Number(dom.employeeShiftCashInput?.value || 0);
+  if (!Number.isFinite(amount) || amount < 0) {
+    setEmployeeShiftFeedback("El inicio de caja es invalido.");
+    return;
+  }
+
+  employeeShiftSubmitting = true;
+  updateEmployeeShiftConfirmState();
+  dom.employeeShiftConfirmBtn?.classList.add("btn-loading");
+  dom.employeeShiftCancelBtn && (dom.employeeShiftCancelBtn.disabled = true);
+  setEmployeeShiftFeedback("");
+
+  try {
+    const result = await startEmployeeShift({
+      employeeUid: selectedEmployeeShiftUid,
+      inicioCaja: amount
+    });
+    if (!result.ok) {
+      setEmployeeShiftFeedback(result.error || "No se pudo iniciar el turno.");
+      return;
+    }
+
+    const selectedEmployee = employeeShiftCandidates.find(
+      (employee) => String(employee.uid || employee.id || "").trim() === selectedEmployeeShiftUid
+    );
+    const employeeName = String(selectedEmployee?.displayName || selectedEmployee?.username || "empleado");
+    setCashFeedback(`Turno iniciado para ${employeeName}. Inicio de caja: $${Number(amount).toFixed(2)}.`, "success");
+    closeEmployeeShiftOverlay();
+    await refreshCashPanel();
+  } finally {
+    employeeShiftSubmitting = false;
+    dom.employeeShiftConfirmBtn?.classList.remove("btn-loading");
+    dom.employeeShiftCancelBtn && (dom.employeeShiftCancelBtn.disabled = false);
+    updateEmployeeShiftConfirmState();
+  }
+}
+
 async function handleConfirmSalePayment() {
   const payment = resolveSalePaymentPayload();
   if (!payment.ok) {
@@ -1078,6 +1301,9 @@ async function handleConfirmSalePayment() {
     salePaymentSubmitting = false;
     if (dom.salePaymentFeedback) {
       dom.salePaymentFeedback.textContent = result.error;
+    }
+    if (String(result.error || "").trim().toLowerCase().includes("el empleador no inicio tu turno")) {
+      window.alert("el empleador no inicio tu turno!");
     }
     if (result.requiresLogin) {
       redirectToLogin();
@@ -1118,6 +1344,13 @@ function handleSalePaymentOverlayKeydown(event) {
   if (dom.salePaymentOverlay?.classList.contains("hidden")) return;
   event.preventDefault();
   closeSalePaymentOverlay();
+}
+
+function handleEmployeeShiftOverlayKeydown(event) {
+  if (event.key !== "Escape") return;
+  if (dom.employeeShiftOverlay?.classList.contains("hidden")) return;
+  event.preventDefault();
+  closeEmployeeShiftOverlay();
 }
 
 function getCurrentSaleTotal() {
@@ -1289,43 +1522,69 @@ function renderCashSectionToggleButton(button, { sectionVisible, sectionLabel })
 }
 
 async function handleCloseShift() {
+  if (!isEmployerRole(currentUser?.role)) {
+    setCashFeedback("Solo el empleador puede terminar turno de empleado.");
+    return;
+  }
   if (dom.closeShiftBtn) {
     dom.closeShiftBtn.disabled = true;
     dom.closeShiftBtn.classList.add("btn-loading");
   }
   try {
-  const ownerId = String(currentUser?.userId || "");
-  const pendingOthers = (latestCashSnapshot?.sales || []).filter(
-    (sale) => String(sale.userId || sale.usuarioUid || "") !== ownerId
-  );
-  const pendingSales = pendingOthers.length;
-  const pendingTotal = pendingOthers.reduce((acc, sale) => acc + Number(sale.total || 0), 0);
-  const confirmed = window.confirm(
-    pendingSales > 0
-      ? `Esto obligara a cerrar el turno actual del kiosco para todos los usuarios excepto tu usuario empleador. Se cerraran ${pendingSales} venta(s) pendiente(s) por $${pendingTotal.toFixed(
-          2
-        )}. Continuar?`
-      : "No hay ventas pendientes de otros usuarios para cerrar turno. Continuar?"
-  );
-  if (!confirmed) return;
+  if (!employeeShiftCandidates.length) {
+    await loadEmployeeShiftCandidates();
+  }
+  if (!employeeShiftCandidates.length) {
+    setCashFeedback("No hay empleados disponibles para cerrar turno.");
+    return;
+  }
 
-  const result = await closeTodayShift({ scope: "others" });
+  const options = employeeShiftCandidates
+    .map((employee, index) => {
+      const label = String(employee.displayName || employee.username || employee.uid || employee.id || "Empleado");
+      const uid = String(employee.uid || employee.id || "").trim();
+      return `${index + 1}. ${label} (${uid})`;
+    })
+    .join("\n");
+  const pickedRaw = window.prompt(
+    `Selecciona el numero de empleado para terminar turno:\n${options}`,
+    "1"
+  );
+  if (pickedRaw === null) return;
+  const pickedIndex = Math.trunc(Number(pickedRaw)) - 1;
+  if (!Number.isFinite(pickedIndex) || pickedIndex < 0 || pickedIndex >= employeeShiftCandidates.length) {
+    setCashFeedback("Seleccion de empleado invalida.");
+    return;
+  }
+  const selectedEmployee = employeeShiftCandidates[pickedIndex];
+  const selectedUid = String(selectedEmployee?.uid || selectedEmployee?.id || "").trim();
+  if (!selectedUid) {
+    setCashFeedback("No se pudo resolver el empleado seleccionado.");
+    return;
+  }
+
+  const cierreRaw = window.prompt(
+    "Ingresa monto de cierre de caja del empleado:",
+    "0"
+  );
+  if (cierreRaw === null) return;
+  const montoCierreCaja = Number(String(cierreRaw).replace(",", ".").trim());
+  if (!Number.isFinite(montoCierreCaja) || montoCierreCaja < 0) {
+    setCashFeedback("Monto de cierre invalido.");
+    return;
+  }
+
+  const result = await endEmployeeShift({ employeeUid: selectedUid, montoCierreCaja });
   if (!result.ok) {
-    if (result.requiresLogin) {
-      redirectToLogin();
-      return;
-    }
     setCashFeedback(result.error);
     return;
   }
 
-  const canViewProfit = isEmployerRole(currentUser?.role);
-  const closeMessage = canViewProfit
-    ? `Turno cerrado. Debes entregar $${result.summary.totalAmount.toFixed(2)}. Ganancia del dia: ${
-        cashSensitiveMasked ? "****" : `$${result.summary.profitAmount.toFixed(2)}`
-      }.`
-    : `Turno cerrado. Debes entregar $${result.summary.totalAmount.toFixed(2)}.`;
-  setCashFeedback(closeMessage, "success");
+  const employeeName = String(selectedEmployee?.displayName || selectedEmployee?.username || "empleado");
+  setCashFeedback(
+    `Turno de ${employeeName} finalizado. Monto de cierre: $${Number(montoCierreCaja).toFixed(2)}.`,
+    "success"
+  );
   await refreshCashPanel();
   } finally {
     if (dom.closeShiftBtn) {

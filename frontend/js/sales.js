@@ -8,10 +8,19 @@ import {
   openDatabase
 } from "./db.js";
 import { STORES } from "./config.js";
+import {
+  canEmployeeSellOfflineByShiftCache,
+  ensureEmployeeEmergencyOfflineShiftStart,
+  getEmployeeOfflineShiftState,
+  markEmployeeShiftCacheActive,
+  markEmployeeShiftCacheInactive,
+  syncMyShiftStatusCache
+} from "./shifts.js";
 
 const functions = getFunctions(firebaseApp);
 const createSaleCallable = httpsCallable(functions, "createSale");
 const syncSalesCallable = httpsCallable(functions, "syncSales");
+const registerSalesAuditEventCallable = httpsCallable(functions, "registerSalesAuditEvent");
 
 export async function chargeSale(cartItems, paymentDetails = null) {
   const session = getCurrentSession();
@@ -28,13 +37,25 @@ export async function chargeSale(cartItems, paymentDetails = null) {
 
   const backendAttempt = await tryCreateSaleInBackend(cartItems, session, normalizedPayment.value);
   if (backendAttempt.ok) {
-    return finalizeSaleLocally(cartItems, session, { authoritative: backendAttempt.data, paymentDetails: normalizedPayment.value });
+    return finalizeSaleLocally(cartItems, session, {
+      authoritative: backendAttempt.data,
+      paymentDetails: normalizedPayment.value,
+      audit: backendAttempt.audit || null
+    });
   }
   if (!backendAttempt.canFallbackToOffline) {
     return { ok: false, error: backendAttempt.error || "No se pudo cobrar la venta." };
   }
 
-  return finalizeSaleLocally(cartItems, session, { authoritative: null, paymentDetails: normalizedPayment.value });
+  return finalizeSaleLocally(cartItems, session, {
+    authoritative: null,
+    paymentDetails: normalizedPayment.value,
+    audit: backendAttempt.audit || {
+      required: true,
+      reason: "venta_offline",
+      note: "Venta registrada offline. Requiere auditoria preventiva."
+    }
+  });
 }
 
 export async function syncPendingSales() {
@@ -65,6 +86,10 @@ export async function syncPendingSales() {
       tipoPago: String(sale.tipoPago || "efectivo"),
       pagoEfectivo: Number(sale.pagoEfectivo || 0),
       pagoVirtual: Number(sale.pagoVirtual || 0),
+      auditRequired: sale.auditRequired === true,
+      auditReason: String(sale.auditReason || ""),
+      auditNote: String(sale.auditNote || ""),
+      auditSource: String(sale.auditSource || ""),
       createdAt: sale.createdAt || null,
       productos: (items || []).map((item) => ({
         codigo: String(item.barcode || "").trim(),
@@ -90,12 +115,87 @@ export async function syncPendingSales() {
 }
 
 async function tryCreateSaleInBackend(cartItems, session, paymentDetails) {
+  const normalizedRole = String(session?.role || "").trim().toLowerCase();
+  const isEmployee = normalizedRole === "empleado";
   if (!navigator.onLine) {
-    return { ok: false, canFallbackToOffline: true };
+    if (isEmployee) {
+      const canSellOffline = canEmployeeSellOfflineByShiftCache(session);
+      if (!canSellOffline) {
+        const emergencyStart = ensureEmployeeEmergencyOfflineShiftStart(session);
+        if (!emergencyStart.ok) {
+          return {
+            ok: false,
+            canFallbackToOffline: false,
+            error: emergencyStart.error || "No hay turno activo local."
+          };
+        }
+        return {
+          ok: false,
+          canFallbackToOffline: true,
+          error: "",
+          audit: {
+            required: true,
+            reason: "turno_offline_emergencia",
+            note: `Turno offline de emergencia iniciado por empleado. Inicio caja: $${Number(
+              emergencyStart.inicioCaja || 0
+            ).toFixed(2)}.`,
+            source: "offline_emergency"
+          }
+        };
+      }
+
+      const shiftState = getEmployeeOfflineShiftState(session);
+      const auditNote = shiftState.emergency
+        ? "Venta offline en turno de emergencia sin validacion de Firebase."
+        : "Venta offline en turno local. Requiere auditoria preventiva.";
+      return {
+        ok: false,
+        canFallbackToOffline: true,
+        error: "",
+        audit: {
+          required: true,
+          reason: shiftState.emergency ? "venta_offline_turno_emergencia" : "venta_offline_turno_local",
+          note: auditNote,
+          source: shiftState.emergency ? "offline_emergency" : "offline"
+        }
+      };
+    }
+    return {
+      ok: false,
+      canFallbackToOffline: true,
+      audit: {
+        required: true,
+        reason: "venta_offline_empleador",
+        note: "Venta offline registrada. Requiere auditoria preventiva.",
+        source: "offline"
+      }
+    };
   }
 
   await ensureFirebaseAuth();
   if (!firebaseAuth.currentUser) {
+    if (isEmployee) {
+      const canSellOffline = canEmployeeSellOfflineByShiftCache(session);
+      if (canSellOffline) {
+        const shiftState = getEmployeeOfflineShiftState(session);
+        return {
+          ok: false,
+          canFallbackToOffline: true,
+          error: "",
+          audit: {
+            required: true,
+            reason: shiftState.emergency ? "venta_offline_turno_emergencia" : "venta_offline_sin_sesion",
+            note: "Venta offline sin sesion Firebase valida. Requiere auditoria preventiva.",
+            source: "offline_no_firebase_session"
+          }
+        };
+      }
+      return {
+        ok: false,
+        canFallbackToOffline: false,
+        error: "No hay sesion valida para validar tu turno. Vuelve a iniciar sesion."
+      };
+    }
     return { ok: false, canFallbackToOffline: true };
   }
 
@@ -119,15 +219,30 @@ async function tryCreateSaleInBackend(cartItems, session, paymentDetails) {
   };
 
   try {
+    if (isEmployee) {
+      await syncMyShiftStatusCache(session);
+    }
     const response = await createSaleCallable(payload);
     const data = response?.data || {};
     if (!data?.success || !data?.idVenta) {
       return { ok: false, canFallbackToOffline: false, error: "Respuesta invalida del backend de ventas." };
     }
+    if (isEmployee) {
+      markEmployeeShiftCacheActive(session, { idTurno: "", inicioCaja: 0 });
+    }
     return { ok: true, data };
   } catch (error) {
     const code = String(error?.code || "");
     const message = String(error?.message || "");
+    const normalizedMessage = message.trim().toLowerCase();
+    if (isEmployee && normalizedMessage.includes("el empleador no inicio tu turno")) {
+      markEmployeeShiftCacheInactive(session);
+      await reportBlockedSaleAuditEvent({
+        tipo: "intento_venta_sin_turno_online",
+        detalle: "Venta bloqueada al volver online porque el empleado no tenia turno habilitado en Firebase.",
+        source: "online_validation"
+      });
+    }
     const canFallbackToOffline =
       code.includes("unavailable") || code.includes("deadline-exceeded") || code.includes("cancelled");
 
@@ -139,7 +254,7 @@ async function tryCreateSaleInBackend(cartItems, session, paymentDetails) {
   }
 }
 
-async function finalizeSaleLocally(cartItems, session, { authoritative, paymentDetails }) {
+async function finalizeSaleLocally(cartItems, session, { authoritative, paymentDetails, audit = null }) {
   const db = await openDatabase();
   const nowIso = new Date().toISOString();
   const saleId = String(authoritative?.idVenta || crypto.randomUUID());
@@ -217,6 +332,11 @@ async function finalizeSaleLocally(cartItems, session, { authoritative, paymentD
         authoritative ? Number(authoritative.gananciaReal ?? authoritative.ganaciaReal ?? 0) : gananciaReal
       );
 
+      const auditRequired = Boolean(!authoritative || audit?.required === true);
+      const auditReason = String(audit?.reason || (!authoritative ? "venta_offline" : "")).trim();
+      const auditNote = String(audit?.note || "").trim();
+      const auditSource = String(audit?.source || (!authoritative ? "offline" : "")).trim();
+
       salePayload = {
         id: saleId,
         kioscoId: session.tenantId,
@@ -234,6 +354,10 @@ async function finalizeSaleLocally(cartItems, session, { authoritative, paymentD
         backups: Boolean(authoritative),
         cajaCerrada: false,
         cajaId: null,
+        auditRequired,
+        auditReason,
+        auditNote,
+        auditSource,
         itemsCount,
         createdAt: nowIso
       };
@@ -299,6 +423,18 @@ function reqToPromise(request) {
     request.onsuccess = () => resolve(request.result);
     request.onerror = () => reject(request.error || new Error("Error de IndexedDB."));
   });
+}
+
+async function reportBlockedSaleAuditEvent({ tipo, detalle, source }) {
+  try {
+    await registerSalesAuditEventCallable({
+      tipo: String(tipo || "").trim(),
+      detalle: String(detalle || "").trim(),
+      source: String(source || "").trim()
+    });
+  } catch (_) {
+    // no-op
+  }
 }
 
 function runWriteTransaction(db, storeNames, executor) {

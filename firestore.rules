@@ -80,6 +80,25 @@ service cloud.firestore {
       allow create, update, delete: if false;
     }
 
+    match /tenants/{tenantDocId}/ventas/{docId} {
+      allow read: if isAuthenticated() &&
+        tenantId() != null &&
+        tenantDocId == tenantId() &&
+        (
+          role() == "empleador" ||
+          resource.data.usuarioUid == request.auth.uid
+        );
+      allow create, update, delete: if false;
+    }
+
+    match /tenants/{tenantDocId}/auditoria_turnos/{docId} {
+      allow read: if isAuthenticated() &&
+        tenantId() != null &&
+        tenantDocId == tenantId() &&
+        role() == "empleador";
+      allow create, update, delete: if false;
+    }
+
     match /productos/{docId} {
       allow read: if isTenantMemberByResource();
       allow create: if isTenantMemberByData();

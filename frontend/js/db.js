@@ -339,6 +339,48 @@ export async function assignCashboxToSalesByIds(saleIds, cajaId) {
   });
 }
 
+export async function deleteSalesAndItemsBySaleIds(saleIds) {
+  const ids = Array.from(new Set((saleIds || []).map((value) => String(value || "").trim()).filter(Boolean)));
+  if (ids.length === 0) return 0;
+
+  const db = await openDatabase();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction([STORES.sales, STORES.saleItems], "readwrite");
+    const salesStore = tx.objectStore(STORES.sales);
+    const saleItemsStore = tx.objectStore(STORES.saleItems);
+    const bySaleId = saleItemsStore.index("bySaleId");
+    let deletedSales = 0;
+
+    tx.oncomplete = () => resolve(deletedSales);
+    tx.onerror = () => reject(tx.error);
+    tx.onabort = () => reject(tx.error || new Error("No se pudieron eliminar ventas cerradas."));
+
+    Promise.resolve()
+      .then(async () => {
+        for (const saleId of ids) {
+          const existing = await reqToPromise(salesStore.get(saleId));
+          if (existing) {
+            salesStore.delete(saleId);
+            deletedSales += 1;
+          }
+
+          const itemKeys = await reqToPromise(bySaleId.getAllKeys(saleId));
+          for (const itemKey of itemKeys || []) {
+            saleItemsStore.delete(itemKey);
+          }
+        }
+      })
+      .catch((error) => {
+        try {
+          tx.abort();
+        } catch (_) {
+          // no-op
+        }
+        reject(error);
+      });
+  });
+}
+
 export async function putCashClosure(closure) {
   const db = await openDatabase();
   return new Promise((resolve, reject) => {
