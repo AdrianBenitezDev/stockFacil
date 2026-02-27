@@ -1338,8 +1338,11 @@ async function handleConfirmEmployeeShiftStart() {
   
     await refreshCashPanel();
 
+    setTimeout(()=>{
     employeeShiftSubmitting = false;
       closeEmployeeShiftOverlay();
+    },1800
+  )
     
   } finally {
     dom.employeeShiftConfirmBtn?.classList.remove("btn-loading");
