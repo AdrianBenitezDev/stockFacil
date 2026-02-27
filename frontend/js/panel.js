@@ -1211,6 +1211,7 @@ async function handleOpenEmployeeShiftOverlay() {
 }
 
 function closeEmployeeShiftOverlay() {
+  console.log(employeeShiftSubmitting)
   if (employeeShiftSubmitting) return;
   dom.employeeShiftOverlay?.classList.add("hidden");
 }

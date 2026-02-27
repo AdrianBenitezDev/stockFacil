@@ -53,3 +53,4 @@ los empleados no pueden reaizar ventas si no estan habilitados por el empleador 
 en el 1er div colocaremos los borones "cerrar mis ventas"
 en el 2do div colocaremos los borones "Iniciar Turno Empleado","Terminar Turno Empleado" (ex terminar turno) solo cambiale el textcontent
 
+closeTodayShift({ scope: "mine" })
