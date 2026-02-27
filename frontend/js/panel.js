@@ -1334,15 +1334,17 @@ async function handleConfirmEmployeeShiftStart() {
       (employee) => String(employee.uid || employee.id || "").trim() === selectedEmployeeShiftUid
     );
     const employeeName = String(selectedEmployee?.displayName || selectedEmployee?.username || "empleado");
+  
+    
+    await refreshCashPanel();
+  
     setCashFeedback(`Turno iniciado para ${employeeName}. Inicio de caja: $${Number(amount).toFixed(2)}.`, "success");
   
-    await refreshCashPanel();
 
-    setTimeout(()=>{
     employeeShiftSubmitting = false;
       closeEmployeeShiftOverlay();
-    },1800
-  )
+  
+  
     
   } finally {
     dom.employeeShiftConfirmBtn?.classList.remove("btn-loading");
