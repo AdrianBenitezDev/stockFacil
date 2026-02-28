@@ -767,10 +767,10 @@ async function handleBarcodeEnterOnAddProduct(event) {
   dom.productNameInput.focus({ preventScroll: true });
 }
 
-async function refreshStock() {
+async function refreshStock({ skipCloudSync = false } = {}) {
   pendingStockChanges.clear();
   pendingStockValues.clear();
-  if (!canCurrentUserEditProducts()) {
+  if (!skipCloudSync && !canCurrentUserEditProducts()) {
     await syncProductsFromCloudForCurrentKiosco();
   }
   allStockProducts = await listProductsForCurrentKiosco();
@@ -1454,7 +1454,7 @@ async function handleConfirmSalePayment() {
   setScanFeedback(checkoutMessage, "success");
   dom.salePaymentProcessing?.classList.add("hidden");
   dom.salePaymentToast?.classList.remove("hidden");
-  await refreshStock();
+  await refreshStock({ skipCloudSync: true });
   await refreshCashPanel();
   window.setTimeout(() => {
     dom.salePaymentToast?.classList.add("hidden");

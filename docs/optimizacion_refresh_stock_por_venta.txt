@@ -1,0 +1,25 @@
+﻿Optimizacion aplicada: evitar refresh de stock contra Firebase en cada venta
+
+Fecha: 2026-02-28
+Archivo modificado: frontend/js/panel.js
+
+Problema detectado:
+- Al terminar una venta, el flujo llamaba a refreshStock().
+- Para usuarios sin permiso de edicion (ej. empleado), refreshStock() ejecutaba syncProductsFromCloudForCurrentKiosco().
+- Eso disparaba lectura completa de productos en Firestore (getDocs) por cada venta, elevando lecturas/costo.
+
+Cambio implementado:
+1) refreshStock ahora acepta parametro opcional:
+   - refreshStock({ skipCloudSync = false })
+2) Si skipCloudSync=true, NO ejecuta syncProductsFromCloudForCurrentKiosco().
+3) En handleConfirmSalePayment(), luego de cobrar venta:
+   - antes: await refreshStock();
+   - ahora: await refreshStock({ skipCloudSync: true });
+
+Resultado esperado:
+- Despues de cada venta, el stock se refresca desde IndexedDB local (ya actualizado por finalizeSaleLocally).
+- Se elimina la lectura innecesaria a Firebase por cada cobro.
+- Menor pico de lecturas y mejor rendimiento en flujo de caja.
+
+Nota de consistencia:
+- La sincronizacion/pull desde cloud sigue disponible en otros momentos (inicio, reconexion o acciones manuales), por lo que no se pierde consistencia general.
