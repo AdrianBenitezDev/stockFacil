@@ -1372,8 +1372,28 @@ async function handleConfirmEmployeeShiftStart() {
   dom.employeeShiftConfirmBtn?.classList.add("btn-loading");
   dom.employeeShiftCancelBtn && (dom.employeeShiftCancelBtn.disabled = true);
   setEmployeeShiftFeedback("");
+  let employeeName = "empleado";
 
   try {
+    const ownerCloseResult = await closeEmployerPendingSalesBeforeEmployeeShiftStart();
+    if (!ownerCloseResult.ok) {
+      if (ownerCloseResult.requiresLogin) {
+        redirectToLogin();
+        return;
+      }
+      setEmployeeShiftFeedback(ownerCloseResult.error || "No se pudo cerrar la caja del empleador antes de iniciar turno.");
+      employeeShiftSubmitting = false;
+      return;
+    }
+    if (ownerCloseResult.closed) {
+      setEmployeeShiftFeedback(
+        `Se cerraron ventas activas del empleador (${ownerCloseResult.salesCount}) por $${Number(
+          ownerCloseResult.totalAmount || 0
+        ).toFixed(2)}. Ahora se abrira el turno del empleado...`,
+        "success"
+      );
+    }
+
     const result = await startEmployeeShift({
       employeeUid: selectedEmployeeShiftUid,
       inicioCaja: amount
@@ -1387,7 +1407,7 @@ async function handleConfirmEmployeeShiftStart() {
     const selectedEmployee = employeeShiftCandidates.find(
       (employee) => String(employee.uid || employee.id || "").trim() === selectedEmployeeShiftUid
     );
-    const employeeName = String(selectedEmployee?.displayName || selectedEmployee?.username || "empleado");
+    employeeName = String(selectedEmployee?.displayName || selectedEmployee?.username || "empleado");
   
     
     await refreshCashPanel();
@@ -1410,6 +1430,50 @@ async function handleConfirmEmployeeShiftStart() {
     
     setCashFeedback(`Turno iniciado para ${employeeName}. Inicio de caja: $${Number(amount).toFixed(2)}.`, "success");
   }
+}
+
+async function closeEmployerPendingSalesBeforeEmployeeShiftStart() {
+  if (!isEmployerRole(currentUser?.role)) {
+    return { ok: true, closed: false, salesCount: 0, totalAmount: 0 };
+  }
+
+  const snapshot = await getCashSnapshotForToday();
+  if (!snapshot?.ok) {
+    return {
+      ok: false,
+      error: snapshot?.error || "No se pudo validar ventas pendientes del empleador.",
+      requiresLogin: snapshot?.requiresLogin === true
+    };
+  }
+
+  const ownerPendingSales = (snapshot.sales || []).filter(
+    (sale) => String(sale.userId || sale.usuarioUid || "").trim() === String(currentUser?.userId || "").trim()
+  );
+  if (!ownerPendingSales.length) {
+    return { ok: true, closed: false, salesCount: 0, totalAmount: 0 };
+  }
+
+  setEmployeeShiftFeedback(
+    `Detectamos ${ownerPendingSales.length} venta(s) pendientes del empleador. Cerrando caja antes de iniciar turno...`,
+    "success"
+  );
+  const closeResult = await closeTodayShift({ scope: "mine" });
+  if (!closeResult?.ok) {
+    return {
+      ok: false,
+      error: closeResult?.error || "No se pudo cerrar las ventas del empleador.",
+      requiresLogin: closeResult?.requiresLogin === true
+    };
+  }
+
+  await refreshCashPanel();
+
+  return {
+    ok: true,
+    closed: true,
+    salesCount: ownerPendingSales.length,
+    totalAmount: Number(closeResult?.summary?.totalAmount || 0)
+  };
 }
 
 async function handleConfirmSalePayment() {

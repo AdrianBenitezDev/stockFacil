@@ -1,6 +1,5 @@
 const { HttpsError, onCall, Timestamp, db } = require("./shared/context");
 const { getStorage } = require("firebase-admin/storage");
-const { gzipSync } = require("node:zlib");
 const { createHash } = require("node:crypto");
 const { requireTenantMemberContext } = require("./shared/authz");
 
@@ -162,9 +161,7 @@ async function createCashboxBackupInStorage({
   const yyyy = String(date.getUTCFullYear());
   const mm = String(date.getUTCMonth() + 1).padStart(2, "0");
   const dd = String(date.getUTCDate()).padStart(2, "0");
-  const safeScope = sanitizeIdPart(effectiveScope || "all");
-  const safeTurnoId = sanitizeIdPart(turnoId || `TS-${closeTimestampMs}`);
-  const filePath = `tenants/${tenantId}/backups/cajas/${yyyy}/${mm}/${dd}/backup_${safeTurnoId}_${safeScope}_${closeTimestampMs}.json.gz`;
+  const filePath = `tenants/${tenantId}/ventas/all_ventas_${yyyy}${mm}${dd}_${closeTimestampMs}.json`;
 
   const ventas = salesDocs.map((docSnap) => ({
     id: docSnap.id,
@@ -204,16 +201,15 @@ async function createCashboxBackupInStorage({
   };
 
   const rawJson = JSON.stringify(payload);
-  const gzBuffer = gzipSync(Buffer.from(rawJson, "utf8"), { level: 9 });
-  const md5 = createHash("md5").update(gzBuffer).digest("hex");
+  const jsonBuffer = Buffer.from(rawJson, "utf8");
+  const md5 = createHash("md5").update(jsonBuffer).digest("hex");
 
   const bucket = getStorage().bucket();
   const file = bucket.file(filePath);
-  await file.save(gzBuffer, {
+  await file.save(jsonBuffer, {
     resumable: false,
     contentType: "application/json",
     metadata: {
-      contentEncoding: "gzip",
       metadata: {
         operationId,
         tenantId,
@@ -226,7 +222,7 @@ async function createCashboxBackupInStorage({
   return {
     path: filePath,
     md5,
-    sizeBytes: gzBuffer.length
+    sizeBytes: jsonBuffer.length
   };
 }
 
