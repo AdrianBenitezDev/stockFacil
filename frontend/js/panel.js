@@ -1380,6 +1380,7 @@ async function handleConfirmEmployeeShiftStart() {
     });
     if (!result.ok) {
       setEmployeeShiftFeedback(result.error || "No se pudo iniciar el turno.");
+      employeeShiftSubmitting = false;
       return;
     }
 
@@ -1403,7 +1404,6 @@ async function handleConfirmEmployeeShiftStart() {
   
     
   } finally {
-      employeeShiftSubmitting = false;
     dom.employeeShiftConfirmBtn?.classList.remove("btn-loading");
     dom.employeeShiftCancelBtn && (dom.employeeShiftCancelBtn.disabled = false);
     updateEmployeeShiftConfirmState();
