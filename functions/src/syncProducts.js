@@ -40,6 +40,12 @@ const syncProducts = onCall(async (request) => {
         precioCompra: product.precioCompra,
         categoria: product.categoria,
         stock: product.stock,
+        tipoVenta: product.tipoVenta,
+        unidadMedida: product.unidadMedida,
+        gramosPorUnidad: product.gramosPorUnidad,
+        gramsPerUnit: product.gramosPorUnidad,
+        gramosAcumuladosPendientes: product.gramosAcumuladosPendientes,
+        gramsPending: product.gramosAcumuladosPendientes,
         tieneCodigoBarras: product.tieneCodigoBarras,
         tenantId,
         synced: true,
@@ -73,6 +79,10 @@ function normalizeProductForSync(input, tenantId) {
   const precioVenta = Number(input?.precioVenta);
   const precioCompra = Number(input?.precioCompra);
   const stock = Number(input?.stock);
+  const tipoVenta = normalizeSaleType(input?.tipoVenta);
+  const unidadMedida = tipoVenta === "gramos" ? "g" : "u";
+  const gramosPorUnidad = Math.trunc(Number(input?.gramosPorUnidad ?? input?.gramsPerUnit ?? 0));
+  const gramosAcumuladosPendientes = Number(input?.gramosAcumuladosPendientes ?? input?.gramsPending ?? 0);
   const tieneCodigoBarras = Boolean(input?.tieneCodigoBarras);
   const createdAt = Number(input?.createdAt);
   const inputTenant = String(input?.tenantId || "").trim();
@@ -89,6 +99,12 @@ function normalizeProductForSync(input, tenantId) {
   if (!Number.isFinite(stock) || stock < 0) {
     throw new HttpsError("invalid-argument", `Producto invalido (${codigo}): stock.`);
   }
+  if (tipoVenta === "gramos" && (!Number.isFinite(gramosPorUnidad) || gramosPorUnidad <= 0)) {
+    throw new HttpsError("invalid-argument", `Producto invalido (${codigo}): gramosPorUnidad.`);
+  }
+  if (!Number.isFinite(gramosAcumuladosPendientes) || gramosAcumuladosPendientes < 0) {
+    throw new HttpsError("invalid-argument", `Producto invalido (${codigo}): gramosAcumuladosPendientes.`);
+  }
   if (!Number.isFinite(createdAt) || createdAt <= 0) {
     throw new HttpsError("invalid-argument", `Producto invalido (${codigo}): createdAt.`);
   }
@@ -103,9 +119,19 @@ function normalizeProductForSync(input, tenantId) {
     precioVenta: Number(precioVenta.toFixed(2)),
     precioCompra: Number(precioCompra.toFixed(2)),
     stock: Math.trunc(stock),
+    tipoVenta,
+    unidadMedida,
+    gramosPorUnidad: tipoVenta === "gramos" ? Math.trunc(gramosPorUnidad) : 0,
+    gramosAcumuladosPendientes: tipoVenta === "gramos" ? Number(Number(gramosAcumuladosPendientes || 0).toFixed(2)) : 0,
     tieneCodigoBarras,
     createdAt
   };
+}
+
+function normalizeSaleType(value) {
+  const normalized = String(value || "").trim().toLowerCase();
+  if (normalized === "gramos" || normalized === "g") return "gramos";
+  return "unidad";
 }
 
 module.exports = {

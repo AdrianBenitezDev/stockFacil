@@ -181,6 +181,17 @@
           <label for="product-price">Precio</label>
           <input id="product-price" name="price" type="number" min="0" step="0.01" required>
 
+          <label for="product-sale-type">Tipo de venta</label>
+          <select id="product-sale-type" name="saleType" required>
+            <option value="unidad" selected>Unidad</option>
+            <option value="gramos">Gramos</option>
+          </select>
+
+          <div id="product-grams-config" class="hidden">
+            <label for="product-grams-per-unit">Gramos por unidad stock</label>
+            <input id="product-grams-per-unit" name="gramsPerUnit" type="number" min="1" step="1" value="1000">
+          </div>
+
           <div id="provider-cost-group" class="hidden">
             <label for="provider-cost">Valor proveedor</label>
             <input id="provider-cost" name="providerCost" type="number" min="0" step="0.01">
@@ -292,6 +303,15 @@
             <input id="stock-detail-edit-stock" type="number" min="0" step="1" required>
             <label for="stock-detail-edit-price">Precio de venta</label>
             <input id="stock-detail-edit-price" type="number" min="0" step="0.01" required>
+            <label for="stock-detail-edit-sale-type">Tipo de venta</label>
+            <select id="stock-detail-edit-sale-type" required>
+              <option value="unidad">Unidad</option>
+              <option value="gramos">Gramos</option>
+            </select>
+            <div id="stock-detail-edit-grams-wrap" class="hidden">
+              <label for="stock-detail-edit-grams-per-unit">Gramos por unidad stock</label>
+              <input id="stock-detail-edit-grams-per-unit" type="number" min="1" step="1" value="1000">
+            </div>
             <label for="stock-detail-edit-provider-cost">Precio de compra</label>
             <input id="stock-detail-edit-provider-cost" type="number" min="0" step="0.01" required>
             <label for="stock-detail-edit-category">Categoria</label>

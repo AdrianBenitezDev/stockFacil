@@ -1,0 +1,224 @@
+﻿ANALISIS TECNICO - BACKUP EN STORAGE Y PICOS DE LECTURA
+Fecha: 2026-02-28
+
+Contexto de la propuesta
+1) Al cerrar caja:
+   - crear backup JSON de ventas cerradas en Cloud Storage (carpeta por tenant)
+   - luego eliminar ventas de Firestore
+2) Analizar picos de consultas en cierre de caja y ventas
+
+=====================================
+A) Backup de ventas cerradas en Storage
+=====================================
+
+Estado actual
+- En `functions/src/closeCashbox.js` hoy se hace:
+  - lectura de ventas abiertas (`tenants/{tenantId}/ventas` con `cajaCerrada == false`)
+  - calculo de cierres
+  - escritura de `cajas`
+  - borrado de ventas cerradas
+- No existe backup persistido en Cloud Storage antes del borrado.
+
+Recomendacion de implementacion
+- Agregar backup JSON en Storage ANTES de borrar ventas.
+- Ruta recomendada:
+  - `tenants/{tenantId}/backups/cajas/{yyyy}/{mm}/{dd}/backup_{turnoId_o_timestamp}_{scope}.json.gz`
+
+Contenido recomendado del backup
+- metadata:
+  - tenantId
+  - closedByUid / closedByName
+  - scope
+  - createdAt
+  - versionSchema
+  - totalVentas
+  - totalCaja
+- ventas:
+  - lista completa de docs cerrados (incluyendo `productos`, `tipoPago`, montos, auditoria)
+- cierres:
+  - resumen de cierres por vendedor generado en esa operacion
+
+Patron seguro sugerido (dos fases)
+Fase 1:
+- leer ventas objetivo
+- construir payload backup
+- subir a Storage
+- obtener `backupPath`, `generation`, `md5/hash`
+
+Fase 2:
+- en Firestore batch/tx:
+  - crear docs `cajas` con referencia al backup (`backupPath`, `backupHash`, `backupCreatedAt`)
+  - borrar ventas cerradas
+
+Importante
+- Storage + Firestore no son atomicos entre si.
+- Para idempotencia, usar `operationId`:
+  - guardar `operationId` en caja y en nombre de backup
+  - si reintenta, detectar si ya existe backup/cierre para evitar duplicados
+
+Descarga posterior
+- Se puede descargar desde panel admin con URL firmada (opcional) o mediante Cloud Function HTTP admin.
+- Recomendado usar `.json.gz` para reducir costo de almacenamiento y transferencia.
+
+Sugerencia extra para metricas
+- Guardar un doc indice por backup:
+  - `tenants/{tenantId}/backups_index/{backupId}`
+  - campos: path, fecha, totalVentas, totalCaja, scope, closedBy
+- Esto evita listar archivos de bucket para UI.
+
+=====================================
+B) Analisis de lecturas actuales (picos)
+=====================================
+
+1) Venta online (`createSale`)
+Archivo: `functions/src/createSale.js`
+
+Lecturas aproximadas por venta:
+- contexto/auth callable: 1-2 lecturas (`usuarios/{uid}` o fallback `empleados/{uid}`)
+- empleado con turno: +1 consulta ultimo turno
+- productos vendidos: U lecturas (U = productos unicos en carrito)
+Total aprox:
+- empleador: U + (1..2)
+- empleado: U + (2..3)
+
+Escrituras por venta:
+- U updates de stock
+- 1 doc de venta
+Total writes: U + 1
+
+Comentario
+- Este costo es razonable y esperado para consistencia de stock.
+
+2) Cierre de caja (`closeCashbox`)
+Archivo: `functions/src/closeCashbox.js`
+
+Lecturas aproximadas por cierre:
+- contexto/auth callable: 1-2 lecturas
+- query de ventas abiertas: N lecturas de docs (N = ventas abiertas en scope)
+Total reads: N + (1..2)
+
+Escrituras por cierre:
+- G docs en `cajas` (G = grupos por vendedor)
+- N deletes en `ventas`
+Total writes: G + N
+
+Comentario
+- El pico principal del cierre viene de N (normal si hay muchas ventas abiertas).
+
+3) Pico fuerte en frontend despues de cada venta
+Archivo: `frontend/js/panel.js` -> `handleConfirmSalePayment`
+- Despues de cobrar, se ejecuta:
+  - `refreshStock()`
+  - `refreshCashPanel()`
+
+3.1) `refreshStock()` en empleado
+- Si el usuario NO puede editar productos, hace cloud pull completo:
+  - `syncProductsFromCloudForCurrentKiosco()` => `getDocs(tenants/{tenantId}/productos)`
+- Costo: P lecturas (P = total de productos)
+- Este es un pico grande y repetitivo (muy probable causa principal).
+
+3.2) `refreshCashPanel()`
+Internamente llama `getCashSnapshotForToday()` que hace:
+- `getOpenCashSales` callable:
+  - auth 1-2 + lectura de ventas abiertas (Ns)
+- `getShiftCashDetail` callable:
+  - auth 1-2
+  - query empleados (E docs)
+  - por cada empleado, consulta ultimo turno (E queries)
+  - costo total aprox: 2E + (1..2)
+- `getRecentCashClosures` callable:
+  - auth 1-2
+  - lectura de cierres C
+  - fallback de username: hasta 2 lecturas adicionales por usuario no cacheado en esa llamada
+
+Resultado
+- Por cada venta cerrada, ademas de `createSale`, se dispara un paquete de lecturas grande.
+- En comercios con muchos productos/empleados, este patron genera picos notorios.
+
+=====================================
+C) Optimizaciones recomendadas (prioridad)
+=====================================
+
+Prioridad alta
+1) Evitar cloud pull de productos completo tras cada venta
+- En `handleConfirmSalePayment`, NO llamar siempre `refreshStock()` completo.
+- Mejor:
+  - actualizar stock local del carrito vendido (optimista)
+  - ejecutar refresh completo cada X segundos o por accion manual
+
+2) Reducir `refreshCashPanel()` post-venta
+- Desacoplar:
+  - resumen de caja (ligero)
+  - historial de cierres (pesado)
+- No recargar cierres en cada venta; recargarlos solo al abrir seccion o cada TTL (ej. 30-60s).
+
+3) Reemplazar `getShiftCashDetail` O(E)
+- Crear doc agregado en tenant, por ejemplo:
+  - `tenants/{tenantId}/aggregates/shiftCash`
+  - `{ startCashAmount, activeShiftCount, updatedAt }`
+- Actualizar este agregado en:
+  - startEmployeeShift
+  - endEmployeeShift
+- Lectura pasa de ~2E a 1.
+
+Prioridad media
+4) Evitar lookup de username por cierre en `getRecentCashClosures`
+- Ya guardar siempre `usuarioNombre` en `cajas`.
+- Si falta, rellenar en background/migracion, no en cada request.
+
+5) Cache frontend con TTL
+- Cachear resultado de `getCashSnapshotForToday` 10-20s en memoria.
+- Si hay venta local recien hecha, aplicar delta al cache sin ir al backend inmediato.
+
+6) Endpoint de resumen liviano
+- Crear callable de solo totales abiertos (sin listar ventas detalladas).
+- Usarlo para refresco rapido post-venta.
+
+=====================================
+D) Estimacion simple de costo por escenario
+=====================================
+
+Escenario ejemplo:
+- U=5 productos por venta
+- P=600 productos totales
+- E=20 empleados
+- Ns=120 ventas abiertas
+- C=30 cierres recientes
+
+Venta + refresh actual (empleado) aprox:
+- createSale: ~7-8 lecturas
+- refreshStock cloud pull: ~600 lecturas
+- getOpenCashSales: ~122 lecturas
+- getShiftCashDetail: ~42 lecturas
+- getRecentCashClosures: ~32 + lookups usuario
+Total: facilmente > 800 lecturas por cada venta confirmada
+
+Conclusion
+- El mayor multiplicador no es `createSale`, sino los refresh post-venta.
+
+=====================================
+E) Plan recomendado de implementacion
+=====================================
+
+Fase 1 (rapida, alto impacto)
+- No refrescar stock completo despues de cada venta.
+- No refrescar cierres recientes en cada `refreshCashPanel` post-venta.
+- Agregar TTL cache UI para snapshot de caja.
+
+Fase 2
+- Agregado `shiftCash` por tenant para reemplazar escaneo de empleados en `getShiftCashDetail`.
+
+Fase 3
+- Backup en Storage en cierre de caja con referencia en doc `cajas`.
+- Agregar endpoint/listado de backups para descarga JSON.
+
+Fase 4
+- Eventualmente mover metricas a pipeline dedicado usando backups JSON + agregados diarios.
+
+=====================================
+Resumen ejecutivo
+=====================================
+- Tu idea de backup en Storage antes de borrar ventas es correcta y recomendable para metricas/auditoria.
+- Los picos de lectura actuales existen y son coherentes con el codigo.
+- El principal sobrecosto ocurre por refrescos globales post-venta (sobre todo productos + snapshot completo de caja).
+- Con 2-3 ajustes de cache/agregados puedes bajar fuertemente el consumo sin perder trazabilidad.

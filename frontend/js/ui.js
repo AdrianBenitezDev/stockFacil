@@ -179,15 +179,24 @@ export function renderCurrentSale(items) {
 
   dom.saleTableBody.innerHTML = items
     .map((item) => {
+      const saleType = String(item?.saleType || "unidad").trim().toLowerCase();
+      const quantityLabel =
+        saleType === "gramos"
+          ? `${Number(item?.quantityGrams || 0).toFixed(0)} g`
+          : `${Number(item?.quantity || 0)}`;
+      const quantityCell =
+        saleType === "gramos"
+          ? `<span class="sale-qty-value">${quantityLabel}</span>`
+          : `<div class="sale-qty-controls"><button type="button" class="sale-qty-btn" data-sale-qty-minus-id="${escapeHtml(
+              item.productId
+            )}" aria-label="Restar cantidad de ${escapeHtml(item.name)}">-</button><span class="sale-qty-value">${quantityLabel}</span><button type="button" class="sale-qty-btn" data-sale-qty-plus-id="${escapeHtml(
+              item.productId
+            )}" aria-label="Sumar cantidad de ${escapeHtml(item.name)}">+</button></div>`;
       return [
         "<tr>",
         `<td>${escapeHtml(item.barcode)}</td>`,
         `<td>${escapeHtml(item.name)}</td>`,
-        `<td><div class="sale-qty-controls"><button type="button" class="sale-qty-btn" data-sale-qty-minus-id="${escapeHtml(
-          item.productId
-        )}" aria-label="Restar cantidad de ${escapeHtml(item.name)}">-</button><span class="sale-qty-value">${item.quantity}</span><button type="button" class="sale-qty-btn" data-sale-qty-plus-id="${escapeHtml(
-          item.productId
-        )}" aria-label="Sumar cantidad de ${escapeHtml(item.name)}">+</button></div></td>`,
+        `<td>${quantityCell}</td>`,
         `<td>$${item.price.toFixed(2)}</td>`,
         `<td>$${item.subtotal.toFixed(2)}</td>`,
         `<td><button type="button" class="sale-remove-btn" data-remove-sale-id="${escapeHtml(

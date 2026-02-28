@@ -27,14 +27,37 @@ const createSale = onCall(async (request) => {
   const grouped = new Map();
   for (const row of rawItems) {
     const codigo = String(row?.codigo || "").trim();
+    const tipoVenta = normalizeSaleType(row?.tipoVenta);
     const cantidad = Number(row?.cantidad || 0);
+    const cantidadGramos = Number(row?.cantidadGramos || 0);
+    const gramosPorUnidad = Math.max(1, Math.trunc(Number(row?.gramosPorUnidad || 1000)));
     if (!codigo) {
       throw new HttpsError("invalid-argument", "Cada item debe incluir codigo.");
+    }
+    if (tipoVenta === "gramos") {
+      if (!Number.isFinite(cantidadGramos) || cantidadGramos <= 0) {
+        throw new HttpsError("invalid-argument", `Cantidad de gramos invalida para ${codigo}.`);
+      }
+      const existing = grouped.get(codigo) || { tipoVenta: "gramos", cantidad: 0, cantidadGramos: 0, gramosPorUnidad };
+      if (existing.tipoVenta === "unidad") {
+        throw new HttpsError("invalid-argument", `No puedes mezclar unidad y gramos para ${codigo}.`);
+      }
+      existing.tipoVenta = "gramos";
+      existing.cantidadGramos = Number(existing.cantidadGramos || 0) + cantidadGramos;
+      existing.gramosPorUnidad = gramosPorUnidad;
+      grouped.set(codigo, existing);
+      continue;
     }
     if (!Number.isFinite(cantidad) || cantidad <= 0) {
       throw new HttpsError("invalid-argument", `Cantidad invalida para ${codigo}.`);
     }
-    grouped.set(codigo, (grouped.get(codigo) || 0) + Math.trunc(cantidad));
+    const existing = grouped.get(codigo) || { tipoVenta: "unidad", cantidad: 0, cantidadGramos: 0, gramosPorUnidad: 0 };
+    if (existing.tipoVenta === "gramos") {
+      throw new HttpsError("invalid-argument", `No puedes mezclar unidad y gramos para ${codigo}.`);
+    }
+    existing.tipoVenta = "unidad";
+    existing.cantidad = Number(existing.cantidad || 0) + Math.trunc(cantidad);
+    grouped.set(codigo, existing);
   }
 
   const now = Timestamp.now();
@@ -44,90 +67,148 @@ const createSale = onCall(async (request) => {
   let gananciaReal = 0;
   let itemsCount = 0;
 
-  const batch = db.batch();
+  await db.runTransaction(async (tx) => {
+    for (const [codigo, row] of grouped.entries()) {
+      const productRef = db.collection("tenants").doc(tenantId).collection("productos").doc(codigo);
+      const productSnap = await tx.get(productRef);
+      if (!productSnap.exists) {
+        throw new HttpsError("failed-precondition", `Producto no encontrado: ${codigo}.`);
+      }
 
-  for (const [codigo, cantidad] of grouped.entries()) {
-    const productRef = db.collection("tenants").doc(tenantId).collection("productos").doc(codigo);
-    const productSnap = await productRef.get();
-    if (!productSnap.exists) {
-      throw new HttpsError("failed-precondition", `Producto no encontrado: ${codigo}.`);
+      const product = productSnap.data() || {};
+      const stock = Number(product.stock || 0);
+      const precioVenta = Number(product.precioVenta ?? product.precio ?? 0);
+      const precioCompra = Number(product.precioCompra ?? product.costoProveedor ?? 0);
+      if (!Number.isFinite(precioVenta) || precioVenta < 0) {
+        throw new HttpsError("failed-precondition", `Precio de venta invalido en ${codigo}.`);
+      }
+      if (!Number.isFinite(precioCompra) || precioCompra < 0) {
+        throw new HttpsError("failed-precondition", `Precio de compra invalido en ${codigo}.`);
+      }
+
+      const saleType = normalizeSaleType(row?.tipoVenta ?? product?.tipoVenta);
+      if (saleType === "gramos") {
+        const gramsRequested = Number(row?.cantidadGramos || 0);
+        const gramsPerUnit = Math.max(
+          1,
+          Math.trunc(Number(row?.gramosPorUnidad || product?.gramosPorUnidad || product?.gramsPerUnit || 1000))
+        );
+        const gramsPendingBefore = Number(product.gramosAcumuladosPendientes ?? product.gramsPending ?? 0);
+        const totalGrams = gramsPendingBefore + gramsRequested;
+        const unitsToDiscount = Math.trunc(totalGrams / gramsPerUnit);
+        const gramsPendingAfter = totalGrams % gramsPerUnit;
+        if (stock < unitsToDiscount) {
+          throw new HttpsError("failed-precondition", `Stock insuficiente para ${codigo}. Disponible: ${stock}.`);
+        }
+
+        const subtotal = round2((precioVenta * gramsRequested) / 1000);
+        const subtotalCosto = round2((precioCompra * gramsRequested) / 1000);
+        const gananciaRealVenta = round2(subtotal - subtotalCosto);
+
+        saleItems.push({
+          codigo,
+          nombre: String(product.nombre || "-"),
+          tipoVenta: "gramos",
+          cantidad: 0,
+          cantidadGramos: gramsRequested,
+          gramosPorUnidad: gramsPerUnit,
+          precioUnitario: round2(precioVenta),
+          precioCompraUnitario: round2(precioCompra),
+          subtotal,
+          subtotalCosto,
+          gananciaRealVenta
+        });
+
+        total += subtotal;
+        totalCosto += subtotalCosto;
+        gananciaReal += gananciaRealVenta;
+        itemsCount += 1;
+
+        tx.update(productRef, {
+          stock: stock - unitsToDiscount,
+          tipoVenta: "gramos",
+          unidadMedida: "g",
+          gramosPorUnidad: gramsPerUnit,
+          gramsPerUnit: gramsPerUnit,
+          gramosAcumuladosPendientes: gramsPendingAfter,
+          gramsPending: gramsPendingAfter,
+          updatedAt: now
+        });
+      } else {
+        const cantidad = Number(row?.cantidad || 0);
+        if (stock < cantidad) {
+          throw new HttpsError("failed-precondition", `Stock insuficiente para ${codigo}. Disponible: ${stock}.`);
+        }
+        const subtotal = round2(precioVenta * cantidad);
+        const subtotalCosto = round2(precioCompra * cantidad);
+        const gananciaRealVenta = round2((precioVenta - precioCompra) * cantidad);
+
+        saleItems.push({
+          codigo,
+          nombre: String(product.nombre || "-"),
+          tipoVenta: "unidad",
+          cantidad,
+          cantidadGramos: 0,
+          gramosPorUnidad: 0,
+          precioUnitario: round2(precioVenta),
+          precioCompraUnitario: round2(precioCompra),
+          subtotal,
+          subtotalCosto,
+          gananciaRealVenta
+        });
+
+        total += subtotal;
+        totalCosto += subtotalCosto;
+        gananciaReal += gananciaRealVenta;
+        itemsCount += cantidad;
+
+        tx.update(productRef, {
+          stock: stock - cantidad,
+          updatedAt: now
+        });
+      }
     }
 
-    const product = productSnap.data() || {};
-    const stock = Number(product.stock || 0);
-    if (stock < cantidad) {
-      throw new HttpsError("failed-precondition", `Stock insuficiente para ${codigo}. Disponible: ${stock}.`);
-    }
-
-    const precioVenta = Number(product.precioVenta ?? product.precio ?? 0);
-    const precioCompra = Number(product.precioCompra ?? product.costoProveedor ?? 0);
-    if (!Number.isFinite(precioVenta) || precioVenta < 0) {
-      throw new HttpsError("failed-precondition", `Precio de venta invalido en ${codigo}.`);
-    }
-    if (!Number.isFinite(precioCompra) || precioCompra < 0) {
-      throw new HttpsError("failed-precondition", `Precio de compra invalido en ${codigo}.`);
-    }
-
-    const subtotal = round2(precioVenta * cantidad);
-    const subtotalCosto = round2(precioCompra * cantidad);
-    const gananciaRealVenta = round2((precioVenta - precioCompra) * cantidad);
-
-    saleItems.push({
-      codigo,
-      nombre: String(product.nombre || "-"),
-      cantidad,
-      precioUnitario: round2(precioVenta),
-      precioCompraUnitario: round2(precioCompra),
-      subtotal,
-      subtotalCosto,
-      gananciaRealVenta
+    total = round2(total);
+    totalCosto = round2(totalCosto);
+    gananciaReal = round2(gananciaReal);
+    const paymentDetails = normalizePaymentPayload({
+      tipoPago: payload.tipoPago,
+      pagoEfectivo: payload.pagoEfectivo,
+      pagoVirtual: payload.pagoVirtual,
+      total
     });
 
-    total += subtotal;
-    totalCosto += subtotalCosto;
-    gananciaReal += gananciaRealVenta;
-    itemsCount += cantidad;
-
-    batch.update(productRef, {
-      stock: stock - cantidad,
-      updatedAt: now
+    const saleRef = db.collection("tenants").doc(tenantId).collection("ventas").doc(idVenta);
+    tx.set(saleRef, {
+      idVenta,
+      tenantId,
+      productos: saleItems,
+      total,
+      totalCosto,
+      gananciaReal,
+      usuarioUid: uid,
+      usuarioNombre: String(caller.username || caller.displayName || "usuario"),
+      tipoPago: paymentDetails.tipoPago,
+      pagoEfectivo: paymentDetails.pagoEfectivo,
+      pagoVirtual: paymentDetails.pagoVirtual,
+      auditRequired: false,
+      auditReason: "",
+      auditNote: "",
+      auditSource: "online",
+      cajaCerrada: false,
+      backups: true,
+      itemsCount,
+      createdAt: now
     });
-  }
+  });
 
-  total = round2(total);
-  totalCosto = round2(totalCosto);
-  gananciaReal = round2(gananciaReal);
   const paymentDetails = normalizePaymentPayload({
     tipoPago: payload.tipoPago,
     pagoEfectivo: payload.pagoEfectivo,
     pagoVirtual: payload.pagoVirtual,
     total
   });
-
-  const saleRef = db.collection("tenants").doc(tenantId).collection("ventas").doc(idVenta);
-  batch.set(saleRef, {
-    idVenta,
-    tenantId,
-    productos: saleItems,
-    total,
-    totalCosto,
-    gananciaReal,
-    usuarioUid: uid,
-    usuarioNombre: String(caller.username || caller.displayName || "usuario"),
-    tipoPago: paymentDetails.tipoPago,
-    pagoEfectivo: paymentDetails.pagoEfectivo,
-    pagoVirtual: paymentDetails.pagoVirtual,
-    auditRequired: false,
-    auditReason: "",
-    auditNote: "",
-    auditSource: "online",
-    cajaCerrada: false,
-    backups: true,
-    itemsCount,
-    createdAt: now
-  });
-
-  await batch.commit();
 
   return {
     success: true,
@@ -145,6 +226,12 @@ const createSale = onCall(async (request) => {
 
 function round2(value) {
   return Number(Number(value || 0).toFixed(2));
+}
+
+function normalizeSaleType(value) {
+  const normalized = String(value || "").trim().toLowerCase();
+  if (normalized === "gramos" || normalized === "g") return "gramos";
+  return "unidad";
 }
 
 function normalizePaymentPayload({ tipoPago, pagoEfectivo, pagoVirtual, total }) {

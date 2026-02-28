@@ -1,4 +1,7 @@
 const { HttpsError, onCall, Timestamp, db } = require("./shared/context");
+const { getStorage } = require("firebase-admin/storage");
+const { gzipSync } = require("node:zlib");
+const { createHash } = require("node:crypto");
 const { requireTenantMemberContext } = require("./shared/authz");
 
 const closeCashbox = onCall(async (request) => {
@@ -37,6 +40,18 @@ const closeCashbox = onCall(async (request) => {
   const groupedBySeller = buildSellerGroups(targetSalesDocs);
   const groupEntries = Array.from(groupedBySeller.values());
   const fechaCierre = Timestamp.now();
+  const operationId = `CLOSE-${tenantId}-${closeTimestampMs}-${Math.trunc(Math.random() * 100000)}`;
+  const backupInfo = await createCashboxBackupInStorage({
+    tenantId,
+    turnoId,
+    effectiveScope,
+    closeTimestampMs,
+    closedByUid,
+    closedByName,
+    operationId,
+    salesDocs: targetSalesDocs,
+    groups: groupEntries
+  });
   const batch = db.batch();
 
   const closures = groupEntries.map((group, index) => {
@@ -70,6 +85,11 @@ const closeCashbox = onCall(async (request) => {
       salesCount: Number(group.ventasIncluidas.length || 0),
       closedByUid,
       closedByName,
+      backupPath: backupInfo.path,
+      backupMd5: backupInfo.md5,
+      backupSizeBytes: backupInfo.sizeBytes,
+      backupCreatedAt: Timestamp.now(),
+      operationId,
       createdAt: Timestamp.now()
     });
     group.docs.forEach((docSnap) => {
@@ -117,9 +137,98 @@ const closeCashbox = onCall(async (request) => {
     totalGananciaRealCaja,
     totalSalesCount,
     productosIncluidos,
+    backup: {
+      operationId,
+      path: backupInfo.path,
+      md5: backupInfo.md5,
+      sizeBytes: backupInfo.sizeBytes
+    },
     cierres: closures
   };
 });
+
+async function createCashboxBackupInStorage({
+  tenantId,
+  turnoId,
+  effectiveScope,
+  closeTimestampMs,
+  closedByUid,
+  closedByName,
+  operationId,
+  salesDocs,
+  groups
+}) {
+  const date = new Date(closeTimestampMs);
+  const yyyy = String(date.getUTCFullYear());
+  const mm = String(date.getUTCMonth() + 1).padStart(2, "0");
+  const dd = String(date.getUTCDate()).padStart(2, "0");
+  const safeScope = sanitizeIdPart(effectiveScope || "all");
+  const safeTurnoId = sanitizeIdPart(turnoId || `TS-${closeTimestampMs}`);
+  const filePath = `tenants/${tenantId}/backups/cajas/${yyyy}/${mm}/${dd}/backup_${safeTurnoId}_${safeScope}_${closeTimestampMs}.json.gz`;
+
+  const ventas = salesDocs.map((docSnap) => ({
+    id: docSnap.id,
+    ...docSnap.data()
+  }));
+  const cierresPreview = groups.map((group) => ({
+    usuarioUid: String(group.usuarioUid || ""),
+    usuarioNombre: String(group.usuarioNombre || ""),
+    totalCaja: round2(Number(group.totalCaja || 0)),
+    efectivoEntregar: round2(Number(group.totalEfectivoEntregar || 0)),
+    virtualEntregar: round2(Number(group.totalVirtualEntregar || 0)),
+    totalGananciaRealCaja: round2(Number(group.totalGananciaRealCaja || 0)),
+    salesCount: Number(group.ventasIncluidas?.length || 0),
+    ventasIncluidas: Array.isArray(group.ventasIncluidas) ? group.ventasIncluidas : []
+  }));
+
+  const payload = {
+    version: 1,
+    operationId,
+    tenantId,
+    turnoId: turnoId || null,
+    scope: effectiveScope,
+    createdAt: new Date(closeTimestampMs).toISOString(),
+    closedByUid,
+    closedByName,
+    totals: {
+      totalSalesCount: ventas.length,
+      totalCaja: round2(cierresPreview.reduce((acc, row) => acc + Number(row.totalCaja || 0), 0)),
+      totalEfectivoEntregar: round2(cierresPreview.reduce((acc, row) => acc + Number(row.efectivoEntregar || 0), 0)),
+      totalVirtualEntregar: round2(cierresPreview.reduce((acc, row) => acc + Number(row.virtualEntregar || 0), 0)),
+      totalGananciaRealCaja: round2(
+        cierresPreview.reduce((acc, row) => acc + Number(row.totalGananciaRealCaja || 0), 0)
+      )
+    },
+    cierres: cierresPreview,
+    ventas
+  };
+
+  const rawJson = JSON.stringify(payload);
+  const gzBuffer = gzipSync(Buffer.from(rawJson, "utf8"), { level: 9 });
+  const md5 = createHash("md5").update(gzBuffer).digest("hex");
+
+  const bucket = getStorage().bucket();
+  const file = bucket.file(filePath);
+  await file.save(gzBuffer, {
+    resumable: false,
+    contentType: "application/json",
+    metadata: {
+      contentEncoding: "gzip",
+      metadata: {
+        operationId,
+        tenantId,
+        scope: String(effectiveScope || "all"),
+        turnoId: String(turnoId || "")
+      }
+    }
+  });
+
+  return {
+    path: filePath,
+    md5,
+    sizeBytes: gzBuffer.length
+  };
+}
 
 function buildSellerGroups(salesDocs) {
   const bySeller = new Map();

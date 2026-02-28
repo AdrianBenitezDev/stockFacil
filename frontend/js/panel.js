@@ -142,6 +142,8 @@ async function init() {
   renderCategoryOptions(PRODUCT_CATEGORIES);
   renderStockCategoryOptions(PRODUCT_CATEGORIES);
   renderStockDetailEditCategoryOptions();
+  updateProductSaleTypeControls();
+  updateStockDetailSaleTypeControls();
   setupDeviceSpecificUI();
   initSaleModeSwitch();
   focusBarcodeInputIfDesktop();
@@ -260,6 +262,7 @@ function wireEvents() {
     await refreshEmployeesPanel();
   });
   dom.addProductForm.addEventListener("submit", handleAddProductSubmit);
+  dom.productSaleType?.addEventListener("change", handleProductSaleTypeChange);
   dom.syncProductsBtn?.addEventListener("click", handleManualProductsSync);
   dom.createEmployeeForm?.addEventListener("submit", handleCreateEmployeeSubmit);
   dom.uiModeToggle.addEventListener("click", () => {
@@ -270,6 +273,7 @@ function wireEvents() {
   dom.stockCategoryFilter.addEventListener("change", applyStockFilters);
   dom.stockDetailEditBtn?.addEventListener("click", handleStockDetailEditClick);
   dom.stockDetailEditForm?.addEventListener("submit", handleStockDetailEditSubmit);
+  dom.stockDetailEditSaleType?.addEventListener("change", handleStockDetailSaleTypeChange);
   dom.startAddScanBtn.addEventListener("click", handleStartAddBarcodeScanner);
   dom.stopAddScanBtn.addEventListener("click", handleStopAddBarcodeScanner);
   dom.startScanBtn.addEventListener("click", handleStartScanner);
@@ -346,6 +350,9 @@ async function handleAddProductSubmit(event) {
     }
 
     dom.addProductForm.reset();
+    if (dom.productSaleType) dom.productSaleType.value = "unidad";
+    if (dom.productGramsPerUnit) dom.productGramsPerUnit.value = "1000";
+    updateProductSaleTypeControls();
     renderCategoryOptions(PRODUCT_CATEGORIES);
     setProductFeedbackSuccess(result.message);
     showAddProductToast(result.message || "Producto creado correctamente.", "success");
@@ -809,6 +816,36 @@ function renderStockDetailEditCategoryOptions() {
   dom.stockDetailEditCategory.innerHTML = options.join("");
 }
 
+function handleProductSaleTypeChange() {
+  updateProductSaleTypeControls();
+}
+
+function handleStockDetailSaleTypeChange() {
+  updateStockDetailSaleTypeControls();
+}
+
+function updateProductSaleTypeControls() {
+  const type = normalizeProductSaleType(dom.productSaleType?.value);
+  dom.productGramsConfig?.classList.toggle("hidden", type !== "gramos");
+  if (dom.productGramsPerUnit) {
+    dom.productGramsPerUnit.disabled = type !== "gramos";
+    if (type === "gramos" && !Number(dom.productGramsPerUnit.value)) {
+      dom.productGramsPerUnit.value = "1000";
+    }
+  }
+}
+
+function updateStockDetailSaleTypeControls() {
+  const type = normalizeProductSaleType(dom.stockDetailEditSaleType?.value);
+  dom.stockDetailEditGramsWrap?.classList.toggle("hidden", type !== "gramos");
+  if (dom.stockDetailEditGramsPerUnit) {
+    dom.stockDetailEditGramsPerUnit.disabled = type !== "gramos";
+    if (type === "gramos" && !Number(dom.stockDetailEditGramsPerUnit.value)) {
+      dom.stockDetailEditGramsPerUnit.value = "1000";
+    }
+  }
+}
+
 function renderStockDetailWithEditorState(product, { canViewStock = true } = {}) {
   renderStockDetail(product, { maskStock: !canViewStock });
   const canEditDetail = canCurrentUserEditProducts() && Boolean(product);
@@ -829,6 +866,14 @@ function populateStockDetailEditForm(product) {
   if (dom.stockDetailEditName) dom.stockDetailEditName.value = String(product.name || "");
   if (dom.stockDetailEditStock) dom.stockDetailEditStock.value = String(Math.trunc(Number(product.stock || 0)));
   if (dom.stockDetailEditPrice) dom.stockDetailEditPrice.value = Number(product.price || 0).toFixed(2);
+  if (dom.stockDetailEditSaleType) {
+    dom.stockDetailEditSaleType.value = normalizeProductSaleType(product.tipoVenta || product.saleType);
+  }
+  if (dom.stockDetailEditGramsPerUnit) {
+    const gramsPerUnit = Number(product.gramosPorUnidad ?? product.gramsPerUnit ?? 1000);
+    dom.stockDetailEditGramsPerUnit.value = String(Math.max(1, Math.trunc(gramsPerUnit || 1000)));
+  }
+  updateStockDetailSaleTypeControls();
   if (dom.stockDetailEditProviderCost) {
     dom.stockDetailEditProviderCost.value = Number(product.providerCost || 0).toFixed(2);
   }
@@ -872,6 +917,8 @@ async function handleStockDetailEditSubmit(event) {
     name: String(dom.stockDetailEditName?.value || "").trim(),
     stock: dom.stockDetailEditStock?.value,
     price: dom.stockDetailEditPrice?.value,
+    saleType: normalizeProductSaleType(dom.stockDetailEditSaleType?.value),
+    gramsPerUnit: dom.stockDetailEditGramsPerUnit?.value,
     providerCost: dom.stockDetailEditProviderCost?.value,
     category: String(dom.stockDetailEditCategory?.value || "").trim()
   };
@@ -1015,6 +1062,10 @@ function handleRemoveCurrentSaleItem(event) {
     if (!productId) return;
     const item = currentSaleItems.find((entry) => entry.productId === productId);
     if (!item) return;
+    if (normalizeProductSaleType(item.saleType) === "gramos") {
+      setScanFeedback(`"${item.name}" se vende por gramos. Edita quitando y agregando nuevamente.`);
+      return;
+    }
     if (item.quantity <= 1) {
       setScanFeedback(`La cantidad minima para ${item.name} es 1.`);
       return;
@@ -1032,6 +1083,10 @@ function handleRemoveCurrentSaleItem(event) {
     if (!productId) return;
     const item = currentSaleItems.find((entry) => entry.productId === productId);
     if (!item) return;
+    if (normalizeProductSaleType(item.saleType) === "gramos") {
+      setScanFeedback(`"${item.name}" se vende por gramos. Edita quitando y agregando nuevamente.`);
+      return;
+    }
     const product = allStockProducts.find((entry) => entry.id === productId);
     const stock = Number(product?.stock || 0);
     const nextQuantity = item.quantity + 1;
@@ -1097,31 +1152,7 @@ async function processSaleBarcode(barcode) {
     setScanFeedback(`Codigo ${barcode} no encontrado en stock.`);
     return;
   }
-
-  const existing = currentSaleItems.find((item) => item.productId === product.id);
-  const nextQuantity = existing ? existing.quantity + 1 : 1;
-  if (nextQuantity > Number(product.stock || 0)) {
-    setScanFeedback(`Stock insuficiente para ${product.name}. Disponible: ${product.stock}.`);
-    return;
-  }
-
-  if (existing) {
-    existing.quantity = nextQuantity;
-    existing.subtotal = existing.quantity * existing.price;
-  } else {
-    currentSaleItems.push({
-      productId: product.id,
-      barcode: product.barcode,
-      name: product.name,
-      quantity: 1,
-      price: Number(product.price || 0),
-      subtotal: Number(product.price || 0)
-    });
-  }
-
-  renderCurrentSale(currentSaleItems);
-  clearSaleSuggestions();
-  setScanFeedback(`Escaneado: ${product.name}`, "success");
+  addProductToCurrentSale(product, { fromScanner: true });
 }
 
 async function handleCheckoutSale() {
@@ -2397,7 +2428,13 @@ async function addFromSaleSearch(showNoMatchMessage = false) {
   }
 }
 
-function addProductToCurrentSale(product) {
+function addProductToCurrentSale(product, { fromScanner = false } = {}) {
+  const saleType = normalizeProductSaleType(product?.saleType || product?.tipoVenta);
+  if (saleType === "gramos") {
+    addGramsProductToCurrentSale(product, { fromScanner });
+    return;
+  }
+
   const existing = currentSaleItems.find((item) => item.productId === product.id);
   const nextQuantity = existing ? existing.quantity + 1 : 1;
   if (nextQuantity > Number(product.stock || 0)) {
@@ -2413,6 +2450,7 @@ function addProductToCurrentSale(product) {
       productId: product.id,
       barcode: product.barcode,
       name: product.name,
+      saleType: "unidad",
       quantity: 1,
       price: Number(product.price || 0),
       subtotal: Number(product.price || 0)
@@ -2421,6 +2459,58 @@ function addProductToCurrentSale(product) {
 
   renderCurrentSale(currentSaleItems);
   setScanFeedback(`Agregado: ${product.name}`, "success");
+}
+
+function addGramsProductToCurrentSale(product, { fromScanner = false } = {}) {
+  const gramsPerUnit = Math.max(1, Math.trunc(Number(product?.gramsPerUnit ?? product?.gramosPorUnidad ?? 1000)));
+  const suggested = fromScanner ? "250" : "500";
+  const raw = window.prompt(
+    `Venta por gramos para ${String(product?.name || "producto")}.\nIngresa gramos a vender (ej: 250):`,
+    suggested
+  );
+  if (raw === null) return;
+
+  const gramsToSell = Number(String(raw).replace(",", ".").trim());
+  if (!Number.isFinite(gramsToSell) || gramsToSell <= 0) {
+    setScanFeedback("Cantidad de gramos invalida.");
+    return;
+  }
+
+  const existing = currentSaleItems.find((item) => item.productId === product.id);
+  const nextGrams = Number(existing?.quantityGrams || 0) + gramsToSell;
+  const maxGramsByStock = Number(product.stock || 0) * gramsPerUnit;
+  if (nextGrams > maxGramsByStock) {
+    setScanFeedback(
+      `Stock insuficiente para ${product.name}. Maximo estimado: ${maxGramsByStock.toFixed(0)} g con stock actual.`
+    );
+    return;
+  }
+
+  const subtotal = round2((nextGrams / 1000) * Number(product.price || 0));
+  if (existing) {
+    existing.quantityGrams = nextGrams;
+    existing.subtotal = subtotal;
+  } else {
+    currentSaleItems.push({
+      productId: product.id,
+      barcode: product.barcode,
+      name: product.name,
+      saleType: "gramos",
+      gramsPerUnit,
+      quantityGrams: gramsToSell,
+      quantity: 0,
+      price: Number(product.price || 0),
+      subtotal: round2((gramsToSell / 1000) * Number(product.price || 0))
+    });
+  }
+
+  renderCurrentSale(currentSaleItems);
+  setScanFeedback(`Agregado: ${product.name} (${gramsToSell.toFixed(0)} g).`, "success");
+}
+
+function normalizeProductSaleType(value) {
+  const normalized = String(value || "").trim().toLowerCase();
+  return normalized === "gramos" || normalized === "g" ? "gramos" : "unidad";
 }
 
 

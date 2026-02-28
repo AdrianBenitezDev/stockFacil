@@ -94,7 +94,10 @@ export async function syncPendingSales() {
       productos: (items || []).map((item) => ({
         codigo: String(item.barcode || "").trim(),
         nombre: String(item.name || "").trim(),
+        tipoVenta: String(item.saleType || "unidad").trim().toLowerCase(),
         cantidad: Number(item.quantity || 0),
+        cantidadGramos: Number(item.quantityGrams || 0),
+        gramosPorUnidad: Number(item.gramsPerUnit || 0),
         precioUnitario: Number(item.unitPrice || 0),
         precioCompraUnitario: Number(item.unitProviderCost || 0),
         subtotal: Number(item.subtotal || 0),
@@ -202,11 +205,36 @@ async function tryCreateSaleInBackend(cartItems, session, paymentDetails) {
   const grouped = new Map();
   for (const item of cartItems) {
     const codigo = String(item?.barcode || "").trim();
-    const cantidad = Number(item?.quantity || 0);
-    if (!codigo || !Number.isFinite(cantidad) || cantidad <= 0) {
+    const tipoVenta = normalizeSaleType(item?.saleType);
+    const cantidadUnidades = Number(item?.quantity || 0);
+    const cantidadGramos = Number(item?.quantityGrams || 0);
+    if (!codigo) {
       return { ok: false, canFallbackToOffline: false, error: "Hay items invalidos en la venta." };
     }
-    grouped.set(codigo, (grouped.get(codigo) || 0) + Math.trunc(cantidad));
+    if (tipoVenta === "gramos") {
+      if (!Number.isFinite(cantidadGramos) || cantidadGramos <= 0) {
+        return { ok: false, canFallbackToOffline: false, error: "Hay items invalidos en la venta." };
+      }
+      const existing = grouped.get(codigo) || { tipoVenta: "gramos", cantidadGramos: 0, gramosPorUnidad: 1000 };
+      if (existing.tipoVenta === "unidad") {
+        return { ok: false, canFallbackToOffline: false, error: "No puedes mezclar unidad y gramos para un producto." };
+      }
+      existing.tipoVenta = "gramos";
+      existing.cantidadGramos = Number(existing.cantidadGramos || 0) + cantidadGramos;
+      existing.gramosPorUnidad = Math.max(1, Math.trunc(Number(item?.gramsPerUnit || existing.gramosPorUnidad || 1000)));
+      grouped.set(codigo, existing);
+      continue;
+    }
+    if (!Number.isFinite(cantidadUnidades) || cantidadUnidades <= 0) {
+      return { ok: false, canFallbackToOffline: false, error: "Hay items invalidos en la venta." };
+    }
+    const existing = grouped.get(codigo) || { tipoVenta: "unidad", cantidad: 0 };
+    if (existing.tipoVenta === "gramos") {
+      return { ok: false, canFallbackToOffline: false, error: "No puedes mezclar unidad y gramos para un producto." };
+    }
+    existing.tipoVenta = "unidad";
+    existing.cantidad = Number(existing.cantidad || 0) + Math.trunc(cantidadUnidades);
+    grouped.set(codigo, existing);
   }
 
   const payload = {
@@ -215,7 +243,13 @@ async function tryCreateSaleInBackend(cartItems, session, paymentDetails) {
     tipoPago: paymentDetails.tipoPago,
     pagoEfectivo: paymentDetails.pagoEfectivo,
     pagoVirtual: paymentDetails.pagoVirtual,
-    productos: Array.from(grouped.entries()).map(([codigo, cantidad]) => ({ codigo, cantidad }))
+    productos: Array.from(grouped.entries()).map(([codigo, row]) => ({
+      codigo,
+      tipoVenta: normalizeSaleType(row?.tipoVenta),
+      cantidad: Number(row?.cantidad || 0),
+      cantidadGramos: Number(row?.cantidadGramos || 0),
+      gramosPorUnidad: Number(row?.gramosPorUnidad || 0)
+    }))
   };
 
   try {
@@ -281,32 +315,71 @@ async function finalizeSaleLocally(cartItems, session, { authoritative, paymentD
           throw new Error(`Producto no disponible: ${cartItem.name}.`);
         }
 
-        const requestedQty = Number(cartItem.quantity || 0);
-        if (!Number.isFinite(requestedQty) || requestedQty <= 0) {
-          throw new Error(`Cantidad invalida para ${cartItem.name}.`);
-        }
-
-        if (Number(product.stock || 0) < requestedQty) {
-          throw new Error(`Stock insuficiente para ${product.name}. Disponible: ${product.stock}.`);
-        }
-
-        product.stock = Number(product.stock || 0) - requestedQty;
-        productsStore.put(product);
-
         const code = String(product.barcode || cartItem.barcode || "").trim();
+        const saleType = normalizeSaleType(cartItem?.saleType ?? product?.tipoVenta ?? product?.saleType);
         const serverItem = authoritativeByCode.get(code);
         const unitPrice = round2(serverItem ? Number(serverItem.precioUnitario || 0) : Number(cartItem.price || 0));
         const unitProviderCost = round2(
           serverItem ? Number(serverItem.precioCompraUnitario || 0) : Number(product.providerCost || 0)
         );
-        const subtotal = round2(unitPrice * requestedQty);
-        const subtotalCost = round2(unitProviderCost * requestedQty);
-        const gananciaRealVenta = round2((unitPrice - unitProviderCost) * requestedQty);
+
+        let subtotal = 0;
+        let subtotalCost = 0;
+        let gananciaRealVenta = 0;
+        let quantityUnits = 0;
+        let quantityGrams = 0;
+        let gramsPerUnit = 0;
+
+        if (saleType === "gramos") {
+          quantityGrams = Number(cartItem.quantityGrams || 0);
+          gramsPerUnit = Math.max(
+            1,
+            Math.trunc(Number(cartItem.gramsPerUnit || product.gramsPerUnit || product.gramosPorUnidad || 1000))
+          );
+          if (!Number.isFinite(quantityGrams) || quantityGrams <= 0) {
+            throw new Error(`Cantidad de gramos invalida para ${cartItem.name}.`);
+          }
+          const pendingBefore = Number(product.gramsPending ?? product.gramosAcumuladosPendientes ?? 0);
+          const totalGrams = pendingBefore + quantityGrams;
+          const unitsToDiscount = Math.trunc(totalGrams / gramsPerUnit);
+          const pendingAfter = totalGrams % gramsPerUnit;
+          if (Number(product.stock || 0) < unitsToDiscount) {
+            throw new Error(`Stock insuficiente para ${product.name}. Disponible: ${product.stock}.`);
+          }
+
+          product.stock = Number(product.stock || 0) - unitsToDiscount;
+          product.gramsPending = pendingAfter;
+          product.gramosAcumuladosPendientes = pendingAfter;
+          product.gramsPerUnit = gramsPerUnit;
+          product.gramosPorUnidad = gramsPerUnit;
+          product.saleType = "gramos";
+          product.tipoVenta = "gramos";
+          product.unidadMedida = "g";
+
+          subtotal = round2((unitPrice * quantityGrams) / 1000);
+          subtotalCost = round2((unitProviderCost * quantityGrams) / 1000);
+          gananciaRealVenta = round2(subtotal - subtotalCost);
+          itemsCount += 1;
+        } else {
+          quantityUnits = Number(cartItem.quantity || 0);
+          if (!Number.isFinite(quantityUnits) || quantityUnits <= 0) {
+            throw new Error(`Cantidad invalida para ${cartItem.name}.`);
+          }
+          if (Number(product.stock || 0) < quantityUnits) {
+            throw new Error(`Stock insuficiente para ${product.name}. Disponible: ${product.stock}.`);
+          }
+          product.stock = Number(product.stock || 0) - quantityUnits;
+          subtotal = round2(unitPrice * quantityUnits);
+          subtotalCost = round2(unitProviderCost * quantityUnits);
+          gananciaRealVenta = round2((unitPrice - unitProviderCost) * quantityUnits);
+          itemsCount += quantityUnits;
+        }
+
+        productsStore.put(product);
 
         total += subtotal;
         totalCost += subtotalCost;
         gananciaReal += gananciaRealVenta;
-        itemsCount += requestedQty;
 
         saleItemsStore.put({
           id: crypto.randomUUID(),
@@ -316,7 +389,10 @@ async function finalizeSaleLocally(cartItems, session, { authoritative, paymentD
           productId: product.id,
           barcode: code,
           name: product.name,
-          quantity: requestedQty,
+          saleType,
+          quantity: quantityUnits,
+          quantityGrams,
+          gramsPerUnit,
           unitPrice,
           subtotal,
           unitProviderCost,
@@ -416,6 +492,11 @@ function mapCreateSaleError(code, message) {
 
 function round2(value) {
   return Number(Number(value || 0).toFixed(2));
+}
+
+function normalizeSaleType(value) {
+  const normalized = String(value || "").trim().toLowerCase();
+  return normalized === "gramos" || normalized === "g" ? "gramos" : "unidad";
 }
 
 function reqToPromise(request) {

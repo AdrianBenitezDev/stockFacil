@@ -33,6 +33,8 @@ export async function createProduct(formData) {
   const name = String(formData.get("name") || "").trim();
   const category = String(formData.get("category") || "").trim();
   const price = Number(formData.get("price"));
+  const saleType = normalizeSaleType(formData.get("saleType"));
+  const gramsPerUnit = Number(formData.get("gramsPerUnit"));
   const providerCostRaw = String(formData.get("providerCost") || "").trim();
   const providerCost = providerCostRaw === "" ? null : Number(providerCostRaw);
   const stock = Number(formData.get("stock"));
@@ -47,6 +49,9 @@ export async function createProduct(formData) {
 
   if (!Number.isFinite(price) || price < 0 || !Number.isFinite(stock) || stock < 0) {
     return { ok: false, error: "Precio y stock deben ser validos." };
+  }
+  if (saleType === "gramos" && (!Number.isFinite(gramsPerUnit) || gramsPerUnit <= 0)) {
+    return { ok: false, error: "Gramos por unidad invalido." };
   }
 
   if (providerCost === null || !Number.isFinite(providerCost) || providerCost < 0) {
@@ -88,6 +93,13 @@ export async function createProduct(formData) {
     name,
     category,
     price: Number(price.toFixed(2)),
+    saleType,
+    tipoVenta: saleType,
+    unidadMedida: saleType === "gramos" ? "g" : "u",
+    gramsPerUnit: saleType === "gramos" ? Math.trunc(gramsPerUnit) : 0,
+    gramosPorUnidad: saleType === "gramos" ? Math.trunc(gramsPerUnit) : 0,
+    gramsPending: 0,
+    gramosAcumuladosPendientes: 0,
     providerCost: Number(providerCost.toFixed(2)),
     createdBy: session.userId,
     createdByName: resolveUserLabel(session),
@@ -173,6 +185,29 @@ export async function syncProductsFromCloudForCurrentKiosco() {
           remote?.precioCompra ?? remote?.costoProveedor ?? remote?.providerCost ?? existing?.precioCompra ?? existing?.providerCost ?? 0
         ),
         stock: Number(remote?.stock ?? existing?.stock ?? 0),
+        tipoVenta: normalizeSaleType(remote?.tipoVenta ?? remote?.saleType ?? existing?.tipoVenta ?? existing?.saleType),
+        saleType: normalizeSaleType(remote?.tipoVenta ?? remote?.saleType ?? existing?.tipoVenta ?? existing?.saleType),
+        unidadMedida: String(remote?.unidadMedida || existing?.unidadMedida || "").trim().toLowerCase() || "u",
+        gramosPorUnidad: Number(
+          remote?.gramosPorUnidad ?? remote?.gramsPerUnit ?? existing?.gramosPorUnidad ?? existing?.gramsPerUnit ?? 0
+        ),
+        gramsPerUnit: Number(
+          remote?.gramsPerUnit ?? remote?.gramosPorUnidad ?? existing?.gramsPerUnit ?? existing?.gramosPorUnidad ?? 0
+        ),
+        gramosAcumuladosPendientes: Number(
+          remote?.gramosAcumuladosPendientes ??
+            remote?.gramsPending ??
+            existing?.gramosAcumuladosPendientes ??
+            existing?.gramsPending ??
+            0
+        ),
+        gramsPending: Number(
+          remote?.gramsPending ??
+            remote?.gramosAcumuladosPendientes ??
+            existing?.gramsPending ??
+            existing?.gramosAcumuladosPendientes ??
+            0
+        ),
         tieneCodigoBarras: true,
         synced: true,
         syncedAt: now,
@@ -257,6 +292,8 @@ export async function updateProductDetails(productId, detailsInput) {
   const nextCategory = String(detailsInput?.category || "").trim();
   const nextStock = Number(detailsInput?.stock);
   const nextPrice = Number(detailsInput?.price);
+  const nextSaleType = normalizeSaleType(detailsInput?.saleType);
+  const nextGramsPerUnit = Number(detailsInput?.gramsPerUnit);
   const nextProviderCost = Number(detailsInput?.providerCost);
 
   if (!nextName) {
@@ -270,6 +307,9 @@ export async function updateProductDetails(productId, detailsInput) {
   }
   if (!Number.isFinite(nextPrice) || nextPrice < 0) {
     return { ok: false, error: "Precio de venta invalido." };
+  }
+  if (nextSaleType === "gramos" && (!Number.isFinite(nextGramsPerUnit) || nextGramsPerUnit <= 0)) {
+    return { ok: false, error: "Gramos por unidad invalido." };
   }
   if (!Number.isFinite(nextProviderCost) || nextProviderCost < 0) {
     return { ok: false, error: "Precio de compra invalido." };
@@ -292,6 +332,15 @@ export async function updateProductDetails(productId, detailsInput) {
   normalized.stock = Math.trunc(nextStock);
   normalized.price = Number(nextPrice.toFixed(2));
   normalized.precioVenta = Number(nextPrice.toFixed(2));
+  normalized.saleType = nextSaleType;
+  normalized.tipoVenta = nextSaleType;
+  normalized.unidadMedida = nextSaleType === "gramos" ? "g" : "u";
+  normalized.gramsPerUnit = nextSaleType === "gramos" ? Math.trunc(nextGramsPerUnit) : 0;
+  normalized.gramosPorUnidad = nextSaleType === "gramos" ? Math.trunc(nextGramsPerUnit) : 0;
+  if (nextSaleType !== "gramos") {
+    normalized.gramsPending = 0;
+    normalized.gramosAcumuladosPendientes = 0;
+  }
   normalized.providerCost = Number(nextProviderCost.toFixed(2));
   normalized.precioCompra = Number(nextProviderCost.toFixed(2));
   normalized.synced = false;
@@ -367,6 +416,10 @@ export async function syncPendingProducts({ force = false } = {}) {
       precioCompra: Number(normalized.precioCompra || 0),
       categoria: normalized.categoria || null,
       stock: Number(normalized.stock || 0),
+      tipoVenta: normalizeSaleType(normalized.tipoVenta || normalized.saleType),
+      unidadMedida: String(normalized.unidadMedida || "").trim().toLowerCase() || "u",
+      gramosPorUnidad: Number(normalized.gramosPorUnidad ?? normalized.gramsPerUnit ?? 0),
+      gramosAcumuladosPendientes: Number(normalized.gramosAcumuladosPendientes ?? normalized.gramsPending ?? 0),
       tieneCodigoBarras: Boolean(normalized.tieneCodigoBarras),
       tenantId: session.tenantId,
       synced: false,
@@ -450,6 +503,9 @@ function normalizeProduct(product) {
   const salePrice = Number(product?.precioVenta ?? product?.price ?? 0);
   const purchasePrice = Number(product?.precioCompra ?? product?.providerCost ?? 0);
   const stock = Math.trunc(Number(product?.stock || 0));
+  const saleType = normalizeSaleType(product?.tipoVenta ?? product?.saleType);
+  const gramsPerUnit = Math.trunc(Number(product?.gramosPorUnidad ?? product?.gramsPerUnit ?? 0));
+  const gramsPending = Number(product?.gramosAcumuladosPendientes ?? product?.gramsPending ?? 0);
 
   return {
     ...product,
@@ -459,6 +515,15 @@ function normalizeProduct(product) {
     precioCompra: Number.isFinite(purchasePrice) ? Number(purchasePrice.toFixed(2)) : 0,
     categoria: category,
     stock: Number.isFinite(stock) ? stock : 0,
+    tipoVenta: saleType,
+    saleType,
+    unidadMedida: saleType === "gramos" ? "g" : "u",
+    gramosPorUnidad:
+      saleType === "gramos" ? (Number.isFinite(gramsPerUnit) && gramsPerUnit > 0 ? gramsPerUnit : 1000) : 0,
+    gramsPerUnit:
+      saleType === "gramos" ? (Number.isFinite(gramsPerUnit) && gramsPerUnit > 0 ? gramsPerUnit : 1000) : 0,
+    gramosAcumuladosPendientes: saleType === "gramos" ? Number(gramsPending || 0) : 0,
+    gramsPending: saleType === "gramos" ? Number(gramsPending || 0) : 0,
     tieneCodigoBarras: Boolean(product?.tieneCodigoBarras ?? !String(code).startsWith("INT-")),
     tenantId: String(product?.tenantId || product?.kioscoId || "").trim(),
     synced: product?.synced === true,
@@ -482,6 +547,13 @@ function applyNormalizedToStoredProduct(target, normalized) {
   target.precioCompra = normalized.precioCompra;
   target.categoria = normalized.categoria;
   target.stock = normalized.stock;
+  target.tipoVenta = normalized.tipoVenta;
+  target.saleType = normalized.saleType;
+  target.unidadMedida = normalized.unidadMedida;
+  target.gramosPorUnidad = normalized.gramosPorUnidad;
+  target.gramsPerUnit = normalized.gramsPerUnit;
+  target.gramosAcumuladosPendientes = normalized.gramosAcumuladosPendientes;
+  target.gramsPending = normalized.gramsPending;
   target.tieneCodigoBarras = normalized.tieneCodigoBarras;
   target.tenantId = normalized.tenantId;
   target.synced = normalized.synced;
@@ -566,6 +638,10 @@ async function trySyncProductsNow(session, products) {
       precioCompra: Number(normalized.precioCompra || 0),
       categoria: normalized.categoria || null,
       stock: Number(normalized.stock || 0),
+      tipoVenta: normalizeSaleType(normalized.tipoVenta || normalized.saleType),
+      unidadMedida: String(normalized.unidadMedida || "").trim().toLowerCase() || "u",
+      gramosPorUnidad: Number(normalized.gramosPorUnidad ?? normalized.gramsPerUnit ?? 0),
+      gramosAcumuladosPendientes: Number(normalized.gramosAcumuladosPendientes ?? normalized.gramsPending ?? 0),
       tieneCodigoBarras: Boolean(normalized.tieneCodigoBarras),
       tenantId: session.tenantId,
       synced: false,
@@ -581,4 +657,10 @@ async function trySyncProductsNow(session, products) {
   } catch (error) {
     return { ok: false, error: mapCallableError(error) };
   }
+}
+
+function normalizeSaleType(value) {
+  const normalized = String(value || "").trim().toLowerCase();
+  if (normalized === "gramos" || normalized === "g") return "gramos";
+  return "unidad";
 }

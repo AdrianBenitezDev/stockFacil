@@ -1,0 +1,173 @@
+﻿NUEVO TIPO DE VENTA: PRODUCTOS POR GRAMOS
+
+Objetivo
+- Permitir vender productos por gramos (ejemplo: 250 g).
+- El stock del producto se descuenta por unidades completas cuando el acumulado llega al umbral.
+- Ejemplo: si el umbral es 1000 g, al vender 250+250+500 => se descuenta 1 unidad de stock.
+
+Regla principal de negocio
+- Cada producto por gramos debe tener:
+  - unidadMedida: "g"
+  - gramosPorUnidad: 1000 (o el valor que definas, por ejemplo 500, 2000, etc.)
+- Se guarda un acumulador por producto: gramosAcumuladosPendientes.
+- En cada venta por gramos:
+  - nuevoAcumulado = gramosAcumuladosPendientes + gramosVendidos
+  - unidadesADescontar = floor(nuevoAcumulado / gramosPorUnidad)
+  - gramosAcumuladosPendientes = nuevoAcumulado % gramosPorUnidad
+  - stock = stock - unidadesADescontar
+- Si unidadesADescontar = 0, el stock no cambia todavia.
+
+1) Modelo de datos (producto)
+Agregar campos en producto:
+- tipoVenta: "unidad" | "gramos"
+- unidadMedida: "u" | "g"
+- gramosPorUnidad: number (solo si tipoVenta="gramos")
+- gramosAcumuladosPendientes: number (inicia en 0)
+
+Compatibilidad:
+- Productos existentes quedan como:
+  - tipoVenta="unidad"
+  - unidadMedida="u"
+
+2) Modelo de datos (detalle de venta)
+En cada item vendido guardar:
+- tipoVenta
+- cantidadUnidades (para tipo unidad)
+- cantidadGramos (para tipo gramos)
+- precioUnitario (si aplica por unidad)
+- precioPorKg o precioPorGramo (si tipo gramos)
+- subtotal
+
+Sugerencia de precio para gramos:
+- Guardar precioPorKg en producto.
+- Calcular: subtotal = (gramosVendidos / 1000) * precioPorKg.
+
+3) UI (alta/edicion de producto)
+Agregar en formulario de producto:
+- Selector "Tipo de venta" (Unidad / Gramos).
+- Si "Gramos":
+  - mostrar input "Gramos por unidad" (default 1000)
+  - mostrar input "Precio por kg" (o definir conversion clara)
+- Si "Unidad": comportamiento actual.
+
+4) UI (pantalla de venta)
+Cuando producto sea por gramos:
+- Pedir gramos a vender (ej: 250).
+- Mostrar preview:
+  - acumulado anterior
+  - acumulado nuevo
+  - unidades que se descontaran ahora
+  - remanente pendiente
+- Confirmar venta con ese detalle.
+
+5) Logica de stock (backend recomendado)
+Implementar en backend (Cloud Function createSale) para evitar inconsistencias offline/online.
+- Dentro de transaccion por producto:
+  - leer stock y gramosAcumuladosPendientes actuales
+  - calcular unidadesADescontar/remanente
+  - validar stock suficiente si unidadesADescontar > 0
+  - actualizar stock y gramosAcumuladosPendientes
+- Guardar en venta los campos calculados para auditoria.
+
+Importante:
+- No hacer el descuento solo en frontend.
+- Siempre recalcular en servidor para consistencia.
+
+6) Offline
+Como priorizas continuidad de venta:
+- Permitir venta por gramos offline.
+- Guardar en IndexedDB los gramos vendidos.
+- Al sincronizar:
+  - enviar evento de venta completo
+  - backend recalcula acumulado y descuento real
+- Si hay divergencia (por ventas simultaneas):
+  - registrar evento de auditoria
+  - mostrar ajuste en panel empleador.
+
+7) Cierre de caja y reportes
+No cambia la logica monetaria de cierre.
+Pero en reportes conviene agregar:
+- gramos vendidos por producto
+- unidades descontadas por conversion
+- remanente pendiente actual
+
+8) Auditoria recomendada
+Registrar en ventas por gramos:
+- gramosPrevios
+- gramosVendidos
+- gramosAcumuladosFinal
+- unidadesDescontadas
+- gramosPorUnidadUsado
+Esto facilita revisiones cuando el stock baja "despues" de varias ventas.
+
+9) Plan de implementacion incremental (recomendado)
+Paso 1:
+- Agregar campos nuevos en producto + UI de alta/edicion.
+
+Paso 2:
+- Soportar venta por gramos en UI y payload de venta.
+
+Paso 3:
+- Mover calculo final a backend (transaccion createSale).
+
+Paso 4:
+- Ajustar sincronizacion offline y auditoria.
+
+Paso 5:
+- Ajustar tabla de stock y reportes para mostrar remanente.
+
+10) Ejemplo de calculo
+Producto A:
+- gramosPorUnidad = 1000
+- gramosAcumuladosPendientes inicial = 0
+- stock inicial = 10
+
+Venta 1: 250 g
+- nuevoAcumulado = 250
+- unidadesADescontar = 0
+- remanente = 250
+- stock queda 10
+
+Venta 2: 300 g
+- nuevoAcumulado = 550
+- unidadesADescontar = 0
+- remanente = 550
+- stock queda 10
+
+Venta 3: 500 g
+- nuevoAcumulado = 1050
+- unidadesADescontar = 1
+- remanente = 50
+- stock baja a 9
+
+Decision tecnica sugerida
+- Implementar con "acumulador de gramos por producto" (gramosAcumuladosPendientes).
+- Mantener el stock en unidades completas.
+- Calculo y descuento final siempre en backend transaccional.
+
+11) Migracion masiva recomendada para productos existentes
+- No es obligatorio cargar a mano `tipoVenta` en 600 productos.
+- Mantener fallback en codigo:
+  - `tipoVenta` faltante => `"unidad"`
+  - `unidadMedida` faltante => `"u"`
+- Ejecutar una migracion masiva para normalizar datos historicos.
+
+Script propuesto (ya preparado):
+- `functions/scripts/migrate_products_tipoVenta_default.js`
+
+Que hace:
+- Recorre `tenants/{tenantId}/productos`.
+- Si falta `tipoVenta`, setea `tipoVenta: "unidad"`.
+- Si falta `unidadMedida`, setea `unidadMedida: "u"`.
+- Actualiza timestamp de migracion.
+- Tiene modo seguro `dry-run` por defecto.
+
+Comandos sugeridos:
+- Dry-run todos los tenants:
+  - `node functions/scripts/migrate_products_tipoVenta_default.js`
+- Aplicar en un tenant puntual:
+  - `node functions/scripts/migrate_products_tipoVenta_default.js --tenantId TU_TENANT_ID --apply`
+- Aplicar en todos los tenants:
+  - `node functions/scripts/migrate_products_tipoVenta_default.js --apply`
+- Si usas key json explicita:
+  - `node functions/scripts/migrate_products_tipoVenta_default.js --serviceAccount ./ruta/serviceAccount.json --apply`
