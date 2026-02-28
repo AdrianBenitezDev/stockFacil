@@ -30,7 +30,7 @@ export async function getCashSnapshotForToday() {
     return { ok: false, error: salesResult.loadError };
   }
   const sales = salesResult.sales;
-  const orderedSales = sales.sort((a, b) => String(b.createdAt || "").localeCompare(String(a.createdAt || "")));
+  const orderedSales = [...sales].sort((a, b) => getTimestampMs(b?.createdAt) - getTimestampMs(a?.createdAt));
   const summary = summarizeSales(orderedSales);
   const shiftDetail = await loadShiftCashDetail(session);
   const startCashAmount = Number(shiftDetail.startCashAmount || 0);
@@ -309,7 +309,7 @@ async function listRecentClosures(session, scopeKey) {
       if (closureScope) return closureScope === scopeKey;
       return String(closure.closureKey || "").includes(`::${scopeKey}`);
     })
-    .sort((a, b) => String(b.createdAt || "").localeCompare(String(a.createdAt || "")))
+    .sort((a, b) => getTimestampMs(b?.createdAt) - getTimestampMs(a?.createdAt))
     .slice(0, 10);
 }
 
@@ -630,6 +630,17 @@ function resolveSaleVirtualAmount(sale) {
 
 function round2(value) {
   return Number(Number(value || 0).toFixed(2));
+}
+
+function getTimestampMs(value) {
+  if (!value) return 0;
+  if (typeof value?.toDate === "function") {
+    const parsed = value.toDate();
+    return Number.isNaN(parsed.getTime()) ? 0 : parsed.getTime();
+  }
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return 0;
+  return parsed.getTime();
 }
 
 export async function deleteCashSaleById(saleId, { synced = false } = {}) {

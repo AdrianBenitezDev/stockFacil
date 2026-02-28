@@ -114,7 +114,7 @@ const endEmployeeShift = onCall(async (request) => {
   totalVirtual = round2(totalVirtual);
   const inicioCaja = round2(Number(latest.inicioCaja || 0));
   const montoCierreCaja = round2(inicioCaja + totalEfectivo + totalVirtual);
-  const efectivoEntregar = round2(totalEfectivo + inicioCaja);
+  const efectivoEntregar = round2(totalEfectivo);
   const virtualEntregar = round2(totalVirtual);
   const totalGananciaRealCaja = round2(
     salesSnap.docs.reduce((acc, docSnap) => {

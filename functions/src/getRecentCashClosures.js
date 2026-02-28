@@ -29,19 +29,27 @@ const getRecentCashClosures = onCall(async (request) => {
     const username = await resolveUsername(userId, row, usernameByUid);
     const dateKey = String(row.dateKey || "").trim();
     const scopeKey = userId || "all";
+    const inicioCaja = round2(Number(row.inicioCaja || 0));
+    const closureRole = String(row.role || "").trim().toLowerCase() || "empleado";
+    const efectivoEntregar = resolveCashAmountForDisplay({
+      role: closureRole,
+      efectivoEntregar: Number(row.efectivoEntregar ?? row.efectivoEtregar ?? 0),
+      efectivoVentas: Number(row.efectivoVentas ?? 0),
+      inicioCaja
+    });
 
     closures.push({
       id: String(row.idCaja || docSnap.id),
       userId,
       username,
-      role: String(row.role || "").trim().toLowerCase() || "empleado",
+      role: closureRole,
       dateKey,
       scopeKey,
       totalAmount: Number(row.total || row.totalCaja || 0),
-      efectivoEntregar: Number(row.efectivoEntregar ?? row.efectivoEtregar ?? 0),
+      efectivoEntregar,
       virtualEntregar: Number(row.virtualEntregar ?? row.virtualEtregar ?? 0),
-      inicioCaja: Number(row.inicioCaja || 0),
-      efectivoEtregar: Number(row.efectivoEtregar ?? row.efectivoEntregar ?? 0),
+      inicioCaja,
+      efectivoEtregar: efectivoEntregar,
       virtualEtregar: Number(row.virtualEtregar ?? row.virtualEntregar ?? 0),
       totalCost: Number(row.totalCost || row.totalCosto || 0),
       profitAmount: Number(row.totalGananciaRealCaja || row.GanaciaRealCaja || 0),
@@ -89,6 +97,20 @@ async function resolveUsername(userId, row, cache) {
   return userId;
 }
 
+function resolveCashAmountForDisplay({ role, efectivoEntregar, efectivoVentas, inicioCaja }) {
+  const cashSales = Number(efectivoVentas || 0);
+  if (Number.isFinite(cashSales) && cashSales >= 0) {
+    return round2(cashSales);
+  }
+
+  const efectivo = Number(efectivoEntregar || 0);
+  const inicio = Number(inicioCaja || 0);
+  if (role === "empleado" && Number.isFinite(efectivo) && Number.isFinite(inicio) && inicio > 0 && efectivo >= inicio) {
+    return round2(efectivo - inicio);
+  }
+  return round2(efectivo);
+}
+
 function clampInt(value, fallback, min, max) {
   const parsed = Number(value);
   if (!Number.isFinite(parsed)) return fallback;
@@ -112,6 +134,10 @@ function buildDateKey(isoString) {
   return `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, "0")}-${String(
     date.getUTCDate()
   ).padStart(2, "0")}`;
+}
+
+function round2(value) {
+  return Number(Number(value || 0).toFixed(2));
 }
 
 module.exports = {

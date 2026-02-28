@@ -241,7 +241,8 @@ export function renderCashSalesTable(sales, { canViewProfit = true, maskProfit =
     return;
   }
 
-  dom.cashSalesTableBody.innerHTML = sales
+  const orderedSales = [...sales].sort((a, b) => getTimestampMs(b?.createdAt) - getTimestampMs(a?.createdAt));
+  dom.cashSalesTableBody.innerHTML = orderedSales
     .map((sale) => {
       const time = formatTime(sale.createdAt);
       const username = escapeHtml(sale.username || "-");
@@ -330,7 +331,8 @@ export function renderCashClosuresTable(closures, { canViewProfit = true, maskPr
     return;
   }
 
-  dom.cashClosuresTableBody.innerHTML = closures
+  const orderedClosures = [...closures].sort((a, b) => getTimestampMs(b?.createdAt) - getTimestampMs(a?.createdAt));
+  dom.cashClosuresTableBody.innerHTML = orderedClosures
     .map((closure) => {
       const rowToneClass = getEmployeeToneClass(closure.username);
       const closureId = escapeHtml(closure.id || "");
@@ -385,7 +387,21 @@ function iconOnly(iconSvg) {
 function formatTime(isoDate) {
   if (!isoDate) return "--:--";
   const date = new Date(isoDate);
-  return date.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" });
+  if (Number.isNaN(date.getTime())) return "--:--";
+  return date
+    .toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: true })
+    .replace(" ", "");
+}
+
+function getTimestampMs(value) {
+  if (!value) return 0;
+  if (typeof value?.toDate === "function") {
+    const parsed = value.toDate();
+    return Number.isNaN(parsed.getTime()) ? 0 : parsed.getTime();
+  }
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return 0;
+  return parsed.getTime();
 }
 
 function applyAddProductAvailability(enabled) {
