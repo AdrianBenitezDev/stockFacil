@@ -1403,6 +1403,7 @@ async function handleConfirmEmployeeShiftStart() {
   
     
   } finally {
+      employeeShiftSubmitting = false;
     dom.employeeShiftConfirmBtn?.classList.remove("btn-loading");
     dom.employeeShiftCancelBtn && (dom.employeeShiftCancelBtn.disabled = false);
     updateEmployeeShiftConfirmState();
