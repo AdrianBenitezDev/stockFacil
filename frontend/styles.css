@@ -815,6 +815,12 @@ thead th {
   background: #ecfeff;
 }
 
+.plan-card-current {
+  font-size: 0.78rem;
+  color: #0f766e;
+  font-weight: 700;
+}
+
 .sell-search-row {
   display: grid;
   grid-template-columns: 1fr auto;

@@ -30,35 +30,17 @@
   <main class="container">
     <section class="panel">
       <h2>Planes disponibles</h2>
-      <p class="subtitle">Boceto inicial. Luego conectamos lectura real, seleccion y actualizacion.</p>
+      <p class="subtitle">Consulta en tiempo real de planes guardados en Firebase.</p>
 
-      <div class="cash-summary">
-        <article class="cash-card">
-          <h4>Plan Prueba</h4>
-          <p class="subtitle">Hasta 2 empleados</p>
-          <p class="cash-value">$0</p>
-          <button type="button" disabled>Seleccionar (proximamente)</button>
-        </article>
-        <article class="cash-card">
-          <h4>Plan Basico</h4>
-          <p class="subtitle">Hasta 5 empleados</p>
-          <p class="cash-value">$9.99</p>
-          <button type="button" disabled>Seleccionar (proximamente)</button>
-        </article>
-        <article class="cash-card">
-          <h4>Plan Pro</h4>
-          <p class="subtitle">Hasta 15 empleados</p>
-          <p class="cash-value">$19.99</p>
-          <button type="button" disabled>Seleccionar (proximamente)</button>
-        </article>
-      </div>
+      <div id="plans-cards" class="plan-cards" aria-live="polite"></div>
 
       <p id="plans-feedback" class="feedback" aria-live="polite">
-        Pendiente: integrar carga de planes desde backend y actualizar el plan del tenant.
+        Cargando planes...
       </p>
     </section>
   </main>
 
+  <script type="module" src="js/planes.js"></script>
   <script type="module" src="js/pwa.js"></script>
 </body>
 </html>
