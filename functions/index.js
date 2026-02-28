@@ -11,7 +11,6 @@ const { getRecentCashClosures } = require("./src/getRecentCashClosures");
 const { registerEmployerProfile } = require("./src/registerEmployerProfile");
 const { markEmployerEmailVerified } = require("./src/markEmployerEmailVerified");
 const { sendEmployerVerificationEmail } = require("./src/sendEmployerVerificationEmail");
-const {seedPlanes} = require("./src/seedPlanes");
 const { updateEmpleadoProductoPermission } = require("./src/updateEmpleadoProductoPermission");
 const { adminGetUsersOverview } = require("./src/adminGetUsersOverview");
 const { adminManagePlans } = require("./src/adminManagePlans");
@@ -26,7 +25,6 @@ const { registerEmergencyShiftStart } = require("./src/registerEmergencyShiftSta
 const { registerSalesAuditEvent } = require("./src/registerSalesAuditEvent");
 const { deleteCashRecord } = require("./src/deleteCashRecord");
 
-exports.seedPlanes = seedPlanes;
 
 exports.bootstrapGoogleUser = bootstrapGoogleUser;
 exports.crearEmpleado = crearEmpleado;

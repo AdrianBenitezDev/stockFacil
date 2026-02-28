@@ -1,0 +1,21 @@
+
+FirebaseAppError: A Firebase app named "[DEFAULT]" already exists with a different configuration.
+    at AppStore.initializeApp (C:\Users\37adr\OneDrive\Documentos\dev 2026\stockFacil\functions\node_modules\firebase-admin\lib\app\lifecycle.js:54:19)
+    at FirebaseNamespaceInternals.initializeApp (C:\Users\37adr\OneDrive\Documentos\dev 2026\stockFacil\functions\node_modules\firebase-admin\lib\app\firebase-namespace.js:43:35)
+    at FirebaseNamespace.initializeApp (C:\Users\37adr\OneDrive\Documentos\dev 2026\stockFacil\functions\node_modules\firebase-admin\lib\app\firebase-namespace.js:246:30)
+    at Object.<anonymous> (C:\Users\37adr\OneDrive\Documentos\dev 2026\stockFacil\functions\src\seedPlanes.js:4:7)
+    at Module._compile (node:internal/modules/cjs/loader:1521:14)
+    at Module._extensions..js (node:internal/modules/cjs/loader:1623:10)
+    at Module.load (node:internal/modules/cjs/loader:1266:32)
+    at Module._load (node:internal/modules/cjs/loader:1091:12)
+    at Module.require (node:internal/modules/cjs/loader:1289:19)
+    at require (node:internal/modules/helpers:182:18) {
+  errorInfo: {
+    code: 'app/invalid-app-options',
+    message: 'A Firebase app named "[DEFAULT]" already exists with a different configuration.'
+  },
+  codePrefix: 'app'
+}
+
+
+Error: Functions codebase could not be analyzed successfully. It may have a syntax or runtime error
