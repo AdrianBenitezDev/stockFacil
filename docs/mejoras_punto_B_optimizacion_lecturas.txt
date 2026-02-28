@@ -1,0 +1,179 @@
+﻿MEJORAS PUNTO B - OPTIMIZACION DE LECTURAS Y PICOS DE CONSULTA
+Fecha: 2026-02-28
+
+Objetivo
+- Reducir picos de lecturas Firestore durante:
+  - cobro de ventas
+  - refresco de caja
+  - cierre de caja
+- Mantener consistencia funcional sin perder trazabilidad.
+
+=================================================
+1) Diagnostico resumido del problema actual
+=================================================
+
+Problema principal
+- El mayor costo no viene de `createSale` en si, sino del refresco post-venta en frontend:
+  - `refreshStock()` completo
+  - `refreshCashPanel()` completo
+- Esto dispara varias lecturas en cadena por cada venta.
+
+Puntos mas costosos identificados
+- `refreshStock()` para empleados:
+  - hace pull cloud completo de productos (`tenants/{tenantId}/productos`)
+  - costo ~P lecturas (P = total productos)
+- `refreshCashPanel()`:
+  - ventas abiertas (`getOpenCashSales`) = Ns lecturas
+  - detalle de turnos (`getShiftCashDetail`) con estrategia O(E)
+  - cierres recientes (`getRecentCashClosures`) + posibles lookups de usuario
+
+=================================================
+2) Mejoras recomendadas (orden de prioridad)
+=================================================
+
+PRIORIDAD ALTA (alto impacto / bajo riesgo)
+
+2.1) No hacer `refreshStock()` completo tras cada venta
+- Hoy: despues de cobrar, se refresca stock completo.
+- Mejora:
+  - actualizar solo en memoria los productos del carrito vendido
+  - refresco completo bajo estas condiciones:
+    - al entrar a seccion Stock
+    - cada TTL (ej. 30-60s)
+    - accion manual del usuario
+
+Impacto esperado
+- Reduccion fuerte de lecturas por venta en comercios con muchos productos.
+
+
+2.2) Separar refresh de caja en dos niveles
+- Hoy: `refreshCashPanel()` trae todo siempre.
+- Mejora:
+  - Refresh rapido (post-venta):
+    - totales de caja y ventas abiertas
+  - Refresh completo (diferido):
+    - cierres recientes
+    - detalles pesados
+
+Impacto esperado
+- Menos picos de lectura en flujo de cobro continuo.
+
+
+2.3) Cache de UI con TTL
+- Cache en memoria de:
+  - snapshot de caja (TTL 10-20s)
+  - cierres recientes (TTL 30-60s)
+- Invalidacion:
+  - cuando hay cierre de caja
+  - cuando hay cambio de scope
+  - cuando expira TTL
+
+Impacto esperado
+- Menos llamadas repetidas por cambio de vista y acciones consecutivas.
+
+
+PRIORIDAD MEDIA
+
+2.4) Reemplazar O(E) en `getShiftCashDetail` por agregado
+- Hoy:
+  - query empleados
+  - por cada empleado, consulta ultimo turno
+- Mejora:
+  - crear agregado en:
+    - `tenants/{tenantId}/aggregates/shiftCash`
+  - campos:
+    - `startCashAmount`
+    - `activeShiftCount`
+    - `updatedAt`
+  - actualizar agregado al:
+    - iniciar turno
+    - cerrar turno
+
+Impacto esperado
+- de O(E) lecturas a 1 lectura por request.
+
+
+2.5) Eliminar lookup de username por cierre en caliente
+- Hoy en `getRecentCashClosures` puede consultar `usuarios/empleados` si falta nombre.
+- Mejora:
+  - exigir `usuarioNombre` en creacion de caja
+  - fallback simple sin lecturas extra si faltara
+
+Impacto esperado
+- Evita lecturas adicionales por cada fila de cierre.
+
+
+PRIORIDAD BAJA (mejora evolutiva)
+
+2.6) Endpoint de resumen ultraliviano
+- Crear callable de resumen (sin listado completo) para post-venta.
+- UI post-venta usa ese endpoint rapido y deja detalle para carga diferida.
+
+2.7) Panel de telemetria de costo
+- Registrar contadores de lecturas/escrituras aproximadas por operacion.
+- Permite detectar regresiones al evolucionar.
+
+=================================================
+3) Propuesta de implementacion por fases
+=================================================
+
+FASE 1 (rapida, mayor ROI)
+1. Quitar refresh completo de stock post-venta.
+2. Hacer refresh de caja rapido/completo.
+3. Agregar cache TTL en frontend.
+
+FASE 2
+4. Implementar agregado `shiftCash` y migrar `getShiftCashDetail` a lectura unica.
+5. Eliminar lookup de usuario en `getRecentCashClosures`.
+
+FASE 3
+6. Endpoint de resumen liviano + telemetria.
+
+=================================================
+4) Estimacion de impacto (orientativa)
+=================================================
+
+Escenario ejemplo
+- P=600 productos
+- E=20 empleados
+- Ns=120 ventas abiertas
+
+Antes (post-venta):
+- refreshStock completo: ~600 lecturas
+- cash snapshot completo: >150 lecturas (segun estado)
+- total por venta: muy alto
+
+Despues (fase 1 + fase 2):
+- stock: 0 lecturas completas por venta (solo delta local)
+- caja: refresh rapido + cache TTL
+- shift detail: 1 lectura agregada
+
+Resultado esperado
+- reduccion muy significativa de picos y costo por venta.
+
+=================================================
+5) Riesgos y controles
+=================================================
+
+Riesgo: UI con datos levemente desfasados
+- Mitigar con TTL corto e invalidaciones por evento.
+
+Riesgo: inconsistencia de agregado shiftCash
+- Mitigar actualizando agregado en mismos callables de turno.
+- Agregar endpoint de reconciliacion manual (opcional).
+
+Riesgo: complejidad de dos modos de refresh
+- Mitigar con funciones bien separadas:
+  - `refreshCashPanelQuick()`
+  - `refreshCashPanelFull()`
+
+=================================================
+6) Recomendacion final
+=================================================
+
+Implementar primero estas 3 (maximo impacto con minimo riesgo):
+1. No refrescar stock completo tras cada venta.
+2. Dividir refresh de caja en rapido/completo + TTL.
+3. Agregado `shiftCash` para evitar O(E).
+
+Con solo esas tres mejoras deberias notar caida fuerte de picos y consumo.

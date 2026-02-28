@@ -68,14 +68,22 @@ const createSale = onCall(async (request) => {
   let itemsCount = 0;
 
   await db.runTransaction(async (tx) => {
+    const productRefs = new Map();
+    const productsByCode = new Map();
+
     for (const [codigo, row] of grouped.entries()) {
       const productRef = db.collection("tenants").doc(tenantId).collection("productos").doc(codigo);
+      productRefs.set(codigo, productRef);
       const productSnap = await tx.get(productRef);
       if (!productSnap.exists) {
         throw new HttpsError("failed-precondition", `Producto no encontrado: ${codigo}.`);
       }
+      productsByCode.set(codigo, productSnap.data() || {});
+    }
 
-      const product = productSnap.data() || {};
+    for (const [codigo, row] of grouped.entries()) {
+      const productRef = productRefs.get(codigo);
+      const product = productsByCode.get(codigo) || {};
       const stock = Number(product.stock || 0);
       const precioVenta = Number(product.precioVenta ?? product.precio ?? 0);
       const precioCompra = Number(product.precioCompra ?? product.costoProveedor ?? 0);

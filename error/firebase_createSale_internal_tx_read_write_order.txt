@@ -1,0 +1,26 @@
+﻿Error: Firebase Function createSale devolvia "INTERNAL" al vender 2 o mas productos diferentes.
+
+Fecha de registro: 2026-02-28
+Archivo afectado: functions/src/createSale.js
+
+Causa raiz:
+- Dentro de db.runTransaction(...) se mezclaban lecturas y escrituras en el mismo loop.
+- Patrón problemático:
+  1) tx.get(producto A)
+  2) tx.update(producto A)
+  3) tx.get(producto B)
+- Firestore exige que todas las lecturas de una transacción ocurran antes de cualquier escritura.
+
+Sintoma observado:
+- Venta con 1 producto funcionaba.
+- Venta con 2+ productos diferentes fallaba y retornaba "INTERNAL".
+
+Correccion aplicada:
+- Refactor de la transacción a 2 fases:
+  1) Fase lectura: tx.get(...) de todos los productos y cache en memoria.
+  2) Fase escritura: validaciones, cálculos y tx.update(...) / tx.set(...).
+- Se validó sintaxis con: node --check functions/src/createSale.js
+
+Regla para evitar repetir este error:
+- En Firestore transactions: NO intercalar tx.get y tx.update/tx.set/tx.delete.
+- Primero leer todo, luego escribir todo.
