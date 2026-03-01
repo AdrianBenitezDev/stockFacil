@@ -316,6 +316,17 @@ export function registerOwnerShiftEndLocal({ tenantId, employeeUid }) {
   localStorage.setItem(key, JSON.stringify(payload));
 }
 
+export function getOwnerShiftCashSnapshotLocal(tenantId) {
+  const parsed = readOwnerShiftCashSnapshot(tenantId);
+  const byEmployee = parsed?.byEmployee && typeof parsed.byEmployee === "object" ? parsed.byEmployee : {};
+  return {
+    byEmployee,
+    startCashAmount: Number(parsed?.startCashAmount || 0),
+    activeShiftCount: Number(parsed?.activeShiftCount || 0),
+    updatedAt: String(parsed?.updatedAt || "")
+  };
+}
+
 function readEmployeeShiftCache({ tenantId, userId }) {
   const key = getEmployeeShiftCacheKey({ tenantId, userId });
   if (!key) return null;

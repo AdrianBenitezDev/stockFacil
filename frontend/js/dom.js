@@ -99,6 +99,8 @@ export const dom = {
   salePaymentProcessing: document.getElementById("sale-payment-processing"),
   salePaymentToast: document.getElementById("sale-payment-toast"),
   cashScopeLabel: document.getElementById("cash-scope-label"),
+  cashShiftEmployeesWrap: document.getElementById("cash-shift-employees-wrap"),
+  cashShiftEmployeesGrid: document.getElementById("cash-shift-employees-grid"),
   cashPrivacyToggle: document.getElementById("cash-privacy-toggle"),
   cashSalesCount: document.getElementById("cash-sales-count"),
   cashItemsCount: document.getElementById("cash-items-count"),

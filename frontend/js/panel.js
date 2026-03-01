@@ -62,7 +62,7 @@ import {
   updateEmployeeEditProductsPermission,
   updateEmployeeViewStockPermission
 } from "./employees.js";
-import { endEmployeeShift, startEmployeeShift, syncMyShiftStatusCache } from "./shifts.js";
+import { endEmployeeShift, getOwnerShiftCashSnapshotLocal, startEmployeeShift, syncMyShiftStatusCache } from "./shifts.js";
 
 const currentSaleItems = [];
 let scannerMode = null;
@@ -88,6 +88,8 @@ const ICON_EYE_SVG =
   '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7S1 12 1 12z"/><circle cx="12" cy="12" r="3"/></svg>';
 const ICON_EYE_OFF_SVG =
   '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M17.94 17.94A10.94 10.94 0 0 1 12 19c-7 0-11-7-11-7a21.77 21.77 0 0 1 5.06-5.94"/><path d="M9.9 4.24A10.94 10.94 0 0 1 12 4c7 0 11 7 11 7a21.8 21.8 0 0 1-3.17 4.35"/><path d="M14.12 14.12a3 3 0 1 1-4.24-4.24"/><path d="M1 1l22 22"/></svg>';
+const ICON_USER_SVG =
+  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-3.3 3.6-6 8-6s8 2.7 8 6"/></svg>';
 let cashSensitiveMasked = true;
 let latestCashSnapshot = null;
 let offlineSyncInProgress = false;
@@ -103,6 +105,8 @@ let uiModeToastTimer = null;
 let employeeShiftSubmitting = false;
 let employeeShiftCandidates = [];
 let selectedEmployeeShiftUid = "";
+let cachedTenantEmployees = [];
+let cachedTenantEmployeesAt = 0;
 
 init()
   .catch((error) => {
@@ -565,12 +569,7 @@ async function refreshEmployeesPanel() {
 
   dom.employeeListTableBody.innerHTML = '<tr><td colspan="8">Cargando empleados...</td></tr>';
   try {
-    const q = query(
-      collection(firestoreDb, "empleados"),
-      where("comercioId", "==", String(currentUser.tenantId || "").trim())
-    );
-    const snap = await getDocs(q);
-    const rows = snap.docs.map((docSnap) => ({ id: docSnap.id, ...(docSnap.data() || {}) }));
+    const rows = await getTenantEmployeesForUi({ force: true });
     rows.sort((a, b) => formatDateValue(b.createdAt) - formatDateValue(a.createdAt));
 
     if (!rows.length) {
@@ -610,8 +609,25 @@ async function refreshEmployeesPanel() {
     dom.employeeListTableBody.innerHTML =
       '<tr><td colspan="8">No se pudo cargar empleados. Verifica permisos y reglas.</td></tr>';
   } finally {
+    renderCashShiftEmployeesCards();
     await refreshAuditPanel();
   }
+}
+
+async function getTenantEmployeesForUi({ force = false } = {}) {
+  const tenantId = String(currentUser?.tenantId || "").trim();
+  if (!tenantId) return [];
+  const now = Date.now();
+  if (!force && cachedTenantEmployees.length > 0 && now - cachedTenantEmployeesAt < 5 * 60 * 1000) {
+    return [...cachedTenantEmployees];
+  }
+
+  const q = query(collection(firestoreDb, "empleados"), where("comercioId", "==", tenantId));
+  const snap = await getDocs(q);
+  const rows = snap.docs.map((docSnap) => ({ id: docSnap.id, ...(docSnap.data() || {}) }));
+  cachedTenantEmployees = rows;
+  cachedTenantEmployeesAt = now;
+  return [...rows];
 }
 
 async function refreshAuditPanel() {
@@ -1270,7 +1286,6 @@ function closeEmployeeShiftOverlay() {
 
 function resetEmployeeShiftOverlayState() {
   employeeShiftSubmitting = false;
-  employeeShiftCandidates = [];
   selectedEmployeeShiftUid = "";
   if (dom.employeeShiftEmployees) dom.employeeShiftEmployees.innerHTML = "";
   if (dom.employeeShiftCashInput) {
@@ -1283,22 +1298,20 @@ function resetEmployeeShiftOverlayState() {
 
 async function loadEmployeeShiftCandidates() {
   if (!dom.employeeShiftEmployees) return;
-  const tenantId = String(currentUser?.tenantId || "").trim();
-  if (!tenantId) {
+  if (!currentUser?.tenantId) {
     setEmployeeShiftFeedback("No se pudo resolver el tenant actual.");
     return;
   }
 
   dom.employeeShiftEmployees.innerHTML = '<span class="subtitle">Cargando empleados...</span>';
   try {
-    const q = query(collection(firestoreDb, "empleados"), where("comercioId", "==", tenantId));
-    const snap = await getDocs(q);
-    const rows = snap.docs.map((docSnap) => ({ id: docSnap.id, ...(docSnap.data() || {}) }));
+    const rows = await getTenantEmployeesForUi({ force: false });
     rows.sort((a, b) =>
       String(a.displayName || a.username || a.id || "").localeCompare(String(b.displayName || b.username || b.id || ""))
     );
     employeeShiftCandidates = rows;
     renderEmployeeShiftCandidates();
+    renderCashShiftEmployeesCards();
   } catch (error) {
     console.error("No se pudo cargar empleados para iniciar turno:", error);
     setEmployeeShiftFeedback("No se pudo cargar el listado de empleados.");
@@ -1652,6 +1665,7 @@ async function refreshCashPanel() {
 function renderCashSnapshot(snapshot) {
   renderCashPrivacyToggle();
   renderCashScopeLabel(snapshot.scopeLabel);
+  renderCashShiftEmployeesCards();
   const canViewProfit = isEmployerRole(currentUser?.role);
   const canManageRecords = isEmployerRole(currentUser?.role);
   const maskProfit = canViewProfit && cashSensitiveMasked;
@@ -1666,6 +1680,46 @@ function renderCashSnapshot(snapshot) {
   });
   renderCashSectionToggles();
   dom.closeShiftBtn.disabled = Number(snapshot.summary?.salesCount || 0) === 0;
+}
+
+function renderCashShiftEmployeesCards() {
+  if (!dom.cashShiftEmployeesWrap || !dom.cashShiftEmployeesGrid) return;
+  const isOwner = isEmployerRole(currentUser?.role);
+  dom.cashShiftEmployeesWrap.classList.toggle("hidden", !isOwner);
+  if (!isOwner) return;
+
+  const sourceRows = [...cachedTenantEmployees];
+  if (!sourceRows.length) {
+    dom.cashShiftEmployeesGrid.innerHTML = '<span class="subtitle">Sin empleados cargados.</span>';
+    return;
+  }
+
+  sourceRows.sort((a, b) =>
+    String(a.displayName || a.username || a.uid || a.id || "").localeCompare(
+      String(b.displayName || b.username || b.uid || b.id || "")
+    )
+  );
+
+  const tenantId = String(currentUser?.tenantId || "").trim();
+  const ownerShiftSnapshot = getOwnerShiftCashSnapshotLocal(tenantId);
+  const byEmployee = ownerShiftSnapshot?.byEmployee && typeof ownerShiftSnapshot.byEmployee === "object"
+    ? ownerShiftSnapshot.byEmployee
+    : {};
+
+  dom.cashShiftEmployeesGrid.innerHTML = sourceRows
+    .map((employee) => {
+      const employeeUid = String(employee.uid || employee.id || "").trim();
+      const label = escapeHtml(employee.displayName || employee.username || employeeUid || "Empleado");
+      const isActive = Boolean(employeeUid && Object.prototype.hasOwnProperty.call(byEmployee, employeeUid));
+      return [
+        `<article class="cash-employee-card${isActive ? " is-active" : ""}">`,
+        `<span class="cash-employee-icon" aria-hidden="true">${ICON_USER_SVG}</span>`,
+        `<span class="cash-employee-name">${label}</span>`,
+        isActive ? '<span class="cash-employee-status">iniciado</span>' : "",
+        "</article>"
+      ].join("");
+    })
+    .join("");
 }
 
 function handleToggleCashPrivacy() {
