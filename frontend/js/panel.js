@@ -240,6 +240,7 @@ async function runPostStartupRefreshes() {
   const tasks = [
     syncMyShiftStatusCache(currentUser),
     ensureInitialProductsConsistency(),
+    ensureInitialEmployeesConsistency(),
     refreshStock(),
     refreshCashPanel(),
     refreshAuditPanel()
@@ -390,6 +391,7 @@ async function handleManualProductsSync() {
     return;
   }
   setProductFeedbackSuccess(result.message);
+  await syncTenantEmployeesFromCloud({ force: true });
   await refreshStock();
 }
 
@@ -451,6 +453,7 @@ async function runOfflinePendingSyncInternal({ forceCloudPull = false, showSucce
 
   let shouldRefreshStock = false;
   let shouldRefreshCash = false;
+  let shouldRefreshEmployees = false;
   let syncError = "";
 
   try {
@@ -486,6 +489,13 @@ async function runOfflinePendingSyncInternal({ forceCloudPull = false, showSucce
       shouldRefreshCash = true;
     }
 
+    const employeesSync = await syncTenantEmployeesFromCloud({ force: forceCloudPull });
+    if (!employeesSync.ok) {
+      syncError = syncError || employeesSync.error || "No se pudieron sincronizar empleados.";
+    } else if (employeesSync.changed === true) {
+      shouldRefreshEmployees = true;
+    }
+
     if (syncError) {
       setOfflineSyncBannerState("error", `Online con pendientes. Click para reintentar. ${syncError}`);
       return;
@@ -496,6 +506,11 @@ async function runOfflinePendingSyncInternal({ forceCloudPull = false, showSucce
     }
     if (shouldRefreshCash) {
       await refreshCashPanel();
+    }
+    if (shouldRefreshEmployees && !dom.configPanel?.classList.contains("hidden")) {
+      await refreshEmployeesPanel();
+    } else if (shouldRefreshEmployees) {
+      renderCashShiftEmployeesCards();
     }
     if (showSuccessFeedback) {
       setProductFeedbackSuccess("Sincronizacion completada correctamente.");
@@ -512,6 +527,13 @@ async function ensureInitialProductsConsistency() {
     await syncPendingProducts({ force: true });
   }
   await syncProductsFromCloudForCurrentKiosco();
+}
+
+async function ensureInitialEmployeesConsistency() {
+  if (!isEmployerRole(currentUser?.role)) return;
+  const localRows = readTenantEmployeesCacheLocal();
+  if (localRows.length > 0) return;
+  await syncTenantEmployeesFromCloud({ force: true });
 }
 
 async function handleCreateEmployeeSubmit(event) {
@@ -718,6 +740,60 @@ function removeTenantEmployeeCacheLocal(uidLike) {
   writeTenantEmployeesCacheLocal(nextRows);
   cachedTenantEmployees = [...nextRows];
   cachedTenantEmployeesAt = Date.now();
+}
+
+async function syncTenantEmployeesFromCloud({ force = false } = {}) {
+  if (!isEmployerRole(currentUser?.role)) return { ok: true, changed: false, skipped: true };
+  const tenantId = String(currentUser?.tenantId || "").trim();
+  if (!tenantId) return { ok: false, changed: false, error: "No se pudo resolver tenant actual." };
+  if (!navigator.onLine) return { ok: true, changed: false, skipped: true };
+
+  try {
+    const cloudRows = await getTenantEmployeesForUi({ force: true });
+    const localRows = readTenantEmployeesCacheLocal();
+    const changed = buildEmployeeListSignature(cloudRows) !== buildEmployeeListSignature(localRows);
+    if (changed || force) {
+      writeTenantEmployeesCacheLocal(cloudRows);
+      cachedTenantEmployees = [...cloudRows];
+      cachedTenantEmployeesAt = Date.now();
+    }
+    if (changed) {
+      renderCashShiftEmployeesCards();
+    }
+    return { ok: true, changed };
+  } catch (error) {
+    return { ok: false, changed: false, error: String(error?.message || "No se pudieron sincronizar empleados.") };
+  }
+}
+
+function buildEmployeeListSignature(sourceRows) {
+  const rows = Array.isArray(sourceRows) ? sourceRows : [];
+  const normalized = rows
+    .map((row) => ({
+      uid: String(row?.uid || row?.id || "").trim(),
+      displayName: String(row?.displayName || row?.username || "").trim(),
+      email: String(row?.email || "").trim().toLowerCase(),
+      emailVerified: row?.emailVerified === true || row?.correoVerificado === true,
+      puedeCrearProductos: row?.puedeCrearProductos === true,
+      puedeEditarProductos: row?.puedeEditarProductos === true,
+      puedeVerStock: row?.puedeVerStock !== false,
+      createdAt: normalizeDateForSignature(row?.createdAt)
+    }))
+    .filter((row) => Boolean(row.uid))
+    .sort((a, b) => a.uid.localeCompare(b.uid));
+  return JSON.stringify(normalized);
+}
+
+function normalizeDateForSignature(value) {
+  if (!value) return "";
+  if (typeof value?.toDate === "function") {
+    const parsed = value.toDate();
+    if (!Number.isNaN(parsed.getTime())) return parsed.toISOString();
+    return "";
+  }
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return String(value || "");
+  return parsed.toISOString();
 }
 
 async function refreshAuditPanel() {
