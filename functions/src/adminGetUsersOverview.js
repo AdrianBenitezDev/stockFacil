@@ -1,6 +1,10 @@
 const { onRequest, adminAuth, db } = require("./shared/context");
 
-const ADMIN_EMAIL = "artbenitezdev@gmail.com";
+const ALLOWED_ADMIN_EMAILS = new Set([
+  "artbenitezdev@gmail.com",
+  "admin@stockfacil.com.ar"
+]);
+
 const ALLOWED_ORIGINS = new Set([
   "https://admin.stockfacil.com.ar",
   "https://stockfacil.com.ar",
@@ -34,7 +38,7 @@ const adminGetUsersOverview = onRequest(async (req, res) => {
       res.status(403).json({ ok: false, error: "Acceso denegado." });
       return;
     }
-    if (email !== ADMIN_EMAIL) {
+    if (!ALLOWED_ADMIN_EMAILS.has(email)) {
       res.status(403).json({ ok: false, error: "Acceso denegado." });
       return;
     }

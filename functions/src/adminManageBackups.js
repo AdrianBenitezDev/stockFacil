@@ -1,7 +1,11 @@
 const { onRequest, adminAuth } = require("./shared/context");
 const { getStorage } = require("firebase-admin/storage");
 
-const ADMIN_EMAIL = "artbenitezdev@gmail.com";
+const ALLOWED_ADMIN_EMAILS = new Set([
+  "artbenitezdev@gmail.com",
+  "admin@stockfacil.com.ar"
+]);
+
 const ALLOWED_ORIGINS = new Set([
   "https://admin.stockfacil.com.ar",
   "https://stockfacil.com.ar",
@@ -50,7 +54,7 @@ async function assertAdminRequest(req) {
   }
   const decoded = await adminAuth.verifyIdToken(token);
   const email = String(decoded?.email || "").trim().toLowerCase();
-  if (!email || email !== ADMIN_EMAIL) {
+  if (!ALLOWED_ADMIN_EMAILS.has(email)) {
     throw { status: 403, message: "Acceso denegado." };
   }
 }

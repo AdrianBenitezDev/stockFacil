@@ -1,7 +1,11 @@
 const { onRequest, adminAuth } = require("./shared/context");
 const { getStorage } = require("firebase-admin/storage");
 
-const ADMIN_EMAIL = "artbenitezdev@gmail.com";
+const ALLOWED_ADMIN_EMAILS = new Set([
+  "artbenitezdev@gmail.com",
+  "admin@stockfacil.com.ar"
+]);
+
 const ALLOWED_ORIGINS = new Set([
   "https://admin.stockfacil.com.ar",
   "https://stockfacil.com.ar",
@@ -56,7 +60,7 @@ async function assertAdminRequest(req) {
   if (!token) throw { status: 401, message: "Falta token de autenticacion." };
   const decoded = await adminAuth.verifyIdToken(token);
   const email = String(decoded?.email || "").trim().toLowerCase();
-  if (!email || email !== ADMIN_EMAIL) throw { status: 403, message: "Acceso denegado." };
+  if (!ALLOWED_ADMIN_EMAILS.has(email)) throw { status: 403, message: "Acceso denegado." };
 }
 
 function ensureBackupPathIsAllowed({ tenantId, path }) {
