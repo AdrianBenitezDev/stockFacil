@@ -1,4 +1,6 @@
 const { HttpsError, onCall, Timestamp, db } = require("./shared/context");
+const { getStorage } = require("firebase-admin/storage");
+const { createHash } = require("node:crypto");
 const { requireEmployerContext } = require("./shared/authz");
 const {
   getLatestEmployeeShift,
@@ -150,6 +152,25 @@ const endEmployeeShift = onCall(async (request) => {
   const closureDateKey = String(nextTurno.fechaCierre || nextTurno.fechaInicio || "").trim();
   const fechaCierre = Timestamp.now();
   const usuarioNombre = String(employee.displayName || employee.username || employee.email || employeeUid).trim();
+  const closeTimestampMs = nowDate.getTime();
+  const backupInfo = await createEmployeeShiftBackupInStorage({
+    tenantId,
+    employeeUid,
+    usuarioNombre,
+    turnoId: turnoDocId,
+    closeTimestampMs,
+    closedByUid: uid,
+    closedByName: String(request.auth?.token?.name || request.auth?.token?.email || uid).trim(),
+    salesDocs: salesSnap.docs,
+    resumen: {
+      salesCount: Number(salesSnap.size || 0),
+      inicioCaja,
+      totalEfectivo,
+      totalVirtual,
+      totalCaja: montoCierreCaja,
+      totalGananciaRealCaja
+    }
+  });
   const cajaRef = db.collection("tenants").doc(tenantId).collection("cajas").doc(idCaja);
   const batch = db.batch();
   batch.set(
@@ -182,6 +203,11 @@ const endEmployeeShift = onCall(async (request) => {
     salesCount: Number(salesSnap.size || 0),
     closedByUid: uid,
     closedByName: String(request.auth?.token?.name || request.auth?.token?.email || uid).trim(),
+    backupPath: backupInfo.path,
+    backupMd5: backupInfo.md5,
+    backupSizeBytes: backupInfo.sizeBytes,
+    backupCreatedAt: Timestamp.now(),
+    backupOperationId: backupInfo.operationId,
     createdAt: Timestamp.now()
   });
   salesSnap.docs.forEach((docSnap) => {
@@ -218,7 +244,13 @@ const endEmployeeShift = onCall(async (request) => {
       efectivoEntregar,
       virtualEntregar,
       totalCaja: montoCierreCaja,
-      salesCount: Number(salesSnap.size || 0)
+      salesCount: Number(salesSnap.size || 0),
+      backup: {
+        operationId: backupInfo.operationId,
+        path: backupInfo.path,
+        md5: backupInfo.md5,
+        sizeBytes: backupInfo.sizeBytes
+      }
     }
   };
 });
@@ -305,6 +337,80 @@ function normalizeToDate(value) {
     if (!Number.isNaN(parsed.getTime())) return parsed;
   }
   return null;
+}
+
+async function createEmployeeShiftBackupInStorage({
+  tenantId,
+  employeeUid,
+  usuarioNombre,
+  turnoId,
+  closeTimestampMs,
+  closedByUid,
+  closedByName,
+  salesDocs,
+  resumen
+}) {
+  const date = new Date(closeTimestampMs);
+  const yyyy = String(date.getUTCFullYear());
+  const mm = String(date.getUTCMonth() + 1).padStart(2, "0");
+  const dd = String(date.getUTCDate()).padStart(2, "0");
+  const safeUsuario = sanitizeIdPart(usuarioNombre || employeeUid || "empleado");
+  const operationId = `SHIFT-CLOSE-${tenantId}-${employeeUid}-${closeTimestampMs}`;
+  const filePath = `tenants/${tenantId}/ventas/all_ventas_${safeUsuario}_${yyyy}${mm}${dd}_${closeTimestampMs}.json`;
+
+  const ventas = (Array.isArray(salesDocs) ? salesDocs : []).map((docSnap) => ({
+    id: docSnap.id,
+    ...docSnap.data()
+  }));
+
+  const payload = {
+    version: 1,
+    operationId,
+    tenantId,
+    turnoId: String(turnoId || ""),
+    scope: "employee-shift-close",
+    createdAt: new Date(closeTimestampMs).toISOString(),
+    closedByUid: String(closedByUid || ""),
+    closedByName: String(closedByName || ""),
+    employeeUid: String(employeeUid || ""),
+    employeeName: String(usuarioNombre || ""),
+    totals: {
+      salesCount: Number(resumen?.salesCount || 0),
+      inicioCaja: round2(Number(resumen?.inicioCaja || 0)),
+      totalEfectivo: round2(Number(resumen?.totalEfectivo || 0)),
+      totalVirtual: round2(Number(resumen?.totalVirtual || 0)),
+      totalCaja: round2(Number(resumen?.totalCaja || 0)),
+      totalGananciaRealCaja: round2(Number(resumen?.totalGananciaRealCaja || 0))
+    },
+    ventas
+  };
+
+  const rawJson = JSON.stringify(payload);
+  const jsonBuffer = Buffer.from(rawJson, "utf8");
+  const md5 = createHash("md5").update(jsonBuffer).digest("hex");
+
+  const bucket = getStorage().bucket();
+  const file = bucket.file(filePath);
+  await file.save(jsonBuffer, {
+    resumable: false,
+    contentType: "application/json",
+    metadata: {
+      metadata: {
+        operationId,
+        tenantId: String(tenantId || ""),
+        scope: "employee-shift-close",
+        turnoId: String(turnoId || ""),
+        employeeUid: String(employeeUid || "")
+      }
+    }
+  });
+
+  return {
+    operationId,
+    path: filePath,
+    md5,
+    sizeBytes: jsonBuffer.length
+  };
 }
 
 module.exports = {
