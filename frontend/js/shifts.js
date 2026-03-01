@@ -262,11 +262,24 @@ export function getLocalShiftCashDetailFallback(sessionLike) {
   };
 }
 
-export function saveOwnerShiftCashSnapshot(tenantId, { startCashAmount = 0, activeShiftCount = 0 } = {}) {
+export function saveOwnerShiftCashSnapshot(
+  tenantId,
+  { startCashAmount = 0, activeShiftCount = 0, activeEmployeeUids = [] } = {}
+) {
   const key = getOwnerShiftCashCacheKey(tenantId);
   if (!key) return;
   const existing = readOwnerShiftCashSnapshot(tenantId);
-  const byEmployee = existing?.byEmployee && typeof existing.byEmployee === "object" ? existing.byEmployee : {};
+  const existingByEmployee =
+    existing?.byEmployee && typeof existing.byEmployee === "object" ? existing.byEmployee : {};
+  const shouldRefreshActiveList = Array.isArray(activeEmployeeUids);
+  const byEmployee = shouldRefreshActiveList
+    ? activeEmployeeUids.reduce((acc, uidLike) => {
+        const uid = String(uidLike || "").trim();
+        if (!uid) return acc;
+        acc[uid] = Number(existingByEmployee[uid] || 0);
+        return acc;
+      }, {})
+    : existingByEmployee;
   const payload = {
     byEmployee,
     startCashAmount: Number(startCashAmount || 0),

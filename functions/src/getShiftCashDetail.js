@@ -24,19 +24,22 @@ const getShiftCashDetail = onCall(async (request) => {
   const employeeUids = employeesSnap.docs.map((docSnap) => String(docSnap.id || "").trim()).filter(Boolean);
   let startCashAmount = 0;
   let activeShiftCount = 0;
+  const activeEmployeeUids = [];
 
   for (const employeeUid of employeeUids) {
     const latest = await getLatestEmployeeShift(employeeUid);
     if (!isActiveShift(latest, tenantId)) continue;
     startCashAmount += Number(latest.inicioCaja || 0);
     activeShiftCount += 1;
+    activeEmployeeUids.push(employeeUid);
   }
 
   return {
     success: true,
     scope: "all",
     startCashAmount: round2(startCashAmount),
-    activeShiftCount
+    activeShiftCount,
+    activeEmployeeUids
   };
 });
 

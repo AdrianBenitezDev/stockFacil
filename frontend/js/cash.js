@@ -513,7 +513,8 @@ async function loadShiftCashDetail(session) {
     const data = response?.data || {};
     const normalized = {
       startCashAmount: Number(data.startCashAmount || 0),
-      activeShiftCount: Number(data.activeShiftCount || 0)
+      activeShiftCount: Number(data.activeShiftCount || 0),
+      activeEmployeeUids: Array.isArray(data.activeEmployeeUids) ? data.activeEmployeeUids : []
     };
     if (requestedScope === "all") {
       saveOwnerShiftCashSnapshot(String(session?.tenantId || "").trim(), normalized);
