@@ -1560,6 +1560,7 @@ async function handleConfirmEmployeeShiftStart() {
   dom.employeeShiftCancelBtn && (dom.employeeShiftCancelBtn.disabled = true);
   setEmployeeShiftFeedback("");
   let employeeName = "empleado";
+  let shiftStartOutcome = "none";
 
   try {
     const ownerCloseResult = await closeEmployerPendingSalesBeforeEmployeeShiftStart();
@@ -1588,12 +1589,23 @@ async function handleConfirmEmployeeShiftStart() {
     if (!result.ok) {
       const normalizedError = String(result.error || "").trim().toLowerCase();
       if (normalizedError.includes("ya tiene un turno activo")) {
+        const selectedEmployee = employeeShiftCandidates.find(
+          (employee) => String(employee.uid || employee.id || "").trim() === selectedEmployeeShiftUid
+        );
+        employeeName = String(selectedEmployee?.displayName || selectedEmployee?.username || "empleado");
         registerOwnerShiftStartLocal({
           tenantId: String(currentUser?.tenantId || "").trim(),
           employeeUid: selectedEmployeeShiftUid,
           inicioCaja: amount
         });
         renderCashShiftEmployeesCards();
+        shiftStartOutcome = "already_active";
+        setEmployeeShiftFeedback(
+          `El turno de ${employeeName} ya estaba activo. Se actualizo el estado local para reflejarlo.`,
+          "success"
+        );
+        employeeShiftSubmitting = false;
+        return;
       }
       setEmployeeShiftFeedback(result.error || "No se pudo iniciar el turno.");
       employeeShiftSubmitting = false;
@@ -1605,6 +1617,7 @@ async function handleConfirmEmployeeShiftStart() {
     );
     employeeName = String(selectedEmployee?.displayName || selectedEmployee?.username || "empleado");
     renderCashShiftEmployeesCards();
+    shiftStartOutcome = "started_now";
 
     await refreshCashPanel();
   
@@ -1623,8 +1636,12 @@ async function handleConfirmEmployeeShiftStart() {
     dom.employeeShiftConfirmBtn?.classList.remove("btn-loading");
     dom.employeeShiftCancelBtn && (dom.employeeShiftCancelBtn.disabled = false);
     updateEmployeeShiftConfirmState();
-    
-    setCashFeedback(`Turno iniciado para ${employeeName}. Inicio de caja: $${Number(amount).toFixed(2)}.`, "success");
+
+    if (shiftStartOutcome === "started_now") {
+      setCashFeedback(`Turno iniciado para ${employeeName}. Inicio de caja: $${Number(amount).toFixed(2)}.`, "success");
+    } else if (shiftStartOutcome === "already_active") {
+      setCashFeedback(`Turno ya activo para ${employeeName}. Se actualizo el estado en pantalla.`, "success");
+    }
   }
 }
 
