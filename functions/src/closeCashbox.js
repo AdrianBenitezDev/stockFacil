@@ -161,7 +161,8 @@ async function createCashboxBackupInStorage({
   const yyyy = String(date.getUTCFullYear());
   const mm = String(date.getUTCMonth() + 1).padStart(2, "0");
   const dd = String(date.getUTCDate()).padStart(2, "0");
-  const filePath = `tenants/${tenantId}/ventas/all_ventas_${yyyy}${mm}${dd}_${closeTimestampMs}.json`;
+  const safeUsuario = sanitizeIdPart(closedByName || closedByUid || "usuario");
+  const filePath = `tenants/${tenantId}/ventas/all_ventas_${safeUsuario}_${yyyy}${mm}${dd}_${closeTimestampMs}.json`;
 
   const ventas = salesDocs.map((docSnap) => ({
     id: docSnap.id,
