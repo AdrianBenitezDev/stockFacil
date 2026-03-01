@@ -107,6 +107,7 @@ let employeeShiftCandidates = [];
 let selectedEmployeeShiftUid = "";
 let cachedTenantEmployees = [];
 let cachedTenantEmployeesAt = 0;
+const EMPLOYEE_CACHE_PREFIX = "stockfacil_tenant_employees";
 
 init()
   .catch((error) => {
@@ -138,6 +139,7 @@ async function init() {
     return;
   }
   currentUser = profileResult.user;
+  hydrateTenantEmployeesCacheFromLocal();
 
   ensureCashOwnerActionsDom();
   showAppShell(currentUser);
@@ -152,6 +154,7 @@ async function init() {
   initSaleModeSwitch();
   focusBarcodeInputIfDesktop();
   renderCurrentSale(currentSaleItems);
+  renderCashShiftEmployeesCards();
   scheduleStartupOverlayFallback();
   hideStartupOverlay();
   await runPostStartupRefreshes();
@@ -239,7 +242,6 @@ async function runPostStartupRefreshes() {
     ensureInitialProductsConsistency(),
     refreshStock(),
     refreshCashPanel(),
-    refreshEmployeesPanel(),
     refreshAuditPanel()
   ];
   const results = await Promise.allSettled(tasks);
@@ -544,6 +546,21 @@ async function handleCreateEmployeeSubmit(event) {
     }
 
     dom.createEmployeeForm.reset();
+    upsertTenantEmployeeCacheLocal({
+      id: String(result?.data?.uid || "").trim(),
+      uid: String(result?.data?.uid || "").trim(),
+      displayName: String(formData.get("displayName") || "").trim(),
+      username: String(formData.get("displayName") || "").trim(),
+      email: String(formData.get("email") || "").trim().toLowerCase(),
+      emailVerified: false,
+      correoVerificado: false,
+      puedeCrearProductos: false,
+      puedeEditarProductos: false,
+      puedeVerStock: true,
+      createdAt: new Date().toISOString(),
+      comercioId: String(currentUser?.tenantId || "").trim()
+    });
+    renderCashShiftEmployeesCards();
     setEmployeeFeedback(
       result?.data?.verificationEmailSent === false
         ? `Empleado creado, pero no se pudo enviar correo de verificacion. Detalle: ${String(
@@ -570,6 +587,7 @@ async function refreshEmployeesPanel() {
   dom.employeeListTableBody.innerHTML = '<tr><td colspan="8">Cargando empleados...</td></tr>';
   try {
     const rows = await getTenantEmployeesForUi({ force: true });
+    writeTenantEmployeesCacheLocal(rows);
     rows.sort((a, b) => formatDateValue(b.createdAt) - formatDateValue(a.createdAt));
 
     if (!rows.length) {
@@ -621,6 +639,14 @@ async function getTenantEmployeesForUi({ force = false } = {}) {
   if (!force && cachedTenantEmployees.length > 0 && now - cachedTenantEmployeesAt < 5 * 60 * 1000) {
     return [...cachedTenantEmployees];
   }
+  if (!force && cachedTenantEmployees.length === 0) {
+    const localRows = readTenantEmployeesCacheLocal();
+    if (localRows.length > 0) {
+      cachedTenantEmployees = [...localRows];
+      cachedTenantEmployeesAt = now;
+      return [...localRows];
+    }
+  }
 
   const q = query(collection(firestoreDb, "empleados"), where("comercioId", "==", tenantId));
   const snap = await getDocs(q);
@@ -628,6 +654,70 @@ async function getTenantEmployeesForUi({ force = false } = {}) {
   cachedTenantEmployees = rows;
   cachedTenantEmployeesAt = now;
   return [...rows];
+}
+
+function hydrateTenantEmployeesCacheFromLocal() {
+  const localRows = readTenantEmployeesCacheLocal();
+  if (!localRows.length) return;
+  cachedTenantEmployees = [...localRows];
+  cachedTenantEmployeesAt = Date.now();
+}
+
+function getTenantEmployeesCacheKey() {
+  const tenantId = String(currentUser?.tenantId || "").trim();
+  if (!tenantId) return "";
+  return `${EMPLOYEE_CACHE_PREFIX}::${tenantId}`;
+}
+
+function readTenantEmployeesCacheLocal() {
+  const key = getTenantEmployeesCacheKey();
+  if (!key) return [];
+  const raw = localStorage.getItem(key);
+  if (!raw) return [];
+  try {
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch (_) {
+    return [];
+  }
+}
+
+function writeTenantEmployeesCacheLocal(rows) {
+  const key = getTenantEmployeesCacheKey();
+  if (!key) return;
+  const safeRows = Array.isArray(rows) ? rows : [];
+  localStorage.setItem(key, JSON.stringify(safeRows));
+}
+
+function upsertTenantEmployeeCacheLocal(employeeLike) {
+  const uid = String(employeeLike?.uid || employeeLike?.id || "").trim();
+  if (!uid) return;
+  const localRows = readTenantEmployeesCacheLocal();
+  const nextRows = [...localRows];
+  const nextEmployee = {
+    ...(employeeLike || {}),
+    id: uid,
+    uid
+  };
+  const idx = nextRows.findIndex((row) => String(row?.uid || row?.id || "").trim() === uid);
+  if (idx >= 0) {
+    nextRows[idx] = { ...nextRows[idx], ...nextEmployee };
+  } else {
+    nextRows.push(nextEmployee);
+  }
+  writeTenantEmployeesCacheLocal(nextRows);
+  cachedTenantEmployees = [...nextRows];
+  cachedTenantEmployeesAt = Date.now();
+}
+
+function removeTenantEmployeeCacheLocal(uidLike) {
+  const uid = String(uidLike || "").trim();
+  if (!uid) return;
+  const localRows = readTenantEmployeesCacheLocal();
+  const nextRows = localRows.filter((row) => String(row?.uid || row?.id || "").trim() !== uid);
+  writeTenantEmployeesCacheLocal(nextRows);
+  cachedTenantEmployees = [...nextRows];
+  cachedTenantEmployeesAt = Date.now();
 }
 
 async function refreshAuditPanel() {
@@ -756,6 +846,8 @@ async function handleDeleteEmployeeClick(event) {
       setEmployeeFeedback(result.error);
       return;
     }
+    removeTenantEmployeeCacheLocal(uidEmpleado);
+    renderCashShiftEmployeesCards();
     setEmployeeFeedback("Empleado eliminado correctamente.", "success");
     await refreshEmployeesPanel();
   } finally {

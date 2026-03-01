@@ -265,7 +265,10 @@ export function getLocalShiftCashDetailFallback(sessionLike) {
 export function saveOwnerShiftCashSnapshot(tenantId, { startCashAmount = 0, activeShiftCount = 0 } = {}) {
   const key = getOwnerShiftCashCacheKey(tenantId);
   if (!key) return;
+  const existing = readOwnerShiftCashSnapshot(tenantId);
+  const byEmployee = existing?.byEmployee && typeof existing.byEmployee === "object" ? existing.byEmployee : {};
   const payload = {
+    byEmployee,
     startCashAmount: Number(startCashAmount || 0),
     activeShiftCount: Number(activeShiftCount || 0),
     updatedAt: new Date().toISOString()
