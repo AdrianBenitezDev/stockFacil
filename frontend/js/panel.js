@@ -62,7 +62,13 @@ import {
   updateEmployeeEditProductsPermission,
   updateEmployeeViewStockPermission
 } from "./employees.js";
-import { endEmployeeShift, getOwnerShiftCashSnapshotLocal, startEmployeeShift, syncMyShiftStatusCache } from "./shifts.js";
+import {
+  endEmployeeShift,
+  getOwnerShiftCashSnapshotLocal,
+  registerOwnerShiftStartLocal,
+  startEmployeeShift,
+  syncMyShiftStatusCache
+} from "./shifts.js";
 
 const currentSaleItems = [];
 let scannerMode = null;
@@ -1580,6 +1586,15 @@ async function handleConfirmEmployeeShiftStart() {
       inicioCaja: amount
     });
     if (!result.ok) {
+      const normalizedError = String(result.error || "").trim().toLowerCase();
+      if (normalizedError.includes("ya tiene un turno activo")) {
+        registerOwnerShiftStartLocal({
+          tenantId: String(currentUser?.tenantId || "").trim(),
+          employeeUid: selectedEmployeeShiftUid,
+          inicioCaja: amount
+        });
+        renderCashShiftEmployeesCards();
+      }
       setEmployeeShiftFeedback(result.error || "No se pudo iniciar el turno.");
       employeeShiftSubmitting = false;
       return;
