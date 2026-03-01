@@ -29,6 +29,7 @@ export function showAppShell(user) {
   dom.configModeBtn.classList.toggle("hidden", !isOwner);
   dom.cashCardCost?.classList.toggle("hidden", !isOwner);
   dom.cashCardProfit?.classList.toggle("hidden", !isOwner);
+  dom.cashShiftEmployeesWrap?.classList.toggle("hidden", !isOwner);
   dom.cashSummary?.classList.toggle("cash-summary-limited", !isOwner);
   dom.cashSalesProfitCol?.classList.toggle("hidden", !isOwner);
   dom.cashClosuresProfitCol?.classList.toggle("hidden", !isOwner);
