@@ -1589,8 +1589,8 @@ async function handleConfirmEmployeeShiftStart() {
       (employee) => String(employee.uid || employee.id || "").trim() === selectedEmployeeShiftUid
     );
     employeeName = String(selectedEmployee?.displayName || selectedEmployee?.username || "empleado");
-  
-    
+    renderCashShiftEmployeesCards();
+
     await refreshCashPanel();
   
     setEmployeeShiftFeedback(`Turno iniciado para ${employeeName}. Inicio de caja: $${Number(amount).toFixed(2)}.`, "success");
@@ -1999,6 +1999,7 @@ async function handleCloseShift() {
   const cierreEfectivo = Number(result?.data?.turno?.totalEfectivo || 0);
   const cierreVirtual = Number(result?.data?.turno?.totalVirtual || 0);
   const inicioCaja = Number(result?.data?.turno?.inicioCaja || 0);
+  renderCashShiftEmployeesCards();
   setCashFeedback(
     `Turno de ${employeeName} finalizado. Total: $${cierreTotal.toFixed(2)} (efectivo $${cierreEfectivo.toFixed(
       2
