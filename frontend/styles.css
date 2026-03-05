@@ -674,6 +674,11 @@ h4 {
   overflow-x: auto;
 }
 
+.column{
+  display: flex;
+  flex-direction: column;
+}
+
 .stock-filters {
   display: grid;
   gap: 0.6rem;
