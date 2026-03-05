@@ -160,6 +160,7 @@ async function init() {
   renderCategoryOptions(currentBusinessCategories);
   renderStockCategoryOptions(currentBusinessCategories);
   renderStockDetailEditCategoryOptions();
+  applyBusinessTypeSaleTypeVisibility();
   updateProductSaleTypeControls();
   updateStockDetailSaleTypeControls();
   setupDeviceSpecificUI();
@@ -1021,6 +1022,9 @@ function handleStockDetailSaleTypeChange() {
 }
 
 function updateProductSaleTypeControls() {
+  if (!canSellByGramsForCurrentBusiness()) {
+    if (dom.productSaleType) dom.productSaleType.value = "unidad";
+  }
   const type = normalizeProductSaleType(dom.productSaleType?.value);
   dom.productGramsConfig?.classList.toggle("hidden", type !== "gramos");
   if (dom.productGramsPerUnit) {
@@ -1032,6 +1036,9 @@ function updateProductSaleTypeControls() {
 }
 
 function updateStockDetailSaleTypeControls() {
+  if (!canSellByGramsForCurrentBusiness()) {
+    if (dom.stockDetailEditSaleType) dom.stockDetailEditSaleType.value = "unidad";
+  }
   const type = normalizeProductSaleType(dom.stockDetailEditSaleType?.value);
   dom.stockDetailEditGramsWrap?.classList.toggle("hidden", type !== "gramos");
   if (dom.stockDetailEditGramsPerUnit) {
@@ -2866,6 +2873,29 @@ function canSellByGramsForCurrentBusiness() {
     .trim()
     .toLowerCase();
   return businessTypeId === "kioscoalmacen";
+}
+
+function applyBusinessTypeSaleTypeVisibility() {
+  const allowGrams = canSellByGramsForCurrentBusiness();
+  const hideSaleType = !allowGrams;
+
+  const addSaleTypeLabel = document.querySelector('label[for="product-sale-type"]');
+  addSaleTypeLabel?.classList.toggle("hidden", hideSaleType);
+  dom.productSaleType?.classList.toggle("hidden", hideSaleType);
+  if (dom.productSaleType) {
+    dom.productSaleType.disabled = hideSaleType;
+    if (hideSaleType) dom.productSaleType.value = "unidad";
+  }
+  dom.productGramsConfig?.classList.add("hidden");
+
+  const stockEditSaleTypeLabel = document.querySelector('label[for="stock-detail-edit-sale-type"]');
+  stockEditSaleTypeLabel?.classList.toggle("hidden", hideSaleType);
+  dom.stockDetailEditSaleType?.classList.toggle("hidden", hideSaleType);
+  if (dom.stockDetailEditSaleType) {
+    dom.stockDetailEditSaleType.disabled = hideSaleType;
+    if (hideSaleType) dom.stockDetailEditSaleType.value = "unidad";
+  }
+  dom.stockDetailEditGramsWrap?.classList.add("hidden");
 }
 
 
