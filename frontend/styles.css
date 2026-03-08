@@ -30,6 +30,71 @@ body {
   color: var(--text);
 }
 
+body.landing-page {
+  padding-top: 0;
+  background: #f0fdfa;
+}
+
+.landing-hero {
+  position: relative;
+  overflow: hidden;
+  background: #134e4a;
+  color: #ffffff;
+  padding: 4rem 1.5rem;
+}
+
+.landing-hero::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  opacity: 0.1;
+  pointer-events: none;
+  background-image: radial-gradient(#14b8a6 2px, transparent 2px);
+  background-size: 30px 30px;
+}
+
+.landing-hero-inner {
+  position: relative;
+  z-index: 1;
+  width: min(100%, 64rem);
+  margin: 0 auto;
+  text-align: center;
+}
+
+.landing-hero-title {
+  margin: 0;
+  font-size: clamp(2.4rem, 6vw, 3.75rem);
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+
+.landing-hero-subtitle {
+  margin: 0.8rem auto 1.6rem;
+  max-width: 42rem;
+  font-size: clamp(1.05rem, 2.8vw, 1.5rem);
+  color: #ccfbf1;
+  font-weight: 300;
+}
+
+.landing-hero-chip {
+  display: inline-block;
+  background: #14b8a6;
+  color: #ffffff;
+  font-weight: 700;
+  font-size: 1.125rem;
+  line-height: 1.2;
+  border-radius: 999px;
+  padding: 0.75rem 2rem;
+  box-shadow: 0 10px 20px rgba(15, 23, 42, 0.25);
+  transition: transform 0.3s ease;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .landing-hero-chip:hover {
+    transform: scale(1.05);
+  }
+}
+
 .app-loading-overlay {
   position: fixed;
   inset: 0;

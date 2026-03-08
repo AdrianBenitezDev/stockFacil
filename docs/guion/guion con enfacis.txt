@@ -1,0 +1,174 @@
+Si manejas un kiosco o comercio…
+y hoy controlas todo en cuadernos, planillas o Excel…
+ 
+StockFacil te simplifica todo en una sola web.
+
+Con StockFacil puedes registrar productos, realizar ventas rápidas, controlar el stock en tiempo real, llevar la caja diaria y administrar empleados… todo desde un mismo lugar.
+
+Desde la pantalla principal tenemos tres formas de ingresar al sistema.
+
+Primero, registrar un nuevo negocio.
+
+Segundo, acceder como empleador utilizando cuenta Google… sin necesidad de contraseña.
+
+Y tercero, acceder como empleado con usuario y contraseña.
+
+El sistema valida automáticamente los permisos del usuario y el estado de la cuenta antes de permitir el ingreso al panel.
+
+Durante el registro del negocio se cargan los datos personales y los datos del comercio.
+
+También se selecciona el tipo de negocio.
+Y si ninguna categoría se adapta exactamente al comercio, se puede crear una categoría personalizada.
+
+El país cuenta con autocompletado…
+y al seleccionarlo se cargan automáticamente las provincias o estados disponibles.
+
+Además, en este mismo paso se puede elegir el plan del sistema desde tarjetas dinámicas.
+
+Al finalizar el registro, el sistema crea el negocio y deja preparado el proceso de verificación de correo electrónico.
+
+La verificación de correo está completamente integrada en el flujo.
+
+Si el correo no llega, se puede reenviar con un solo clic.
+
+Hasta que la cuenta no esté verificada, el sistema no habilita el acceso final al panel de gestión.
+
+Esto ayuda a mantener la seguridad y validar correctamente cada registro.
+
+Una vez dentro del sistema encontramos el panel principal de StockFacil.
+
+En la parte superior vemos los datos de la sesión activa… el usuario, el correo y el plan actual.
+
+También es posible alternar entre modo PC y modo móvil según el dispositivo utilizado.
+
+El sistema cuenta además con sincronización manual…
+y una navegación clara dividida en cinco secciones principales:
+
+Nuevo, Venta, Stock, Caja y Configuración.
+
+En la sección Nuevo podemos registrar productos.
+
+Aquí se cargan datos como el código de barras, el nombre del producto, la categoría, el precio de venta y el stock inicial.
+
+El código puede ingresarse manualmente…
+o escanearse directamente con la cámara del dispositivo.
+
+El sistema también soporta dos tipos de venta:
+
+por unidad…
+o por gramos.
+
+Esto es ideal para productos fraccionados como alimentos o productos de peso variable.
+
+Además se puede registrar el precio de compra al proveedor, lo que permite calcular costos y ganancias.
+
+Si en ese momento la conexión a internet es limitada, el producto se guarda localmente…
+y luego se sincroniza automáticamente.
+
+En el módulo de ventas se pueden cargar productos de varias formas.
+
+Con lector de código de barras USB…
+con cámara…
+o mediante búsqueda manual.
+
+El carrito de venta muestra cada producto agregado, las cantidades, subtotales y el total general en tiempo real.
+
+Al momento de cobrar, el sistema permite elegir entre tres formas de pago:
+
+efectivo,
+pago virtual,
+o pago mixto.
+
+En el caso del pago mixto, el sistema calcula automáticamente cuánto resta pagar.
+
+También soporta productos vendidos por gramos…
+descontando el stock de forma correcta.
+
+Si la conexión a internet se interrumpe, la venta puede guardarse como pendiente…
+manteniendo la continuidad de la operación.
+
+La sección Stock permite gestionar todos los productos registrados.
+
+Se puede buscar por nombre o por código de barras.
+
+También es posible filtrar por categoría…
+o utilizar el escáner para localizar rápidamente un producto.
+
+La tabla de productos resalta automáticamente los niveles bajos de stock.
+
+Además permite ajustar cantidades directamente desde la tabla.
+
+Los cambios pendientes pueden guardarse en lote utilizando el botón flotante de guardar.
+
+Cada producto también tiene un panel de detalle con edición completa.
+
+Desde allí se pueden modificar nombre, stock, precios, categoría, tipo de venta y configuración por gramos.
+
+El empleador también tiene la posibilidad de eliminar productos cuando sea necesario.
+
+En el módulo de Caja se concentra toda la operación diaria del negocio.
+
+Aquí se puede ver la actividad del día, el total a entregar y el detalle de caja dividido entre inicio, efectivo y pagos virtuales.
+
+El sistema también calcula el costo del día y la ganancia obtenida.
+
+Si se desea, los importes sensibles pueden ocultarse mediante un botón de privacidad.
+
+El empleador puede iniciar turnos de empleados indicando el dinero inicial de caja…
+y también finalizar esos turnos al terminar la jornada.
+
+Además se mantiene un historial completo de ventas y cierres de caja.
+
+Cada registro incluye información de sincronización y herramientas de gestión.
+
+En la sección de Configuración se administran los empleados del negocio.
+
+El empleador puede crear nuevos empleados asignando una contraseña temporal.
+
+También se pueden definir permisos específicos, como crear productos, editar productos o visualizar el stock.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+----------------------------------------------------
+
+
+
+
+
+
+Desde la misma pantalla también es posible eliminar empleados.
+
+Y para mayor control, el sistema incluye una auditoría de ventas que permite revisar operaciones marcadas para verificación.
+
+StockFacil también incluye gestión de planes integrada.
+
+El sistema consulta en tiempo real el plan activo del negocio y muestra sus características.
+
+Además está diseñado con un enfoque offline-first.
+
+Esto significa que puede guardar información localmente y sincronizarla cuando la conexión vuelva a estar disponible.
+
+El botón de sincronización permite enviar manualmente cualquier dato pendiente.
+
+Y en dispositivos móviles, la aplicación puede instalarse directamente como app gracias a su tecnología PWA.
+
+En resumen…
+
+StockFacil reúne en una sola plataforma el registro de productos, las ventas, el control de stock, la gestión de caja, los turnos de empleados y la administración del negocio.
+
+Esto reduce errores manuales, mejora la velocidad de atención y permite tomar decisiones con información real.
+
+StockFacil.
+
+Tu control de stock… simple.
