@@ -70,10 +70,8 @@ body.landing-page {
 }
 
 .landing-hero-title {
-  margin: 0;
-  font-size: clamp(2.4rem, 6vw, 3.75rem);
-  font-weight: 800;
-  letter-spacing: -0.02em;
+    font-size: clamp(2.4rem, 6vw, 3.75rem);
+    font-weight: 300;
 }
 
 .landing-hero-subtitle {
