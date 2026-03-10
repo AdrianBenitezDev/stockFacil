@@ -38,6 +38,14 @@ const SUBSCRIPTION_REG_ID_STORAGE_KEY = "stockfacil.subscription.registrationId"
 const SUBSCRIPTION_INIT_POINT_STORAGE_KEY = "stockfacil.subscription.initPoint";
 const SUBSCRIPTION_POLL_MS = 5000;
 const SUBSCRIPTION_MAX_POLL_MS = 90000;
+const COUNTRY_CODE_LETTERS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+const COUNTRY_API_NAME_OVERRIDES = Object.freeze({
+  "congo (rep. dem.)": "Democratic Republic of the Congo",
+  "republica eslovaca": "Slovakia",
+  "suazilandia": "Eswatini"
+});
+const availableCountries = buildCountryCatalog(paises);
+const countryApiNameByNormalized = buildCountryApiNameLookup();
 
 let availablePlans = [];
 let availableBusinessTypes = [];
@@ -133,7 +141,7 @@ function renderCountrySuggestions(searchTerm) {
     return;
   }
 
-  const matches = paises
+  const matches = availableCountries
     .filter((country) => normalizeText(country).includes(query))
     .slice(0, 8);
 
@@ -152,9 +160,10 @@ function renderCountrySuggestions(searchTerm) {
 }
 
 function selectCountry(countryName) {
-  countryInput.value = countryName;
+  const normalizedCountryName = sanitizeCountryLabel(countryName);
+  countryInput.value = normalizedCountryName;
   hideCountrySuggestions();
-  void renderProvinceOptions(countryName);
+  void renderProvinceOptions(normalizedCountryName);
 }
 
 async function renderProvinceOptions(countryName) {
@@ -203,6 +212,30 @@ async function renderProvinceOptions(countryName) {
 }
 
 async function fetchProvincesByCountry(countryName) {
+  const candidates = getProvinceApiCountryCandidates(countryName);
+  let lastError = null;
+  let hasSuccessfulRequest = false;
+
+  for (const candidate of candidates) {
+    try {
+      const provinces = await requestProvincesByCountryName(candidate);
+      hasSuccessfulRequest = true;
+      if (provinces.length) {
+        return provinces;
+      }
+    } catch (error) {
+      lastError = error;
+    }
+  }
+
+  if (hasSuccessfulRequest) {
+    return [];
+  }
+
+  throw lastError || new Error("No se pudo cargar provincias para el pais seleccionado.");
+}
+
+async function requestProvincesByCountryName(countryName) {
   const response = await fetch(PROVINCES_API_URL, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -219,6 +252,115 @@ async function fetchProvincesByCountry(countryName) {
     .filter(Boolean);
 
   return [...new Set(provinceNames)];
+}
+
+function getProvinceApiCountryCandidates(countryName) {
+  const cleanedCountry = sanitizeCountryLabel(countryName);
+  const normalizedCountry = normalizeText(cleanedCountry);
+  const candidates = [];
+  const seen = new Set();
+
+  const pushCandidate = (value) => {
+    const candidate = String(value || "").trim();
+    if (!candidate) return;
+    const normalizedCandidate = normalizeText(candidate);
+    if (!normalizedCandidate || seen.has(normalizedCandidate)) return;
+    seen.add(normalizedCandidate);
+    candidates.push(candidate);
+  };
+
+  pushCandidate(cleanedCountry);
+  if (normalizedCountry) {
+    const translatedCountry = countryApiNameByNormalized.get(normalizedCountry);
+    if (translatedCountry) {
+      pushCandidate(translatedCountry);
+    }
+  }
+
+  return candidates;
+}
+
+function buildCountryCatalog(countryList) {
+  if (!Array.isArray(countryList)) return [];
+
+  const cleanedCountries = [];
+  const seen = new Set();
+  countryList.forEach((countryName) => {
+    const cleanedName = sanitizeCountryLabel(countryName);
+    const normalizedName = normalizeText(cleanedName);
+    if (!normalizedName || seen.has(normalizedName)) return;
+    seen.add(normalizedName);
+    cleanedCountries.push(cleanedName);
+  });
+
+  return cleanedCountries;
+}
+
+function buildCountryApiNameLookup() {
+  const countryMap = new Map();
+  Object.entries(COUNTRY_API_NAME_OVERRIDES).forEach(([countryKey, apiCountryName]) => {
+    const normalizedKey = normalizeText(countryKey);
+    const normalizedApiCountryName = String(apiCountryName || "").trim();
+    if (!normalizedKey || !normalizedApiCountryName) return;
+    countryMap.set(normalizedKey, normalizedApiCountryName);
+  });
+
+  if (typeof Intl === "undefined" || typeof Intl.DisplayNames !== "function") {
+    return countryMap;
+  }
+
+  const displayNamesEs = new Intl.DisplayNames(["es"], { type: "region" });
+  const displayNamesEn = new Intl.DisplayNames(["en"], { type: "region" });
+  for (const isoCode of getIsoRegionCodes()) {
+    const spanishName = sanitizeCountryLabel(displayNamesEs.of(isoCode));
+    const englishName = sanitizeCountryLabel(displayNamesEn.of(isoCode));
+    if (!spanishName || !englishName || spanishName === isoCode || englishName === isoCode) {
+      continue;
+    }
+
+    const normalizedSpanishName = normalizeText(spanishName);
+    const normalizedEnglishName = normalizeText(englishName);
+    if (normalizedSpanishName && !countryMap.has(normalizedSpanishName)) {
+      countryMap.set(normalizedSpanishName, englishName);
+    }
+    if (normalizedEnglishName && !countryMap.has(normalizedEnglishName)) {
+      countryMap.set(normalizedEnglishName, englishName);
+    }
+  }
+
+  return countryMap;
+}
+
+function getIsoRegionCodes() {
+  const isoCodes = [];
+  for (const firstLetter of COUNTRY_CODE_LETTERS) {
+    for (const secondLetter of COUNTRY_CODE_LETTERS) {
+      isoCodes.push(`${firstLetter}${secondLetter}`);
+    }
+  }
+  return isoCodes;
+}
+
+function sanitizeCountryLabel(value) {
+  const rawValue = String(value || "").trim();
+  if (!rawValue) return "";
+  if (!looksLikeMojibake(rawValue)) return rawValue;
+
+  const repairedValue = decodeLatin1Utf8(rawValue);
+  return repairedValue || rawValue;
+}
+
+function looksLikeMojibake(value) {
+  return /[\u00c2\u00c3\u00e2\ufffd]/.test(String(value || ""));
+}
+
+function decodeLatin1Utf8(value) {
+  try {
+    const bytes = Uint8Array.from(String(value || ""), (char) => char.charCodeAt(0) & 255);
+    return new TextDecoder("utf-8", { fatal: false }).decode(bytes).trim();
+  } catch (_) {
+    return String(value || "").trim();
+  }
 }
 
 function clearProvinceOptions() {
@@ -1060,7 +1202,7 @@ function isValidCountry(countryName) {
 
 function findExactCountry(countryName) {
   const normalizedInput = normalizeText(countryName);
-  return paises.find((country) => normalizeText(country) === normalizedInput) || "";
+  return availableCountries.find((country) => normalizeText(country) === normalizedInput) || "";
 }
 
 function normalizeText(value) {
