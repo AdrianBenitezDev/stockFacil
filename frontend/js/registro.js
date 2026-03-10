@@ -27,7 +27,17 @@ const registerEmailInput = document.getElementById("register-email");
 const businessTypeSelect = document.getElementById("register-business-type");
 const businessCustomWrap = document.getElementById("register-business-custom-wrap");
 const businessCustomInput = document.getElementById("register-business-custom-label");
+const subscriptionBox = document.getElementById("register-subscription-box");
+const subscriptionStatusNode = document.getElementById("register-subscription-status");
+const subscriptionMessageNode = document.getElementById("register-subscription-message");
+const subscriptionActionBtn = document.getElementById("register-subscription-btn");
+const subscriptionRetryBtn = document.getElementById("register-subscription-retry-btn");
+const subscriptionCancelBtn = document.getElementById("register-subscription-cancel-btn");
 const PROVINCES_API_URL = "https://countriesnow.space/api/v0.1/countries/states";
+const SUBSCRIPTION_REG_ID_STORAGE_KEY = "stockfacil.subscription.registrationId";
+const SUBSCRIPTION_INIT_POINT_STORAGE_KEY = "stockfacil.subscription.initPoint";
+const SUBSCRIPTION_POLL_MS = 5000;
+const SUBSCRIPTION_MAX_POLL_MS = 90000;
 
 let availablePlans = [];
 let availableBusinessTypes = [];
@@ -35,6 +45,9 @@ let currentCountryForProvinces = "";
 let currentProvinceOptions = [];
 let plansLoaded = false;
 let businessTypesLoaded = false;
+let subscriptionPollTimer = null;
+let subscriptionPollStartedAt = 0;
+let subscriptionStatusLoading = false;
 
 init().catch((error) => {
   console.error(error);
@@ -73,9 +86,14 @@ async function init() {
   businessTypeSelect?.addEventListener("change", handleBusinessTypeChange);
   businessCustomInput?.addEventListener("input", handleBusinessCustomInput);
   registerForm?.addEventListener("submit", handleRegisterSubmit);
+  subscriptionActionBtn?.addEventListener("click", handleSubscriptionActionClick);
+  subscriptionRetryBtn?.addEventListener("click", handleSubscriptionRetryClick);
+  subscriptionCancelBtn?.addEventListener("click", handleSubscriptionCancelClick);
   backLoginBtn?.addEventListener("click", () => {
     window.location.href = "index.html";
   });
+
+  await handleSubscriptionReturnFlow();
 }
 
 function prefillEmailFromQuery() {
@@ -278,6 +296,39 @@ async function handleRegisterSubmit(event) {
 
   try {
     const idToken = await authUser.getIdToken(true);
+
+    if (isPaidPlan(payload.plan)) {
+      const checkoutResult = await createSubscriptionCheckoutRequest(payload, idToken);
+      if (!checkoutResult.ok) {
+        if (checkoutResult.fieldErrors) {
+          applyFieldErrors(checkoutResult.fieldErrors);
+        }
+        if (checkoutResult.registrationId) {
+          persistPendingRegistration(checkoutResult.registrationId, checkoutResult.initPoint || "");
+          renderSubscriptionUi({
+            registrationStatus: "awaiting_webhook",
+            subscriptionStatus: "pending_authorization",
+            message: checkoutResult.error || "Ya tienes una suscripcion pendiente."
+          });
+          setSubscriptionActionLink(checkoutResult.initPoint || "");
+        }
+        registerFeedback.textContent = checkoutResult.error || "No se pudo iniciar la suscripcion.";
+        setDisabled(false);
+        return;
+      }
+
+      persistPendingRegistration(checkoutResult.registrationId, checkoutResult.initPoint || "");
+      renderSubscriptionUi({
+        registrationStatus: checkoutResult.registrationStatus || "awaiting_webhook",
+        subscriptionStatus: checkoutResult.subscriptionStatus || "pending_authorization",
+        message: "Redirigiendo a Mercado Pago para completar la suscripcion..."
+      });
+      setSubscriptionActionLink(checkoutResult.initPoint || "");
+      redirectToSubscriptionCheckout(checkoutResult.initPoint);
+      return;
+    }
+
+    clearPendingRegistration();
     const response = await fetch(getRegisterEndpoint(), {
       method: "POST",
       headers: {
@@ -510,6 +561,7 @@ function normalizePlans(source) {
         id,
         titulo: String(item?.titulo || item?.nombre || id || "").trim(),
         precio: String(item?.precio || item?.precioMensual || "").trim(),
+        precioMensual: parseMoneyValue(item?.precioMensual ?? item?.precio),
         descripcion: String(item?.descripcion || "").trim(),
         caracteristicas: Array.isArray(item?.caracteristicas)
           ? item.caracteristicas.map((entry) => String(entry || "").trim()).filter(Boolean)
@@ -530,6 +582,48 @@ function toBoolean(value, fallback) {
     if (normalized === "false") return false;
   }
   return fallback;
+}
+
+function parseMoneyValue(valueLike) {
+  if (typeof valueLike === "number") {
+    return Number.isFinite(valueLike) ? valueLike : 0;
+  }
+
+  const raw = String(valueLike || "").trim();
+  if (!raw) return 0;
+
+  let normalized = raw.replace(/[^\d,.\-]/g, "");
+  if (!normalized) return 0;
+
+  const hasComma = normalized.includes(",");
+  const hasDot = normalized.includes(".");
+
+  if (hasComma && hasDot) {
+    const lastComma = normalized.lastIndexOf(",");
+    const lastDot = normalized.lastIndexOf(".");
+    if (lastComma > lastDot) {
+      normalized = normalized.replaceAll(".", "").replace(",", ".");
+    } else {
+      normalized = normalized.replaceAll(",", "");
+    }
+  } else if (hasComma) {
+    const parts = normalized.split(",");
+    const decimalPart = parts[parts.length - 1] || "";
+    if (decimalPart.length <= 2) {
+      normalized = parts.slice(0, -1).join("") + "." + decimalPart;
+    } else {
+      normalized = parts.join("");
+    }
+  } else if (hasDot) {
+    const parts = normalized.split(".");
+    const decimalPart = parts[parts.length - 1] || "";
+    if (decimalPart.length > 2) {
+      normalized = parts.join("");
+    }
+  }
+
+  const parsed = Number(normalized);
+  return Number.isFinite(parsed) ? parsed : 0;
 }
 
 function renderPlanCards(plans) {
@@ -563,6 +657,403 @@ function handlePlanCardClick(event) {
   });
 }
 
+function resolveSelectedPlanMeta(planIdLike = selectedPlanInput?.value) {
+  const selectedPlanId = String(planIdLike || "").trim().toLowerCase();
+  if (!selectedPlanId) return null;
+  return availablePlans.find((plan) => plan.id === selectedPlanId) || null;
+}
+
+function isPaidPlan(planIdLike) {
+  const planId = String(planIdLike || "").trim().toLowerCase();
+  if (!planId) return false;
+  if (planId === "prueba") return false;
+
+  const plan = resolveSelectedPlanMeta(planId);
+  if (!plan) return true;
+  if (plan.id === "prueba") return false;
+  return true;
+}
+
+async function createSubscriptionCheckoutRequest(payload, idToken) {
+  const response = await fetch(getCreateSubscriptionEndpoint(), {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${idToken}`
+    },
+    body: JSON.stringify({
+      ...payload,
+      appBaseUrl: window.location.origin
+    })
+  });
+
+  const result = await response.json().catch(() => ({}));
+  if (!response.ok || !result.ok) {
+    return {
+      ok: false,
+      error: result?.error || "No se pudo iniciar la suscripcion.",
+      fieldErrors: result?.fieldErrors || {},
+      registrationId: String(result?.registrationId || "").trim(),
+      initPoint: String(result?.initPoint || "").trim()
+    };
+  }
+
+  return {
+    ok: true,
+    registrationId: String(result?.registrationId || "").trim(),
+    preapprovalId: String(result?.preapprovalId || "").trim(),
+    initPoint: String(result?.initPoint || "").trim(),
+    registrationStatus: String(result?.registrationStatus || "").trim().toLowerCase(),
+    subscriptionStatus: String(result?.subscriptionStatus || "").trim().toLowerCase()
+  };
+}
+
+async function handleSubscriptionReturnFlow() {
+  const returnPayload = readCheckoutReturnParams();
+  const returnRegistrationId = String(returnPayload.registrationId || "").trim();
+  if (returnRegistrationId) {
+    persistPendingRegistration(returnRegistrationId, getPendingSubscriptionInitPoint());
+  }
+
+  const registrationId = returnRegistrationId || getPendingSubscriptionRegistrationId();
+  if (!registrationId) return;
+
+  renderSubscriptionUi({
+    registrationStatus: "awaiting_webhook",
+    subscriptionStatus: "pending_authorization",
+    message: "Revisando estado de suscripcion..."
+  });
+  setSubscriptionActionLink(getPendingSubscriptionInitPoint());
+
+  await refreshSubscriptionStatus(registrationId, { allowPolling: true });
+}
+
+function readCheckoutReturnParams() {
+  const params = new URLSearchParams(window.location.search);
+  const registrationId =
+    String(params.get("registrationId") || "").trim() ||
+    String(params.get("registration_id") || "").trim() ||
+    String(params.get("reg_id") || "").trim() ||
+    String(params.get("external_reference") || "").trim();
+
+  const hasReturnSignals = [
+    "registrationId",
+    "registration_id",
+    "reg_id",
+    "external_reference",
+    "preapproval_id",
+    "collection_status",
+    "payment_status"
+  ].some((key) => params.has(key));
+
+  return {
+    registrationId,
+    hasReturnSignals
+  };
+}
+
+async function refreshSubscriptionStatus(registrationId, { allowPolling = false } = {}) {
+  const normalizedRegistrationId = String(registrationId || "").trim();
+  if (!normalizedRegistrationId) return { ok: false, error: "No hay registrationId." };
+
+  if (subscriptionStatusLoading) {
+    return { ok: false, error: "Consulta en curso." };
+  }
+
+  if (!firebaseAuth.currentUser) {
+    renderSubscriptionUi({
+      registrationStatus: "awaiting_webhook",
+      subscriptionStatus: "pending_authorization",
+      message: "Inicia sesion con Google para consultar el estado de tu suscripcion."
+    });
+    subscriptionRetryBtn?.classList.remove("hidden");
+    subscriptionCancelBtn?.classList.remove("hidden");
+    return { ok: false, error: "No hay sesion Google activa." };
+  }
+
+  subscriptionStatusLoading = true;
+  try {
+    const idToken = await firebaseAuth.currentUser.getIdToken(true);
+    const statusResult = await requestSubscriptionStatus(normalizedRegistrationId, idToken);
+    if (!statusResult.ok) {
+      renderSubscriptionUi({
+        registrationStatus: "awaiting_webhook",
+        subscriptionStatus: "pending_authorization",
+        message: statusResult.error || "No se pudo consultar el estado de suscripcion."
+      });
+      subscriptionRetryBtn?.classList.remove("hidden");
+      subscriptionCancelBtn?.classList.remove("hidden");
+      return statusResult;
+    }
+
+    const registrationStatus = String(statusResult.registrationStatus || "awaiting_webhook").toLowerCase();
+    const subscriptionStatus = String(statusResult.subscriptionStatus || "pending_authorization").toLowerCase();
+    renderSubscriptionUi({
+      registrationStatus,
+      subscriptionStatus,
+      message:
+        statusResult.message || buildDefaultSubscriptionMessage(registrationStatus, subscriptionStatus)
+    });
+
+    if (isTerminalSubscriptionState(registrationStatus, subscriptionStatus)) {
+      stopSubscriptionStatusPolling();
+      clearPendingRegistration();
+    } else if (allowPolling) {
+      startSubscriptionStatusPolling(normalizedRegistrationId);
+    }
+
+    return {
+      ok: true,
+      registrationStatus,
+      subscriptionStatus
+    };
+  } catch (error) {
+    console.error(error);
+    renderSubscriptionUi({
+      registrationStatus: "awaiting_webhook",
+      subscriptionStatus: "pending_authorization",
+      message: "No se pudo consultar el estado. Reintenta."
+    });
+    subscriptionRetryBtn?.classList.remove("hidden");
+    return { ok: false, error: "Error de red al consultar estado." };
+  } finally {
+    subscriptionStatusLoading = false;
+  }
+}
+
+async function requestSubscriptionStatus(registrationId, idToken) {
+  const response = await fetch(getSubscriptionStatusEndpoint(), {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${idToken}`
+    },
+    body: JSON.stringify({
+      registrationId,
+      appBaseUrl: window.location.origin
+    })
+  });
+
+  const result = await response.json().catch(() => ({}));
+  if (!response.ok || !result.ok) {
+    return {
+      ok: false,
+      error: result?.error || "No se pudo consultar el estado de suscripcion."
+    };
+  }
+
+  return {
+    ok: true,
+    registrationStatus: String(result?.registrationStatus || "").trim().toLowerCase(),
+    subscriptionStatus: String(result?.subscriptionStatus || "").trim().toLowerCase(),
+    message: String(result?.message || "").trim()
+  };
+}
+
+function startSubscriptionStatusPolling(registrationId) {
+  stopSubscriptionStatusPolling();
+
+  const normalizedRegistrationId = String(registrationId || "").trim();
+  if (!normalizedRegistrationId) return;
+
+  subscriptionPollStartedAt = Date.now();
+  subscriptionPollTimer = window.setInterval(async () => {
+    const elapsed = Date.now() - subscriptionPollStartedAt;
+    if (elapsed >= SUBSCRIPTION_MAX_POLL_MS) {
+      stopSubscriptionStatusPolling();
+      renderSubscriptionUi({
+        registrationStatus: "awaiting_webhook",
+        subscriptionStatus: "pending_authorization",
+        message: "La confirmacion esta tardando. Usa 'Actualizar estado' en unos segundos."
+      });
+      subscriptionRetryBtn?.classList.remove("hidden");
+      return;
+    }
+
+    const result = await refreshSubscriptionStatus(normalizedRegistrationId, { allowPolling: false });
+    if (result.ok && isTerminalSubscriptionState(result.registrationStatus, result.subscriptionStatus)) {
+      stopSubscriptionStatusPolling();
+    }
+  }, SUBSCRIPTION_POLL_MS);
+}
+
+function stopSubscriptionStatusPolling() {
+  if (subscriptionPollTimer) {
+    window.clearInterval(subscriptionPollTimer);
+    subscriptionPollTimer = null;
+  }
+}
+
+function isTerminalSubscriptionState(registrationStatus, subscriptionStatus) {
+  const reg = String(registrationStatus || "").trim().toLowerCase();
+  const sub = String(subscriptionStatus || "").trim().toLowerCase();
+
+  if (reg === "activated" || reg === "failed" || reg === "expired") return true;
+  if (sub === "active" || sub === "cancelled" || sub === "payment_rejected" || sub === "paused") return true;
+  return false;
+}
+
+function buildDefaultSubscriptionMessage(registrationStatus, subscriptionStatus) {
+  const reg = String(registrationStatus || "").trim().toLowerCase();
+  const sub = String(subscriptionStatus || "").trim().toLowerCase();
+
+  if (sub === "active" || reg === "activated") {
+    return "Suscripcion activa. Ya puedes continuar con tu alta.";
+  }
+  if (sub === "payment_rejected") {
+    return "El pago fue rechazado. Puedes volver a intentar la suscripcion.";
+  }
+  if (sub === "cancelled") {
+    return "La suscripcion fue cancelada.";
+  }
+  if (sub === "paused") {
+    return "La suscripcion esta pausada.";
+  }
+  if (reg === "failed" || reg === "expired") {
+    return "No se pudo completar el checkout. Intenta nuevamente.";
+  }
+
+  return "Estamos esperando confirmacion de Mercado Pago.";
+}
+
+function renderSubscriptionUi({ registrationStatus, subscriptionStatus, message }) {
+  if (!subscriptionBox || !subscriptionStatusNode || !subscriptionMessageNode) return;
+
+  subscriptionBox.classList.remove("hidden");
+  const reg = String(registrationStatus || "").trim().toLowerCase();
+  const sub = String(subscriptionStatus || "").trim().toLowerCase();
+
+  const isActive = sub === "active" || reg === "activated";
+  const isRejected = sub === "payment_rejected";
+  const isCancelled = sub === "cancelled";
+  const isPaused = sub === "paused";
+
+  subscriptionStatusNode.classList.remove("is-pending", "is-active", "is-rejected", "is-cancelled");
+  subscriptionStatusNode.classList.add("is-pending");
+  subscriptionStatusNode.textContent = "Suscripcion pendiente";
+
+  if (isActive) {
+    subscriptionStatusNode.classList.remove("is-pending");
+    subscriptionStatusNode.classList.add("is-active");
+    subscriptionStatusNode.textContent = "Suscripcion activa";
+  } else if (isRejected) {
+    subscriptionStatusNode.classList.remove("is-pending");
+    subscriptionStatusNode.classList.add("is-rejected");
+    subscriptionStatusNode.textContent = "Pago rechazado";
+  } else if (isCancelled || isPaused) {
+    subscriptionStatusNode.classList.remove("is-pending");
+    subscriptionStatusNode.classList.add("is-cancelled");
+    subscriptionStatusNode.textContent = isPaused ? "Suscripcion pausada" : "Suscripcion cancelada";
+  }
+
+  subscriptionMessageNode.textContent = String(message || "").trim() || "Sin novedades de suscripcion.";
+
+  const terminal = isTerminalSubscriptionState(registrationStatus, subscriptionStatus);
+  if (isActive) {
+    subscriptionRetryBtn?.classList.add("hidden");
+    subscriptionCancelBtn?.classList.add("hidden");
+  } else {
+    subscriptionRetryBtn?.classList.remove("hidden");
+    subscriptionCancelBtn?.classList.toggle("hidden", terminal);
+  }
+}
+
+function setSubscriptionActionLink(initPoint) {
+  if (!subscriptionActionBtn) return;
+
+  const link = String(initPoint || "").trim();
+  if (!link) {
+    subscriptionActionBtn.classList.add("hidden");
+    delete subscriptionActionBtn.dataset.href;
+    return;
+  }
+
+  subscriptionActionBtn.dataset.href = link;
+  subscriptionActionBtn.classList.remove("hidden");
+}
+
+function handleSubscriptionActionClick() {
+  const link = String(subscriptionActionBtn?.dataset?.href || "").trim();
+  if (!link) {
+    registerFeedback.textContent = "No hay URL de checkout disponible.";
+    return;
+  }
+  redirectToSubscriptionCheckout(link);
+}
+
+async function handleSubscriptionRetryClick() {
+  const registrationId = getPendingSubscriptionRegistrationId();
+  if (!registrationId) {
+    renderSubscriptionUi({
+      registrationStatus: "awaiting_webhook",
+      subscriptionStatus: "pending_authorization",
+      message: "No encontramos un registro pendiente para consultar."
+    });
+    return;
+  }
+
+  await refreshSubscriptionStatus(registrationId, { allowPolling: true });
+}
+
+function handleSubscriptionCancelClick() {
+  stopSubscriptionStatusPolling();
+  clearPendingRegistration();
+  if (subscriptionBox) {
+    subscriptionBox.classList.add("hidden");
+  }
+}
+
+function persistPendingRegistration(registrationId, initPoint) {
+  try {
+    const normalizedId = String(registrationId || "").trim();
+    if (normalizedId) {
+      window.sessionStorage.setItem(SUBSCRIPTION_REG_ID_STORAGE_KEY, normalizedId);
+    }
+
+    const normalizedInitPoint = String(initPoint || "").trim();
+    if (normalizedInitPoint) {
+      window.sessionStorage.setItem(SUBSCRIPTION_INIT_POINT_STORAGE_KEY, normalizedInitPoint);
+      setSubscriptionActionLink(normalizedInitPoint);
+    }
+  } catch (_) {
+    // no-op
+  }
+}
+
+function getPendingSubscriptionRegistrationId() {
+  try {
+    return String(window.sessionStorage.getItem(SUBSCRIPTION_REG_ID_STORAGE_KEY) || "").trim();
+  } catch (_) {
+    return "";
+  }
+}
+
+function getPendingSubscriptionInitPoint() {
+  try {
+    return String(window.sessionStorage.getItem(SUBSCRIPTION_INIT_POINT_STORAGE_KEY) || "").trim();
+  } catch (_) {
+    return "";
+  }
+}
+
+function clearPendingRegistration() {
+  try {
+    window.sessionStorage.removeItem(SUBSCRIPTION_REG_ID_STORAGE_KEY);
+    window.sessionStorage.removeItem(SUBSCRIPTION_INIT_POINT_STORAGE_KEY);
+  } catch (_) {
+    // no-op
+  }
+  setSubscriptionActionLink("");
+}
+
+function redirectToSubscriptionCheckout(initPoint) {
+  const destination = String(initPoint || "").trim();
+  if (!destination) {
+    throw new Error("No se recibio init_point para continuar la suscripcion.");
+  }
+  window.location.href = destination;
+}
+
 function isValidCountry(countryName) {
   return Boolean(findExactCountry(countryName));
 }
@@ -583,6 +1074,16 @@ function normalizeText(value) {
 function getRegisterEndpoint() {
   const projectId = String(firebaseConfig?.projectId || "").trim();
   return `https://us-central1-${projectId}.cloudfunctions.net/registerEmployerProfile`;
+}
+
+function getCreateSubscriptionEndpoint() {
+  const projectId = String(firebaseConfig?.projectId || "").trim();
+  return `https://us-central1-${projectId}.cloudfunctions.net/createSubscriptionCheckout`;
+}
+
+function getSubscriptionStatusEndpoint() {
+  const projectId = String(firebaseConfig?.projectId || "").trim();
+  return `https://us-central1-${projectId}.cloudfunctions.net/getSubscriptionStatus`;
 }
 
 async function requestVerificationEmail(idToken) {

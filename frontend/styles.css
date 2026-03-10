@@ -591,6 +591,71 @@ h2 {
   border-top: 1px solid #e2e8f0;
 }
 
+.subscription-box {
+  margin-bottom: 1rem;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 0.75rem;
+  background: #f8fafc;
+  display: grid;
+  gap: 0.55rem;
+}
+
+.subscription-box-head {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.subscription-status {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: fit-content;
+  border-radius: 999px;
+  border: 1px solid #99f6e4;
+  background: #ecfeff;
+  color: #0f766e;
+  padding: 0.22rem 0.6rem;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+}
+
+.subscription-status.is-pending {
+  border-color: #fcd34d;
+  background: #fffbeb;
+  color: #92400e;
+}
+
+.subscription-status.is-active {
+  border-color: #86efac;
+  background: #f0fdf4;
+  color: #166534;
+}
+
+.subscription-status.is-rejected,
+.subscription-status.is-cancelled {
+  border-color: #fca5a5;
+  background: #fef2f2;
+  color: #991b1b;
+}
+
+.subscription-hint {
+  margin: 0;
+  color: #334155;
+  font-size: 0.9rem;
+}
+
+.subscription-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.subscription-actions button {
+  margin-top: 0;
+}
+
 form {
   display: grid;
   gap: 0.5rem;
@@ -1687,6 +1752,10 @@ button:disabled {
     max-width: 320px;
     font-size: 0.77rem;
     padding: 0.58rem 0.62rem;
+  }
+
+  .subscription-actions button {
+    width: 100%;
   }
 
   .stock-filters {

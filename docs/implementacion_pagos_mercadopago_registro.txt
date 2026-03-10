@@ -1,0 +1,496 @@
+Implementacion de suscripciones con Mercado Pago en registro de negocio
+
+Objetivo
+- Implementar suscripciones recurrentes con Mercado Pago (no pago unico).
+- Usar los planes actuales que ya existen en Firebase (coleccion "planes").
+- Mantener alta automatica para plan gratuito ("prueba").
+- Enviar emails desde backend con estado de suscripcion, usando admin@stockfacil.com.ar.
+
+Decisiones de arquitectura
+- Proveedor: Mercado Pago.
+- Modelo de cobro: suscripcion recurrente (preapproval / auto_recurring).
+- Fuente de planes: Firestore "planes" (backend toma monto y configuracion desde ahi).
+- Email saliente: backend (Cloud Functions) usando la integracion actual con Resend y remitente admin@stockfacil.com.ar.
+
+Criterio de activacion de cuenta (obligatorio)
+- Plan "prueba": alta inmediata.
+- Plan pago: alta del tenant/usuario solo cuando exista evidencia de cobro inicial exitoso (primer payment approved asociado a la suscripcion).
+- No habilitar acceso solo por "authorized" si no hay confirmacion de cobro.
+
+Flujo funcional propuesto
+1) Usuario completa formulario en registro y elige plan.
+2) Si plan = "prueba":
+   - Flujo actual: registerEmployerProfile crea usuario + tenant.
+   - Se envia email de verificacion (flujo existente).
+3) Si plan != "prueba":
+   - Frontend llama createSubscriptionCheckout.
+   - Backend valida payload + token Firebase.
+   - Backend relee plan en Firestore (id, precio, moneda, intervalo).
+   - Backend crea pending_registrations/{registrationId}.
+   - Backend crea suscripcion en Mercado Pago (preapproval) con campos completos.
+   - Frontend redirige al init_point de Mercado Pago.
+4) Usuario autoriza la suscripcion en Mercado Pago.
+5) Mercado Pago envia webhook (eventos de preapproval y/o pagos).
+6) Backend valida firma, consulta API de Mercado Pago y aplica idempotencia.
+7) Si hay primer pago aprobado:
+   - Backend finaliza alta de usuario/tenant.
+   - Guarda datos de suscripcion en tenant y usuario.
+   - Envia email de "suscripcion activa" al cliente y copia a admin@stockfacil.com.ar.
+8) Frontend consulta getSubscriptionStatus al volver del checkout y muestra estado real.
+9) Job programado de reconciliacion revisa pendientes y corrige desfasajes por webhook perdido/tardio.
+
+Requisitos de planes en Firebase
+- La web debe usar los planes actuales, pero el backend necesita campos parseables para suscripcion.
+- Campos minimos recomendados por cada plan en "planes/{planId}":
+  - activo: boolean
+  - titulo: string
+  - precioMensual: number (no string con simbolo)
+  - moneda: "ARS" (u otra)
+  - intervalo: "months"
+  - intervaloCantidad: 1
+- Si hoy el precio esta como texto (ej: "$10.000"), agregar campo numerico adicional sin romper UI actual.
+
+Cambios concretos por archivo (los que haria)
+
+1) frontend/registro.html
+- Agregar estado de suscripcion en pantalla:
+  - "Suscripcion pendiente de autorizacion"
+  - "Suscripcion activa"
+  - "Suscripcion rechazada/cancelada"
+- Mostrar boton "Ir a suscribirme con Mercado Pago" para planes pagos.
+
+2) frontend/js/registro.js
+- Ajustar handleRegisterSubmit:
+  - Si plan prueba: flujo actual.
+  - Si plan pago: llamar createSubscriptionCheckout y redirigir a init_point.
+- Leer query params de retorno.
+- Consultar getSubscriptionStatus para mostrar estado real post-checkout.
+- Evitar doble submit y doble creacion de checkout.
+
+2.1) Modificaciones frontend detalladas (obligatorias para adaptar la UX)
+- frontend/registro.html (nuevos elementos sugeridos):
+  - Contenedor de estado: #register-subscription-box
+  - Badge de estado: #register-subscription-status
+  - Texto de detalle: #register-subscription-message
+  - Boton principal de suscripcion: #register-subscription-btn
+  - Boton reintentar consulta: #register-subscription-retry-btn
+  - Boton cancelar intento: #register-subscription-cancel-btn
+- frontend/styles.css (nuevas clases sugeridas):
+  - .subscription-box
+  - .subscription-status (variantes: is-pending, is-active, is-rejected, is-cancelled)
+  - .subscription-actions
+  - .subscription-hint
+- frontend/js/registro.js (nuevas funciones sugeridas):
+  - resolveSelectedPlanMeta()
+  - isPaidPlan(planId)
+  - createSubscriptionCheckout(payload, idToken)
+  - redirectToSubscriptionCheckout(initPoint)
+  - readCheckoutReturnParams()
+  - loadSubscriptionStatus(registrationId, idToken)
+  - startSubscriptionStatusPolling(registrationId, idToken)
+  - stopSubscriptionStatusPolling()
+  - renderSubscriptionUi({ registrationStatus, subscriptionStatus, message })
+  - persistPendingRegistrationId(registrationId)
+  - clearPendingRegistrationId()
+- Comportamiento UX que debe quedar implementado:
+  - Si plan = prueba:
+    - Mantener boton "Crear negocio" y flujo actual.
+  - Si plan pago:
+    - Mostrar CTA "Ir a suscribirme con Mercado Pago".
+    - Al crear checkout: deshabilitar formulario + mostrar estado "pending_authorization".
+    - Al volver de Mercado Pago: leer params y consultar estado backend.
+    - Si estado pendiente: polling corto (ej: 30-90 segundos) y luego habilitar reintento manual.
+    - Si estado activo: mostrar confirmacion y redirigir al siguiente paso (verificar correo / panel segun regla).
+    - Si estado rechazado/cancelado: mostrar mensaje claro + permitir reiniciar checkout.
+- Reglas de robustez frontend:
+  - Guardar registrationId en sessionStorage para recuperar flujo tras refresh.
+  - No confiar en query params para decidir exito; siempre preguntar al backend.
+  - Evitar doble click / doble submit con lock + loader.
+  - Si createSubscriptionCheckout falla, restaurar controles y mantener datos del formulario.
+- Ajustes adicionales frontend recomendados:
+  - frontend/js/login.js:
+    - Si perfil empleador existe pero subscription.status != active en planes pagos, redirigir a pantalla de estado de suscripcion.
+  - frontend/panel.html + frontend/js/panel.js:
+    - Mostrar badge de plan/suscripcion (active, payment_rejected, paused, cancelled).
+    - Si status no activo, limitar acciones sensibles y mostrar CTA para regularizar.
+
+3) functions/src/registerEmployerProfile.js
+- Refactor para reutilizar alta final (helper finalizeEmployerRegistration).
+- Dejar endpoint actual para plan prueba.
+- Para plan pago, solo permitir finalizacion desde flujo de suscripcion validado.
+
+4) functions/src/createSubscriptionCheckout.js (nuevo)
+- onRequest con token Firebase.
+- Valida payload igual que registerEmployerProfile.
+- Relee plan en Firestore (fuente de verdad de monto/intervalo).
+- Crea pending_registrations/{registrationId}:
+  - uid, email, payload, planId, amount, currency
+  - provider="mercadopago"
+  - registrationStatus="checkout_created"
+  - subscriptionStatus="pending_authorization"
+  - externalReference, attempts, createdAt, updatedAt, expiresAt
+- Crea preapproval en Mercado Pago y retorna:
+  - init_point
+  - registrationId
+  - preapprovalId
+- Campos obligatorios del preapproval (backend):
+  - payer_email
+  - reason
+  - external_reference
+  - back_url
+  - notification_url
+  - auto_recurring.transaction_amount
+  - auto_recurring.currency_id
+  - auto_recurring.frequency
+  - auto_recurring.frequency_type
+  - auto_recurring.start_date (si se usa alta diferida)
+
+5) functions/src/mercadoPagoWebhook.js (nuevo)
+- Recibe eventos de Mercado Pago.
+- Verifica firma (x-signature) usando req.rawBody (bytes crudos del request).
+- Consulta recurso real en API MP (no confiar ciegamente en payload entrante).
+- Resuelve external_reference -> pending_registration.
+- Idempotencia estricta (no reprocesar eventos ya aplicados).
+- Actualiza estado de suscripcion:
+  - pending_authorization
+  - active
+  - paused
+  - cancelled
+  - payment_rejected
+- Si llega primer payment approved:
+  - Ejecuta finalizeEmployerRegistration una sola vez.
+- Dispara envio de email segun transicion de estado.
+
+6) functions/src/getSubscriptionStatus.js (nuevo)
+- Endpoint para frontend:
+  - Entrada: registrationId + token Firebase.
+  - Salida: registrationStatus + subscriptionStatus + mensaje de UI.
+
+7) functions/src/reconcileSubscriptions.js (nuevo, programado)
+- Funcion programada (ejemplo: cada 15/30 min).
+- Revisa pending_registrations vencidas o pendientes.
+- Consulta estado en API MP y corrige Firestore.
+- Reintenta envio de emails fallidos.
+
+8) functions/src/sendSubscriptionStatusEmail.js (nuevo)
+- Reutilizar logica de envio via Resend (como sendEmployerVerificationEmail).
+- Enviar desde admin@stockfacil.com.ar (RESEND_FROM).
+- Destinatarios:
+  - email del negocio (owner)
+  - copia a admin@stockfacil.com.ar
+- Matriz de eventos a email:
+  - checkout_created -> "Suscripcion iniciada"
+  - pending_authorization -> "Autoriza tu suscripcion"
+  - first_payment_approved / active -> "Suscripcion activa"
+  - payment_rejected -> "Pago rechazado"
+  - paused -> "Suscripcion pausada"
+  - cancelled -> "Suscripcion cancelada"
+
+9) functions/index.js
+- Exportar:
+  - createSubscriptionCheckout
+  - mercadoPagoWebhook
+  - getSubscriptionStatus
+  - reconcileSubscriptions
+
+10) Firestore (modelo de datos unificado)
+- Nueva coleccion: pending_registrations
+  - uid, email, payload, planId
+  - amount, currency
+  - provider
+  - registrationStatus (checkout_created | awaiting_webhook | activated | failed | expired)
+  - subscriptionStatus (pending_authorization | active | paused | cancelled | payment_rejected)
+  - preapprovalId
+  - externalReference
+  - firstPaymentApprovedAt
+  - lastEventId
+  - lastWebhookAt
+  - errorReason
+  - createdAt, updatedAt, expiresAt
+- En tenants y usuarios:
+  - plan
+  - subscription.provider
+  - subscription.status
+  - subscription.preapprovalId
+  - subscription.lastPaymentStatus
+  - subscription.currentPeriodStart
+  - subscription.currentPeriodEnd
+  - subscription.updatedAt
+
+11) Configuracion de secretos y correo
+- Secret Manager / env:
+  - MERCADOPAGO_ACCESS_TOKEN
+  - MERCADOPAGO_WEBHOOK_SECRET
+  - RESEND_API_KEY
+  - RESEND_FROM=admin@stockfacil.com.ar
+  - APP_BASE_URL=https://stockfacil.com.ar
+- Si el dominio de Google Workspace ya esta verificado en Resend, se puede enviar desde admin@stockfacil.com.ar sin SMTP extra.
+
+12) Reglas y monitoreo
+- Firestore rules:
+  - pending_registrations accesible solo por owner y admin.
+- Logs de auditoria:
+  - evento webhook recibido
+  - validacion firma
+  - transicion de estado aplicada
+  - alta final ejecutada (si/no)
+  - email enviado (ok/error)
+
+Validaciones clave
+- Monto e intervalo SIEMPRE tomados de Firestore, nunca del frontend.
+- Confirmar estado consultando API MP (no confiar en query params de retorno).
+- Una sola suscripcion pendiente activa por uid+plan.
+- Idempotencia por eventId/webhook y por preapprovalId.
+- Revalidar que email del payload coincida con email del token Firebase.
+
+MVP recomendado (orden de implementacion)
+1) Normalizar campos de planes en Firestore (precio numerico + moneda + intervalo).
+2) Crear createSubscriptionCheckout + pending_registrations.
+3) Crear webhook + finalizacion idempotente.
+4) Integrar frontend en registro.js.
+5) Agregar sendSubscriptionStatusEmail.
+6) Agregar reconcileSubscriptions programado.
+7) Pruebas end-to-end en sandbox de Mercado Pago.
+
+Pruebas minimas
+- Registro con plan prueba (sin cambios).
+- Registro con plan pago + primer pago aprobado -> alta creada.
+- Suscripcion autorizada pero sin cobro -> no habilitar alta.
+- Suscripcion rechazada/cancelada.
+- Renovacion con pago rechazado y email de aviso.
+- Reenvio duplicado de webhook.
+- Webhook perdido y recuperacion por reconciliacion.
+- Usuario que intenta crear multiples checkouts simultaneos.
+- Corte de red entre redirect y retorno.
+
+================================================================
+Plan de ejecucion por bloques (tareas tecnicas ejecutables)
+================================================================
+
+Estado verificado del repo (actual)
+- Backend:
+  - createSubscriptionCheckout implementado y exportado.
+  - adminManagePlans ya valida campos de suscripcion.
+  - mercadoPagoWebhook implementado con finalizacion idempotente + notificaciones email.
+  - sendSubscriptionStatusEmail implementado.
+  - reconcileSubscriptions implementado (scheduler) y exportado.
+- Frontend:
+  - registro.html, styles.css y registro.js adaptados en progreso (UI + branch de plan pago).
+- Pendientes criticos:
+  - configurar secretos y despliegue real en Firebase (MERCADOPAGO_* y RESEND_*).
+  - registrar URL de webhook productiva/sandbox en Mercado Pago.
+  - pruebas reales end-to-end en Firebase + Mercado Pago
+  - integrar bloqueo/estado de suscripcion en login y panel (Bloque 8).
+- Estado global:
+  - Bloque 0 completado.
+  - Bloques 1 y 2 en progreso avanzado (codificado, falta prueba real).
+  - Bloque 3 en progreso avanzado (codificado, falta prueba real de retorno).
+  - Bloques 4 y 5 en progreso avanzado (codificados, falta prueba real).
+  - Bloques 6 y 7 en progreso avanzado (codificados, falta prueba real + deploy).
+
+Bloque 0 - Base tecnica y contratos
+Objetivo
+- Definir contratos de datos y estados unificados para no reescribir despues.
+Tareas
+- Congelar enums:
+  - registrationStatus: checkout_created | awaiting_webhook | activated | failed | expired
+  - subscriptionStatus: pending_authorization | active | paused | cancelled | payment_rejected
+- Definir shape de pending_registrations.
+- Definir contratos HTTP:
+  - createSubscriptionCheckout
+  - getSubscriptionStatus
+Archivos
+- docs/implementacion_pagos_mercadopago_registro.txt
+- (opcional) docs/subscription_api_contracts.txt
+Criterio de cierre
+- Contratos escritos y consistentes en todo el documento.
+Estado actual
+- Completado (contratos definidos en este documento).
+
+Bloque 1 - Datos de planes en Firebase
+Objetivo
+- Asegurar que cada plan tenga datos compatibles con suscripcion.
+Tareas
+- En Firestore planes/{id}, garantizar:
+  - activo (bool)
+  - precioMensual (number)
+  - moneda (string, ej ARS)
+  - intervalo (months)
+  - intervaloCantidad (1)
+- Mantener campo de precio visual actual para frontend si ya existe (precio string).
+- Agregar validacion backend para bloquear planes sin datos numericos validos.
+Archivos
+- functions/src/adminManagePlans.js (validaciones nuevas)
+- datos en Firestore
+Criterio de cierre
+- createSubscriptionCheckout puede leer monto sin parseos ambiguos.
+Estado actual
+- En progreso (validaciones de backend codificadas, falta ajustar datos reales en Firestore y probar).
+
+Bloque 2 - Endpoint createSubscriptionCheckout
+Objetivo
+- Crear checkout de suscripcion y registro pendiente.
+Tareas
+- Crear functions/src/createSubscriptionCheckout.js.
+- Validar token Firebase (Bearer) + payload completo.
+- Revalidar que email payload == email del token.
+- Validar que no exista pending activa para uid+plan.
+- Crear pending_registrations/{registrationId}.
+- Crear preapproval en Mercado Pago y retornar init_point + registrationId + preapprovalId.
+- Registrar idempotency key para evitar duplicados.
+Archivos
+- functions/src/createSubscriptionCheckout.js
+- functions/index.js (export)
+- functions/package.json (si se agrega SDK MP)
+Criterio de cierre
+- Endpoint responde 200 con init_point en escenario valido.
+- Endpoint responde error controlado en escenarios invalidos.
+Estado actual
+- En progreso avanzado (endpoint codificado con notificacion email inicial; falta prueba real con token y credenciales MP).
+
+Bloque 3 - Frontend registro adaptado a suscripcion
+Objetivo
+- Cambiar UX de registro para plan pago sin romper plan prueba.
+Tareas
+- registro.html:
+  - agregar #register-subscription-box y acciones de estado.
+- styles.css:
+  - estilos para estados pending/active/rejected/cancelled.
+- registro.js:
+  - ramificar submit:
+    - plan prueba -> flujo actual
+    - plan pago -> createSubscriptionCheckout + redirect
+  - leer params de retorno
+  - consultar getSubscriptionStatus
+  - guardar registrationId en sessionStorage
+  - lock de submit y restauracion de UI en error
+Archivos
+- frontend/registro.html
+- frontend/styles.css
+- frontend/js/registro.js
+Criterio de cierre
+- En plan pago no se llama registerEmployerProfile directo.
+- Usuario ve estado de suscripcion claro antes y despues del checkout.
+Estado actual
+- En progreso (frontend adaptado en codigo, falta prueba real de retorno y ajustes UX finales).
+
+Bloque 4 - Webhook Mercado Pago + finalizacion idempotente
+Objetivo
+- Activar cuenta solo con evidencia de primer cobro aprobado.
+Tareas
+- Crear functions/src/mercadoPagoWebhook.js.
+- Validar firma webhook con req.rawBody.
+- Consultar recurso real en API MP.
+- Resolver external_reference -> pending_registration.
+- Procesar estado e idempotencia por eventId + preapprovalId.
+- Si primer payment approved:
+  - ejecutar finalizeEmployerRegistration una sola vez.
+- Actualizar registrationStatus/subscriptionStatus.
+Archivos
+- functions/src/mercadoPagoWebhook.js
+- functions/src/registerEmployerProfile.js (refactor helper finalizeEmployerRegistration)
+- functions/index.js (export)
+Criterio de cierre
+- Reenvio de webhook no crea dobles tenants.
+- Sin first payment approved no hay alta activa.
+Estado actual
+- En progreso (codificado en backend, falta prueba real con webhooks de Mercado Pago).
+
+Bloque 5 - Endpoint getSubscriptionStatus
+Objetivo
+- Permitir que frontend consulte estado real post-checkout.
+Tareas
+- Crear functions/src/getSubscriptionStatus.js.
+- Validar token + ownership del registrationId.
+- Devolver registrationStatus, subscriptionStatus, message.
+Archivos
+- functions/src/getSubscriptionStatus.js
+- functions/index.js (export)
+Criterio de cierre
+- Frontend puede mostrar estado consistente incluso si el webhook tarda.
+Estado actual
+- En progreso (codificado en backend, falta prueba real desde frontend).
+
+Bloque 6 - Emails de estado de suscripcion
+Objetivo
+- Notificar al cliente y a admin sobre transiciones relevantes.
+Tareas
+- Crear functions/src/sendSubscriptionStatusEmail.js.
+- Reutilizar integracion de Resend.
+- Enviar desde RESEND_FROM=admin@stockfacil.com.ar.
+- Eventos minimos:
+  - checkout_created
+  - pending_authorization
+  - first_payment_approved/active
+  - payment_rejected
+  - paused
+  - cancelled
+Archivos
+- functions/src/sendSubscriptionStatusEmail.js
+- functions/src/mercadoPagoWebhook.js (llamadas)
+- configuracion secrets/env
+Criterio de cierre
+- Se envian correos en eventos definidos y quedan logueados.
+Estado actual
+- En progreso avanzado (helper codificado e integrado en createSubscriptionCheckout, mercadoPagoWebhook y reconcileSubscriptions; falta prueba real de entrega y ajustes finos de plantilla).
+
+Bloque 7 - Reconciliacion programada
+Objetivo
+- Corregir pendientes por webhook perdido/tardio.
+Tareas
+- Crear functions/src/reconcileSubscriptions.js (scheduler).
+- Escanear pending_registrations en estado pendiente/vencido.
+- Consultar MP y sincronizar estados.
+- Reintentar emails fallidos.
+Archivos
+- functions/src/reconcileSubscriptions.js
+- functions/index.js (export)
+Criterio de cierre
+- Pendientes atascados se corrigen automaticamente.
+Estado actual
+- En progreso avanzado (scheduler codificado y exportado; falta deploy, configuracion de scheduler en entorno real y validacion con casos de webhook perdido/tardio).
+
+Bloque 8 - Integracion en login/panel y reglas operativas
+Objetivo
+- Aplicar estado de suscripcion al acceso y experiencia.
+Tareas
+- login.js:
+  - si plan pago no activo, redirigir a estado de suscripcion.
+- panel.js / panel.html:
+  - mostrar badge de estado.
+  - bloquear acciones sensibles si no esta activo (segun politica).
+- Firestore rules:
+  - pending_registrations solo owner/admin.
+Archivos
+- frontend/js/login.js
+- frontend/js/panel.js
+- frontend/panel.html
+- firestore.rules
+Criterio de cierre
+- Usuario sin suscripcion activa no usa el panel completo.
+Estado actual
+- Pendiente.
+
+Bloque 9 - QA y salida a produccion
+Objetivo
+- Validar flujo completo en sandbox y luego en produccion.
+Tareas
+- Ejecutar casos de pruebas minimas definidos arriba.
+- Probar duplicados, cortes de red y reintentos.
+- Revisar logs de functions y correos.
+- Activar monitoreo basico de errores webhook.
+Criterio de cierre
+- Todos los casos criticos en verde.
+Estado actual
+- Pendiente.
+
+Orden recomendado de implementacion real
+1) Bloque 1
+2) Bloque 2
+3) Bloque 3
+4) Bloque 4
+5) Bloque 5
+6) Bloque 6
+7) Bloque 7
+8) Bloque 8
+9) Bloque 9

@@ -1,0 +1,31 @@
+Rotar credenciales = cambiar claves/tokens por nuevos y dejar invalidos los viejos para que, si alguien vio los anteriores, ya no sirvan.
+
+En tu caso, rota al menos:
+1. MERCADOPAGO_ACCESS_TOKEN
+2. MERCADOPAGO_WEBHOOK_SECRET
+3. MERCADOPAGO_CLIENT_SECRET (si usas OAuth de MP)
+MERCADOPAGO_PUBLIC_KEY no es sensible, pero puedes renovarla tambien.
+
+Pasos practicos:
+
+1. En Mercado Pago Developer, genera nuevos valores (access token y secret de webhook).
+2. Cargalos en Firebase Secret Manager (PowerShell):
+
+@'
+NUEVO_ACCESS_TOKEN
+'@ | firebase.cmd functions:secrets:set MERCADOPAGO_ACCESS_TOKEN --project kiosco-stock-493c6 --data-file=- -f
+
+@'
+NUEVO_WEBHOOK_SECRET
+'@ | firebase.cmd functions:secrets:set MERCADOPAGO_WEBHOOK_SECRET --project kiosco-stock-493c6 --data-file=- -f
+
+@'
+NUEVO_CLIENT_SECRET
+'@ | firebase.cmd functions:secrets:set MERCADOPAGO_CLIENT_SECRET --project kiosco-stock-493c6 --data-file=- -f
+
+3. En Mercado Pago, deja configurado el webhook con:
+- URL: https://us-central1-kiosco-stock-493c6.cloudfunctions.net/mercadoPagoWebhook
+- Secret: el nuevo MERCADOPAGO_WEBHOOK_SECRET
+
+4. Revoca/elimina los valores anteriores en Mercado Pago.
+5. Haz una prueba de suscripcion real/sandbox para validar webhook + cobro.

@@ -70,6 +70,10 @@ async function updatePlan(payload) {
   const updates = {
     titulo: String(payload?.titulo || "").trim(),
     precio: String(payload?.precio || "").trim(),
+    precioMensual: toNonNegativeAmount(payload?.precioMensual, payload?.precio),
+    moneda: normalizeCurrency(payload?.moneda || payload?.currency || "ARS"),
+    intervalo: normalizeInterval(payload?.intervalo || payload?.interval || "months"),
+    intervaloCantidad: toPositiveInteger(payload?.intervaloCantidad ?? payload?.intervalCount ?? 1) || 1,
     descripcion: String(payload?.descripcion || "").trim(),
     caracteristicas: toFeatures(payload?.caracteristicas),
     activo: Boolean(payload?.activo),
@@ -82,7 +86,15 @@ async function updatePlan(payload) {
     throw { status: 400, message: "El titulo del plan es obligatorio." };
   }
   if (!updates.precio) {
-    throw { status: 400, message: "El precio del plan es obligatorio." };
+    updates.precio = id === "prueba" ? "Gratis" : "";
+  }
+  if (!updates.precio) {
+    throw { status: 400, message: "El precio visual del plan es obligatorio." };
+  }
+
+  const isTrialPlan = id === "prueba";
+  if (!isTrialPlan && updates.precioMensual <= 0) {
+    throw { status: 400, message: "El precioMensual debe ser mayor a 0 para planes pagos." };
   }
 
   await planRef.set(updates, { merge: true });
@@ -96,6 +108,10 @@ function normalizePlan(raw) {
     id: String(plan.id || "").trim().toLowerCase(),
     titulo: String(plan.titulo || plan.nombre || "").trim(),
     precio: String(plan.precio || "").trim(),
+    precioMensual: toNonNegativeAmount(plan.precioMensual, plan.precio),
+    moneda: normalizeCurrency(plan.moneda || plan.currency || "ARS"),
+    intervalo: normalizeInterval(plan.intervalo || plan.interval || "months"),
+    intervaloCantidad: toPositiveInteger(plan.intervaloCantidad ?? plan.intervalCount ?? 1) || 1,
     descripcion: String(plan.descripcion || "").trim(),
     caracteristicas: toFeatures(plan.caracteristicas),
     activo: plan.activo !== false,
@@ -118,6 +134,78 @@ function toPositiveInteger(value) {
   const parsed = Number(value);
   if (!Number.isFinite(parsed) || parsed < 0) return 0;
   return Math.trunc(parsed);
+}
+
+function toNonNegativeAmount(value, fallback) {
+  const direct = parseAmount(value);
+  if (Number.isFinite(direct) && direct >= 0) {
+    return roundCurrency(direct);
+  }
+  const fromFallback = parseAmount(fallback);
+  if (Number.isFinite(fromFallback) && fromFallback >= 0) {
+    return roundCurrency(fromFallback);
+  }
+  return 0;
+}
+
+function parseAmount(valueLike) {
+  if (typeof valueLike === "number") {
+    return Number.isFinite(valueLike) ? valueLike : Number.NaN;
+  }
+
+  const raw = String(valueLike || "").trim();
+  if (!raw) return Number.NaN;
+
+  let normalized = raw.replace(/[^\d,.\-]/g, "");
+  if (!normalized) return Number.NaN;
+
+  const hasComma = normalized.includes(",");
+  const hasDot = normalized.includes(".");
+
+  if (hasComma && hasDot) {
+    const lastComma = normalized.lastIndexOf(",");
+    const lastDot = normalized.lastIndexOf(".");
+    if (lastComma > lastDot) {
+      normalized = normalized.replaceAll(".", "").replace(",", ".");
+    } else {
+      normalized = normalized.replaceAll(",", "");
+    }
+  } else if (hasComma) {
+    const parts = normalized.split(",");
+    const decimalPart = parts[parts.length - 1] || "";
+    if (decimalPart.length <= 2) {
+      normalized = parts.slice(0, -1).join("") + "." + decimalPart;
+    } else {
+      normalized = parts.join("");
+    }
+  } else if (hasDot) {
+    const parts = normalized.split(".");
+    const decimalPart = parts[parts.length - 1] || "";
+    if (decimalPart.length > 2) {
+      normalized = parts.join("");
+    }
+  }
+
+  const parsed = Number(normalized);
+  if (!Number.isFinite(parsed)) return Number.NaN;
+  return parsed;
+}
+
+function roundCurrency(value) {
+  return Math.round(Number(value) * 100) / 100;
+}
+
+function normalizeCurrency(valueLike) {
+  const value = String(valueLike || "").trim().toUpperCase();
+  if (!value) return "ARS";
+  return value.slice(0, 3);
+}
+
+function normalizeInterval(valueLike) {
+  const value = String(valueLike || "").trim().toLowerCase();
+  if (value === "day" || value === "days") return "days";
+  if (value === "month" || value === "months") return "months";
+  return "months";
 }
 
 function setCors(res) {

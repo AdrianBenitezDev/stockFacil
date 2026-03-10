@@ -28,6 +28,10 @@ const { getMyShiftStatus } = require("./src/getMyShiftStatus");
 const { registerEmergencyShiftStart } = require("./src/registerEmergencyShiftStart");
 const { registerSalesAuditEvent } = require("./src/registerSalesAuditEvent");
 const { deleteCashRecord } = require("./src/deleteCashRecord");
+const { createSubscriptionCheckout } = require("./src/createSubscriptionCheckout");
+const { mercadoPagoWebhook } = require("./src/mercadoPagoWebhook");
+const { getSubscriptionStatus } = require("./src/getSubscriptionStatus");
+const { reconcileSubscriptions } = require("./src/reconcileSubscriptions");
 
 
 exports.bootstrapGoogleUser = bootstrapGoogleUser;
@@ -61,3 +65,7 @@ exports.getMyShiftStatus = getMyShiftStatus;
 exports.registerEmergencyShiftStart = registerEmergencyShiftStart;
 exports.registerSalesAuditEvent = registerSalesAuditEvent;
 exports.deleteCashRecord = deleteCashRecord;
+exports.createSubscriptionCheckout = createSubscriptionCheckout;
+exports.mercadoPagoWebhook = mercadoPagoWebhook;
+exports.getSubscriptionStatus = getSubscriptionStatus;
+exports.reconcileSubscriptions = reconcileSubscriptions;

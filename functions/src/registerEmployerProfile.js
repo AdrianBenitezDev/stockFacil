@@ -9,6 +9,7 @@ const ALLOWED_ORIGINS = new Set([
 const BUSINESS_CUSTOM_LABEL_MAX = 30;
 const CUSTOM_BUSINESS_TYPE_ID = "custom";
 const DEFAULT_BUSINESS_TYPE_ID = "kiosco";
+const DEFAULT_SUBSCRIPTION_PROVIDER = "mercadopago";
 
 const registerEmployerProfile = onRequest(async (req, res) => {
   if (!setCors(req, res)) {
@@ -39,81 +40,28 @@ const registerEmployerProfile = onRequest(async (req, res) => {
     }
 
     const authUser = await adminAuth.getUser(uid);
-    const catalog = await loadBusinessCatalog();
-    const payload = await normalizePayload(req.body || {}, authUser.email || "", catalog);
+    const payload = await normalizeRegistrationPayload(req.body || {}, authUser.email || "");
     if (!payload.ok) {
       res.status(400).json({ ok: false, error: payload.error, fieldErrors: payload.fieldErrors || {} });
       return;
     }
 
-    const existingUser = await db.collection("usuarios").doc(uid).get();
-    if (existingUser.exists) {
-      res.status(409).json({ ok: false, error: "Este usuario ya esta registrado." });
-      return;
-    }
-
-    const existingByEmail = await db.collection("usuarios").where("email", "==", payload.data.email).limit(1).get();
-    if (!existingByEmail.empty) {
-      res.status(409).json({ ok: false, error: "Este usuario ya esta registrado." });
-      return;
-    }
-
-    const negocioRef = db.collection("tenants").doc();
-    const kioscoId = negocioRef.id;
-    const now = Timestamp.now();
-
-    const batch = db.batch();
-
-    batch.set(db.collection("usuarios").doc(uid), {
+    await assertUserNotRegistered({ uid, email: payload.data.email });
+    const finalizeResult = await finalizeEmployerRegistration({
       uid,
-      correoVerificado: false,
-      email: payload.data.email,
-      tipo: "empleador",
-      role: "empleador",
-      kioscoId,
-      tenantId: kioscoId,
-      estado: "activo",
-      activo: true,
-      nombreApellido: payload.data.nombreApellido,
-      domicilio: payload.data.domicilio,
-      pais: payload.data.pais,
-      telefono: payload.data.telefono,
-      plan: payload.data.plan,
-      businessTypeId: payload.data.businessTypeId,
-      businessTypeLabel: payload.data.businessTypeLabel,
-      fechaCreacion: now,
-      updatedAt: now
+      payloadData: payload.data
     });
-
-    batch.set(db.collection("tenants").doc(kioscoId), {
-      kioscoId,
-      ownerUid: uid,
-      emailOwner: payload.data.email,
-      nombreKiosco: payload.data.nombreKiosco,
-      pais: payload.data.pais,
-      provinciaEstado: payload.data.provinciaEstado,
-      distrito: payload.data.distrito,
-      localidad: payload.data.localidad,
-      domicilio: payload.data.domicilio,
-      plan: payload.data.plan,
-      businessTypeId: payload.data.businessTypeId,
-      businessTypeLabel: payload.data.businessTypeLabel,
-      estado: "activo",
-      createdAt: now,
-      updatedAt: now
-    });
-
-    await batch.commit();
-    await adminAuth.setCustomUserClaims(uid, { tenantId: kioscoId, role: "empleador" });
 
     res.status(200).json({
       ok: true,
-      kioscoId,
-      nid: kioscoId
+      kioscoId: finalizeResult.kioscoId,
+      nid: finalizeResult.kioscoId
     });
   } catch (error) {
     console.error("registerEmployerProfile fallo:", error);
-    res.status(500).json({ ok: false, error: "No se pudo completar el registro." });
+    const status = Number(error?.status || 500);
+    const message = status >= 500 ? "No se pudo completar el registro." : String(error?.message || "Error de registro.");
+    res.status(status).json({ ok: false, error: message });
   }
 });
 
@@ -219,6 +167,119 @@ async function normalizePayload(input, fallbackEmail, catalog) {
   return { ok: true, data };
 }
 
+async function normalizeRegistrationPayload(input, fallbackEmail) {
+  const catalog = await loadBusinessCatalog();
+  return normalizePayload(input, fallbackEmail, catalog);
+}
+
+async function assertUserNotRegistered({ uid, email }) {
+  const existingByUid = await db.collection("usuarios").doc(uid).get();
+  if (existingByUid.exists) {
+    throw { status: 409, message: "Este usuario ya esta registrado." };
+  }
+
+  const existingByEmail = await db.collection("usuarios").where("email", "==", email).limit(1).get();
+  if (!existingByEmail.empty) {
+    throw { status: 409, message: "Este usuario ya esta registrado." };
+  }
+}
+
+async function finalizeEmployerRegistration({ uid, payloadData, subscription = null }) {
+  const existingByUid = await db.collection("usuarios").doc(uid).get();
+  if (existingByUid.exists) {
+    const existingData = existingByUid.data() || {};
+    return {
+      kioscoId: String(existingData.kioscoId || existingData.tenantId || "").trim(),
+      alreadyExists: true
+    };
+  }
+
+  const existingByEmail = await db.collection("usuarios").where("email", "==", payloadData.email).limit(1).get();
+  if (!existingByEmail.empty) {
+    throw { status: 409, message: "Este usuario ya esta registrado." };
+  }
+
+  const now = Timestamp.now();
+  const negocioRef = db.collection("tenants").doc();
+  const kioscoId = negocioRef.id;
+  const subscriptionData = normalizeSubscriptionForWrite(subscription, now);
+
+  const userPayload = {
+    uid,
+    correoVerificado: false,
+    email: payloadData.email,
+    tipo: "empleador",
+    role: "empleador",
+    kioscoId,
+    tenantId: kioscoId,
+    estado: "activo",
+    activo: true,
+    nombreApellido: payloadData.nombreApellido,
+    domicilio: payloadData.domicilio,
+    pais: payloadData.pais,
+    telefono: payloadData.telefono,
+    plan: payloadData.plan,
+    businessTypeId: payloadData.businessTypeId,
+    businessTypeLabel: payloadData.businessTypeLabel,
+    fechaCreacion: now,
+    updatedAt: now
+  };
+
+  const tenantPayload = {
+    kioscoId,
+    ownerUid: uid,
+    emailOwner: payloadData.email,
+    nombreKiosco: payloadData.nombreKiosco,
+    pais: payloadData.pais,
+    provinciaEstado: payloadData.provinciaEstado,
+    distrito: payloadData.distrito,
+    localidad: payloadData.localidad,
+    domicilio: payloadData.domicilio,
+    plan: payloadData.plan,
+    businessTypeId: payloadData.businessTypeId,
+    businessTypeLabel: payloadData.businessTypeLabel,
+    estado: "activo",
+    createdAt: now,
+    updatedAt: now
+  };
+
+  if (subscriptionData) {
+    userPayload.subscription = subscriptionData;
+    userPayload.subscriptionStatus = subscriptionData.status;
+    tenantPayload.subscription = subscriptionData;
+    tenantPayload.subscriptionStatus = subscriptionData.status;
+  }
+
+  const batch = db.batch();
+  batch.set(db.collection("usuarios").doc(uid), userPayload);
+  batch.set(db.collection("tenants").doc(kioscoId), tenantPayload);
+  await batch.commit();
+
+  await adminAuth.setCustomUserClaims(uid, { tenantId: kioscoId, role: "empleador" });
+  return { kioscoId, alreadyExists: false };
+}
+
+function normalizeSubscriptionForWrite(subscriptionLike, nowTs) {
+  if (!subscriptionLike || typeof subscriptionLike !== "object") return null;
+
+  const provider = String(subscriptionLike.provider || DEFAULT_SUBSCRIPTION_PROVIDER).trim().toLowerCase();
+  const status = String(subscriptionLike.status || "").trim().toLowerCase();
+  if (!status) return null;
+
+  const currentPeriodStart = String(subscriptionLike.currentPeriodStart || "").trim();
+  const currentPeriodEnd = String(subscriptionLike.currentPeriodEnd || "").trim();
+  return {
+    provider,
+    status,
+    preapprovalId: String(subscriptionLike.preapprovalId || "").trim(),
+    lastPaymentStatus: String(subscriptionLike.lastPaymentStatus || "").trim().toLowerCase(),
+    lastPaymentId: String(subscriptionLike.lastPaymentId || "").trim(),
+    currentPeriodStart,
+    currentPeriodEnd,
+    updatedAt: nowTs
+  };
+}
+
 async function loadAvailablePlans() {
   try {
     const plansSnap = await db.collection("planes").get();
@@ -293,6 +354,9 @@ function isValidCustomBusinessLabel(valueLike) {
 }
 
 module.exports = {
-  registerEmployerProfile
+  registerEmployerProfile,
+  normalizeRegistrationPayload,
+  assertUserNotRegistered,
+  finalizeEmployerRegistration
 };
 

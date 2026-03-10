@@ -44,6 +44,18 @@
       <h1>Registrar Negocio</h1>
       <p class="subtitle">Completa tus datos y los de tu Negocio.</p>
 
+      <div id="register-subscription-box" class="subscription-box hidden" aria-live="polite">
+        <div class="subscription-box-head">
+          <strong id="register-subscription-status" class="subscription-status is-pending">Suscripcion pendiente</strong>
+          <p id="register-subscription-message" class="subscription-hint">Estamos esperando confirmacion de Mercado Pago.</p>
+        </div>
+        <div class="subscription-actions">
+          <button id="register-subscription-btn" type="button" class="hidden">Ir a suscribirme con Mercado Pago</button>
+          <button id="register-subscription-retry-btn" type="button" class="mode-btn-secondary hidden">Actualizar estado</button>
+          <button id="register-subscription-cancel-btn" type="button" class="mode-btn-secondary hidden">Cancelar intento</button>
+        </div>
+      </div>
+
       <form id="register-form" autocomplete="off">
         <h3>Datos personales</h3>
 
