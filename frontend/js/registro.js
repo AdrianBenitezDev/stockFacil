@@ -491,8 +491,16 @@ async function handleRegisterSubmit(event) {
     }
 
     registerFeedback.textContent = "Registro completado. Enviando correo de verificacion...";
-    await requestVerificationEmail(idToken);
-    const query = new URLSearchParams({ email: payload.email, sent: "1" });
+    let verificationSent = "0";
+    try {
+      await requestVerificationEmail(idToken);
+      verificationSent = "1";
+    } catch (emailError) {
+      console.error("No se pudo enviar el correo de verificacion:", emailError);
+      registerFeedback.textContent =
+        "Registro completado. No pudimos enviar el correo ahora, podras reenviarlo en la siguiente pantalla.";
+    }
+    const query = new URLSearchParams({ email: payload.email, sent: verificationSent });
     window.location.href = `verificar-correo.html?${query.toString()}`;
   } catch (error) {
     console.error(error);
