@@ -536,6 +536,61 @@ h2 {
   color: #64748b;
 }
 
+.video-guide {
+  margin-bottom: 1rem;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 0.75rem;
+  background: #f8fafc;
+}
+
+.video-guide-stack {
+  display: grid;
+  gap: 0.6rem;
+}
+
+.video-guide-title {
+  margin: 0;
+  color: #0f766e;
+  font-size: 1rem;
+}
+
+.video-guide-toggle {
+  border: 1px solid #cbd5e1;
+  border-radius: 10px;
+  background: #ffffff;
+  overflow: hidden;
+}
+
+.video-guide-toggle > summary {
+  list-style: none;
+  cursor: pointer;
+  padding: 0.7rem 0.85rem;
+  font-weight: 700;
+  color: #0f766e;
+}
+
+.video-guide-toggle > summary::-webkit-details-marker {
+  display: none;
+}
+
+.video-guide-toggle > summary::after {
+  content: "+";
+  float: right;
+}
+
+.video-guide-toggle[open] > summary::after {
+  content: "-";
+}
+
+.video-guide-player {
+  display: block;
+  width: 100%;
+  max-height: min(62vh, 460px);
+  background: #000000;
+  border-top: 1px solid #e2e8f0;
+}
+
 form {
   display: grid;
   gap: 0.5rem;
