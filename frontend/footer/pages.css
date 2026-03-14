@@ -51,6 +51,31 @@ body {
   border-radius: 12px;
   background: #f8fafc;
   color: #0f172a;
+  cursor: pointer;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.plan-card:hover {
+  border-color: #0f766e;
+  box-shadow: 0 6px 16px rgba(15, 118, 110, 0.12);
+}
+
+.cta-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-top: 1rem;
+  margin-right: 0.8rem;
+  padding: 0.55rem 0.9rem;
+  border-radius: 10px;
+  background: #0f766e;
+  color: #ffffff;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.cta-link:hover {
+  background: #0b5f59;
 }
 
 .plan-card-title {

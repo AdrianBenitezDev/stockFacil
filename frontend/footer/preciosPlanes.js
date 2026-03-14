@@ -3,14 +3,16 @@ import { firestoreDb } from "../config.js";
 
 const plansCards = document.getElementById("plans-cards");
 const plansFeedback = document.getElementById("plans-feedback");
+const REGISTER_URL = "../registro.html";
 
 init().catch((error) => {
   console.error("No se pudo inicializar preciosPlanes:", error);
-  setFeedback("No se pudieron cargar planes. Revisa conexion o reglas de Firebase.");
+  setFeedback("No se pudieron cargar planes. Revisa tu conexion.");
 });
 
 async function init() {
   if (!plansCards || !plansFeedback) return;
+  plansCards.addEventListener("click", handlePlanCardClick);
 
   setFeedback("Cargando planes...");
   const plans = await loadPlans();
@@ -77,6 +79,17 @@ function renderPlanCards(plans) {
       ].join("");
     })
     .join("");
+}
+
+function handlePlanCardClick(event) {
+  const card = event.target.closest("[data-plan-id]");
+  if (!card) return;
+
+  const shouldGoToRegister = window.confirm(
+    "Seleccionaste un plan. Quieres ir a la seccion de registro?"
+  );
+  if (!shouldGoToRegister) return;
+  window.location.href = REGISTER_URL;
 }
 
 function normalizePlanId(value) {
